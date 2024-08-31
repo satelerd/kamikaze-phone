@@ -34,21 +34,22 @@ const GyroscopeChart = () => {
 
   const checkGyroscopeAvailability = useCallback(() => {
     if (typeof window !== 'undefined' && 'DeviceOrientationEvent' in window) {
-      // Intentar acceder al evento de orientación
-      window.addEventListener('deviceorientation', function(event) {
+      const checkOrientation = (event: DeviceOrientationEvent) => {
         if (event.alpha !== null && event.beta !== null && event.gamma !== null) {
           setHasGyroscope(true);
-        } else {
-          setHasGyroscope(false);
+          setIsLoading(false);
+          window.removeEventListener('deviceorientation', checkOrientation);
         }
-        setIsLoading(false);
-      }, { once: true });
+      };
 
-      // Si después de 1 segundo no se ha detectado el evento, asumimos que no hay giroscopio
+      window.addEventListener('deviceorientation', checkOrientation);
+
+      // Si después de 2 segundos no se ha detectado el evento, asumimos que no hay giroscopio
       setTimeout(() => {
+        window.removeEventListener('deviceorientation', checkOrientation);
         setIsLoading(false);
         setHasGyroscope(false);
-      }, 1000);
+      }, 2000);
     } else {
       setHasGyroscope(false);
       setIsLoading(false);
@@ -106,12 +107,30 @@ const GyroscopeChart = () => {
   useEffect(() => {
     if (!permissionGranted || !hasGyroscope) return;
 
+    let lastUpdateTime = Date.now();
+    let checkInterval: NodeJS.Timeout;
+
     const handleOrientation = (event: DeviceOrientationEvent) => {
+      lastUpdateTime = Date.now();
       updateGyroData(event.beta || 0, event.gamma || 0, event.alpha || 0);
     };
 
+    const checkGyroscopeStatus = () => {
+      if (Date.now() - lastUpdateTime > 1000) {
+        // Si no ha habido actualizaciones en 1 segundo, consideramos que el giroscopio no está funcionando
+        setHasGyroscope(false);
+        window.removeEventListener('deviceorientation', handleOrientation);
+        clearInterval(checkInterval);
+      }
+    };
+
     window.addEventListener('deviceorientation', handleOrientation);
-    return () => window.removeEventListener('deviceorientation', handleOrientation);
+    checkInterval = setInterval(checkGyroscopeStatus, 1000);
+
+    return () => {
+      window.removeEventListener('deviceorientation', handleOrientation);
+      clearInterval(checkInterval);
+    };
   }, [permissionGranted, hasGyroscope, updateGyroData]);
 
   const handleJoystickMove = (x: number, y: number, z: number) => {
@@ -173,12 +192,22 @@ const GyroscopeChart = () => {
     maintainAspectRatio: false,
   };
 
-  const retryGyroscopeConnection = () => {
+  const retryGyroscopeConnection = useCallback(() => {
     setIsLoading(true);
     setHasGyroscope(true);
     setPermissionAttempted(false);
     requestGyroscopePermission();
-  };
+  }, [requestGyroscopePermission]);
+
+  useEffect(() => {
+    if (!hasGyroscope && permissionGranted) {
+      const retryTimer = setTimeout(() => {
+        retryGyroscopeConnection();
+      }, 5000); // Intenta reconectar cada 5 segundos
+
+      return () => clearTimeout(retryTimer);
+    }
+  }, [hasGyroscope, permissionGranted, retryGyroscopeConnection]);
 
   if (isLoading) {
     return <div className="text-center">Cargando...</div>;
