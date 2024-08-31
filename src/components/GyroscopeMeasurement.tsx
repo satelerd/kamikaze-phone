@@ -65,7 +65,7 @@ const GyroscopeMeasurement = () => {
     setTimeout(() => {
       window.removeEventListener('deviceorientation', handleOrientation);
       setIsMeasuring(false);
-    }, 5000);
+    }, 2500);
   }, []);
 
   const toggleAxis = (axis: 'x' | 'y' | 'z') => {
@@ -149,7 +149,7 @@ const GyroscopeMeasurement = () => {
         disabled={isMeasuring}
         className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
       >
-        {isMeasuring ? 'Midiendo...' : 'Iniciar medición (5 segundos)'}
+        {isMeasuring ? 'Midiendo...' : 'Iniciar medición (2,5 segundos)'}
       </button>
       <div className="mt-4">
         <div style={{ height: '400px' }}>
