@@ -86,19 +86,21 @@ const GyroscopeChart = () => {
       const newPoint = { x, y, z };
       const newPoints = [...prev, newPoint];
       
-      // Limitar a los últimos 1000 puntos para evitar problemas de rendimiento
-      if (newPoints.length > 1000) {
+      // Limitar a los últimos 500 puntos para mejorar el rendimiento
+      if (newPoints.length > 500) {
         newPoints.shift();
       }
       
-      // Actualizar el rango del gráfico
-      const allValues = newPoints.flatMap(p => [p.x, p.y, p.z]);
-      const minValue = Math.min(...allValues);
-      const maxValue = Math.max(...allValues);
-      setChartRange(prevRange => ({
-        min: Math.min(prevRange.min, minValue, -10),
-        max: Math.max(prevRange.max, maxValue, 10)
-      }));
+      // Actualizar el rango del gráfico cada 10 puntos
+      if (newPoints.length % 10 === 0) {
+        const allValues = newPoints.flatMap(p => [p.x, p.y, p.z]);
+        const minValue = Math.min(...allValues);
+        const maxValue = Math.max(...allValues);
+        setChartRange(prevRange => ({
+          min: Math.min(prevRange.min, minValue, -10),
+          max: Math.max(prevRange.max, maxValue, 10)
+        }));
+      }
 
       return newPoints;
     });
@@ -108,6 +110,7 @@ const GyroscopeChart = () => {
     if (!permissionGranted || !hasGyroscope) return;
 
     let lastUpdateTime = Date.now();
+    let heartbeatInterval: NodeJS.Timeout;
     let checkInterval: NodeJS.Timeout;
 
     const handleOrientation = (event: DeviceOrientationEvent) => {
@@ -116,19 +119,29 @@ const GyroscopeChart = () => {
     };
 
     const checkGyroscopeStatus = () => {
-      if (Date.now() - lastUpdateTime > 1000) {
-        // Si no ha habido actualizaciones en 1 segundo, consideramos que el giroscopio no está funcionando
+      if (Date.now() - lastUpdateTime > 3000) {
+        // Si no ha habido actualizaciones en 3 segundos, consideramos que el giroscopio no está funcionando
+        console.log('Gyroscope disconnected');
         setHasGyroscope(false);
         window.removeEventListener('deviceorientation', handleOrientation);
+        clearInterval(heartbeatInterval);
         clearInterval(checkInterval);
       }
     };
 
+    const gyroscopeHeartbeat = () => {
+      if ('DeviceMotionEvent' in window) {
+        window.dispatchEvent(new DeviceMotionEvent('devicemotion'));
+      }
+    };
+
     window.addEventListener('deviceorientation', handleOrientation);
+    heartbeatInterval = setInterval(gyroscopeHeartbeat, 1000);
     checkInterval = setInterval(checkGyroscopeStatus, 1000);
 
     return () => {
       window.removeEventListener('deviceorientation', handleOrientation);
+      clearInterval(heartbeatInterval);
       clearInterval(checkInterval);
     };
   }, [permissionGranted, hasGyroscope, updateGyroData]);
@@ -193,17 +206,19 @@ const GyroscopeChart = () => {
   };
 
   const retryGyroscopeConnection = useCallback(() => {
+    console.log('Retrying gyroscope connection');
     setIsLoading(true);
     setHasGyroscope(true);
     setPermissionAttempted(false);
+    checkGyroscopeAvailability();
     requestGyroscopePermission();
-  }, [requestGyroscopePermission]);
+  }, [checkGyroscopeAvailability, requestGyroscopePermission]);
 
   useEffect(() => {
     if (!hasGyroscope && permissionGranted) {
       const retryTimer = setTimeout(() => {
         retryGyroscopeConnection();
-      }, 5000); // Intenta reconectar cada 5 segundos
+      }, 3000); // Intenta reconectar cada 3 segundos
 
       return () => clearTimeout(retryTimer);
     }
