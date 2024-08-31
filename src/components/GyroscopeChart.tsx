@@ -72,6 +72,7 @@ const GyroscopeChart = () => {
       setPermissionGranted(true);
     }
     setPermissionAttempted(true);
+    checkGyroscopeAvailability();
   };
 
   useEffect(() => {
@@ -172,27 +173,15 @@ const GyroscopeChart = () => {
     maintainAspectRatio: false,
   };
 
+  const retryGyroscopeConnection = () => {
+    setIsLoading(true);
+    setHasGyroscope(true);
+    setPermissionAttempted(false);
+    requestGyroscopePermission();
+  };
+
   if (isLoading) {
     return <div className="text-center">Cargando...</div>;
-  }
-
-  if (!hasGyroscope) {
-    return (
-      <div className="text-center">
-        <p>No se detectó giroscopio. Usando controles virtuales.</p>
-        <VirtualControls onMove={handleJoystickMove} />
-        <div className="mt-4">
-          <div style={{ height: '400px' }}>
-            <Line data={chartData} options={options} />
-          </div>
-          <div className="mt-4 text-center">
-            <p>X: {gyroData.x.toFixed(2)}°</p>
-            <p>Y: {gyroData.y.toFixed(2)}°</p>
-            <p>Z: {gyroData.z.toFixed(2)}°</p>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   if (!permissionAttempted) {
@@ -212,8 +201,11 @@ const GyroscopeChart = () => {
   if (!permissionGranted || !hasGyroscope) {
     return (
       <div className="text-center">
-        <p>{hasGyroscope ? "No se concedieron permisos para acceder al giroscopio." : "No se detectó giroscopio. Usando joystick virtual."}</p>
-        {hasGyroscope && (
+        <p>{!permissionGranted 
+          ? "No se concedieron permisos para acceder al giroscopio." 
+          : "No se detectó giroscopio. Usando controles virtuales."}
+        </p>
+        {!permissionGranted && (
           <button 
             onClick={requestGyroscopePermission}
             className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
@@ -221,7 +213,23 @@ const GyroscopeChart = () => {
             Intentar de nuevo
           </button>
         )}
-        {!hasGyroscope && <VirtualControls onMove={handleJoystickMove} />}
+        <button 
+          onClick={retryGyroscopeConnection}
+          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          Volver a intentar conexión con giroscopio
+        </button>
+        {permissionGranted && !hasGyroscope && <VirtualControls onMove={handleJoystickMove} />}
+        <div className="mt-4">
+          <div style={{ height: '400px' }}>
+            <Line data={chartData} options={options} />
+          </div>
+          <div className="mt-4 text-center">
+            <p>X: {gyroData.x.toFixed(2)}°</p>
+            <p>Y: {gyroData.y.toFixed(2)}°</p>
+            <p>Z: {gyroData.z.toFixed(2)}°</p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -236,6 +244,13 @@ const GyroscopeChart = () => {
         <p>Y: {gyroData.y.toFixed(2)}°</p>
         <p>Z: {gyroData.z.toFixed(2)}°</p>
       </div>
+      <button 
+        onClick={retryGyroscopeConnection}
+        className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+      >
+        Volver a intentar conexión con giroscopio
+      </button>
+      {!hasGyroscope && <VirtualControls onMove={handleJoystickMove} />}
     </div>
   );
 };
