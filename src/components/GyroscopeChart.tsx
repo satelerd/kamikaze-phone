@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useEffect } from 'react';
 import { Line } from 'react-chartjs-2';
 import {
@@ -27,22 +25,24 @@ const GyroscopeChart = () => {
   const [gyroData, setGyroData] = useState({ x: 0, y: 0, z: 0 });
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [dataPoints, setDataPoints] = useState<number[][]>([[], [], []]);
+  const [permissionAttempted, setPermissionAttempted] = useState(false);
+
+  const requestGyroscopePermission = async () => {
+    if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+      try {
+        const permission = await (DeviceOrientationEvent as any).requestPermission();
+        setPermissionGranted(permission === 'granted');
+      } catch (error) {
+        console.error('Error requesting gyroscope permission:', error);
+      }
+    } else {
+      setPermissionGranted(true);
+    }
+    setPermissionAttempted(true);
+  };
 
   useEffect(() => {
-    const requestPermission = async () => {
-      if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
-        try {
-          const permission = await (DeviceOrientationEvent as any).requestPermission();
-          setPermissionGranted(permission === 'granted');
-        } catch (error) {
-          console.error('Error requesting gyroscope permission:', error);
-        }
-      } else {
-        setPermissionGranted(true);
-      }
-    };
-
-    requestPermission();
+    requestGyroscopePermission();
   }, []);
 
   useEffect(() => {
@@ -91,8 +91,32 @@ const GyroscopeChart = () => {
     },
   };
 
+  if (!permissionAttempted) {
+    return (
+      <div className="text-center">
+        <p>Se requieren permisos para acceder al giroscopio.</p>
+        <button 
+          onClick={requestGyroscopePermission}
+          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          Solicitar permisos
+        </button>
+      </div>
+    );
+  }
+
   if (!permissionGranted) {
-    return <div className="text-center">Por favor, concede permisos para acceder al giroscopio.</div>;
+    return (
+      <div className="text-center">
+        <p>No se concedieron permisos para acceder al giroscopio.</p>
+        <button 
+          onClick={requestGyroscopePermission}
+          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          Intentar de nuevo
+        </button>
+      </div>
+    );
   }
 
   return (
