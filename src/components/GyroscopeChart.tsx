@@ -31,6 +31,7 @@ const GyroscopeChart = () => {
   const [hasGyroscope, setHasGyroscope] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [chartRange, setChartRange] = useState({ min: -360, max: 360 });
+  const [activeAxes, setActiveAxes] = useState({ x: true, y: true, z: true });
 
   const checkGyroscopeAvailability = useCallback(() => {
     if (typeof window !== 'undefined' && 'DeviceOrientationEvent' in window) {
@@ -44,7 +45,6 @@ const GyroscopeChart = () => {
 
       window.addEventListener('deviceorientation', checkOrientation);
 
-      // Si después de 2 segundos no se ha detectado el evento, asumimos que no hay giroscopio
       setTimeout(() => {
         window.removeEventListener('deviceorientation', checkOrientation);
         setIsLoading(false);
@@ -86,14 +86,21 @@ const GyroscopeChart = () => {
       const newPoint = { x, y, z };
       const newPoints = [...prev, newPoint];
       
-      // Limitar a los últimos 500 puntos para mejorar el rendimiento
       if (newPoints.length > 500) {
         newPoints.shift();
       }
       
-      // Actualizar el rango del gráfico cada 10 puntos
       if (newPoints.length % 10 === 0) {
-        const allValues = newPoints.flatMap(p => [p.x, p.y, p.z]);
+        const activeAxes = [
+          x !== null ? 'x' : null,
+          y !== null ? 'y' : null,
+          z !== null ? 'z' : null
+        ].filter(Boolean) as ('x' | 'y' | 'z')[];
+
+        const allValues = newPoints.flatMap(p => 
+          activeAxes.map(axis => p[axis])
+        );
+
         const minValue = Math.min(...allValues);
         const maxValue = Math.max(...allValues);
         setChartRange(prevRange => ({
@@ -116,11 +123,18 @@ const GyroscopeChart = () => {
     const handleOrientation = (event: DeviceOrientationEvent) => {
       lastUpdateTime = Date.now();
       updateGyroData(event.beta || 0, event.gamma || 0, event.alpha || 0);
+      console.log('Gyroscope data updated:', { beta: event.beta, gamma: event.gamma, alpha: event.alpha });
     };
 
     const checkGyroscopeStatus = () => {
-      if (Date.now() - lastUpdateTime > 3000) {
-        // Si no ha habido actualizaciones en 3 segundos, consideramos que el giroscopio no está funcionando
+      const timeSinceLastUpdate = Date.now() - lastUpdateTime;
+      console.log('Checking gyroscope status:', { timeSinceLastUpdate });
+      if (timeSinceLastUpdate > 5000) {
+        console.log('Gyroscope potentially disconnected, attempting to reactivate');
+        window.removeEventListener('deviceorientation', handleOrientation);
+        window.addEventListener('deviceorientation', handleOrientation);
+      }
+      if (timeSinceLastUpdate > 10000) {
         console.log('Gyroscope disconnected');
         setHasGyroscope(false);
         window.removeEventListener('deviceorientation', handleOrientation);
@@ -136,7 +150,7 @@ const GyroscopeChart = () => {
     };
 
     window.addEventListener('deviceorientation', handleOrientation);
-    heartbeatInterval = setInterval(gyroscopeHeartbeat, 1000);
+    heartbeatInterval = setInterval(gyroscopeHeartbeat, 500);
     checkInterval = setInterval(checkGyroscopeStatus, 1000);
 
     return () => {
@@ -147,29 +161,31 @@ const GyroscopeChart = () => {
   }, [permissionGranted, hasGyroscope, updateGyroData]);
 
   const handleJoystickMove = (x: number, y: number, z: number) => {
-    const simulatedX = y * 1000; // -90 a 90 grados
-    const simulatedY = x * 1000; // -90 a 90 grados
-    const simulatedZ = z * 1000; // 0 a 360 grados
-    updateGyroData(simulatedX, simulatedY, simulatedZ);
+    if (!hasGyroscope) {
+      const simulatedX = y * 180; // -90 a 90 grados
+      const simulatedY = x * 180; // -90 a 90 grados
+      const simulatedZ = z * 360; // 0 a 360 grados
+      updateGyroData(simulatedX, simulatedY, simulatedZ);
+    }
   };
 
   const chartData = {
     datasets: [
       { 
         label: 'X', 
-        data: dataPoints.map((p, index) => ({ x: index, y: p.x })),
+        data: activeAxes.x ? dataPoints.map((p, index) => ({ x: index, y: p.x })) : [],
         borderColor: 'rgb(255, 99, 132)', 
         tension: 0.1 
       },
       { 
         label: 'Y', 
-        data: dataPoints.map((p, index) => ({ x: index, y: p.y })),
+        data: activeAxes.y ? dataPoints.map((p, index) => ({ x: index, y: p.y })) : [],
         borderColor: 'rgb(54, 162, 235)', 
         tension: 0.1 
       },
       { 
         label: 'Z', 
-        data: dataPoints.map((p, index) => ({ x: index, y: p.z })),
+        data: activeAxes.z ? dataPoints.map((p, index) => ({ x: index, y: p.z })) : [],
         borderColor: 'rgb(75, 192, 192)', 
         tension: 0.1 
       },
@@ -218,11 +234,15 @@ const GyroscopeChart = () => {
     if (!hasGyroscope && permissionGranted) {
       const retryTimer = setTimeout(() => {
         retryGyroscopeConnection();
-      }, 3000); // Intenta reconectar cada 3 segundos
+      }, 3000);
 
       return () => clearTimeout(retryTimer);
     }
   }, [hasGyroscope, permissionGranted, retryGyroscopeConnection]);
+
+  const toggleAxis = (axis: 'x' | 'y' | 'z') => {
+    setActiveAxes(prev => ({ ...prev, [axis]: !prev[axis] }));
+  };
 
   if (isLoading) {
     return <div className="text-center">Cargando...</div>;
@@ -269,9 +289,9 @@ const GyroscopeChart = () => {
             <Line data={chartData} options={options} />
           </div>
           <div className="mt-4 text-center">
-            <p>X: {gyroData.x.toFixed(2)}°</p>
-            <p>Y: {gyroData.y.toFixed(2)}°</p>
-            <p>Z: {gyroData.z.toFixed(2)}°</p>
+            <p>X: {gyroData.x.toFixed(2)}° <button onClick={() => toggleAxis('x')}>{activeAxes.x ? 'Desactivar' : 'Activar'}</button></p>
+            <p>Y: {gyroData.y.toFixed(2)}° <button onClick={() => toggleAxis('y')}>{activeAxes.y ? 'Desactivar' : 'Activar'}</button></p>
+            <p>Z: {gyroData.z.toFixed(2)}° <button onClick={() => toggleAxis('z')}>{activeAxes.z ? 'Desactivar' : 'Activar'}</button></p>
           </div>
         </div>
       </div>
@@ -284,9 +304,9 @@ const GyroscopeChart = () => {
         <Line data={chartData} options={options} />
       </div>
       <div className="mt-4 text-center">
-        <p>X: {gyroData.x.toFixed(2)}°</p>
-        <p>Y: {gyroData.y.toFixed(2)}°</p>
-        <p>Z: {gyroData.z.toFixed(2)}°</p>
+        <p>X: {gyroData.x.toFixed(2)}° <button onClick={() => toggleAxis('x')}>{activeAxes.x ? 'Desactivar' : 'Activar'}</button></p>
+        <p>Y: {gyroData.y.toFixed(2)}° <button onClick={() => toggleAxis('y')}>{activeAxes.y ? 'Desactivar' : 'Activar'}</button></p>
+        <p>Z: {gyroData.z.toFixed(2)}° <button onClick={() => toggleAxis('z')}>{activeAxes.z ? 'Desactivar' : 'Activar'}</button></p>
       </div>
       <button 
         onClick={retryGyroscopeConnection}
