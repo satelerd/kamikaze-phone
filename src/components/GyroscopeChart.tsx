@@ -26,10 +26,11 @@ ChartJS.register(
 const GyroscopeChart = () => {
   const [gyroData, setGyroData] = useState({ x: 0, y: 0, z: 0 });
   const [permissionGranted, setPermissionGranted] = useState(false);
-  const [dataPoints, setDataPoints] = useState<number[][]>([[], [], []]);
+  const [dataPoints, setDataPoints] = useState<{x: number, y: number, z: number}[]>([]);
   const [permissionAttempted, setPermissionAttempted] = useState(false);
   const [hasGyroscope, setHasGyroscope] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  const [chartRange, setChartRange] = useState({ min: -360, max: 360 });
 
   const checkGyroscopeAvailability = useCallback(() => {
     if (typeof window !== 'undefined' && 'DeviceOrientationEvent' in window) {
@@ -80,11 +81,23 @@ const GyroscopeChart = () => {
   const updateGyroData = useCallback((x: number, y: number, z: number) => {
     setGyroData({ x, y, z });
     setDataPoints(prev => {
-      const newPoints = [
-        [...prev[0], x],
-        [...prev[1], y],
-        [...prev[2], z]
-      ].map(axis => axis.slice(-20));
+      const newPoint = { x, y, z };
+      const newPoints = [...prev, newPoint];
+      
+      // Limitar a los últimos 1000 puntos para evitar problemas de rendimiento
+      if (newPoints.length > 1000) {
+        newPoints.shift();
+      }
+      
+      // Actualizar el rango del gráfico
+      const allValues = newPoints.flatMap(p => [p.x, p.y, p.z]);
+      const minValue = Math.min(...allValues);
+      const maxValue = Math.max(...allValues);
+      setChartRange(prevRange => ({
+        min: Math.min(prevRange.min, minValue, -10),
+        max: Math.max(prevRange.max, maxValue, 10)
+      }));
+
       return newPoints;
     });
   }, []);
@@ -101,33 +114,62 @@ const GyroscopeChart = () => {
   }, [permissionGranted, hasGyroscope, updateGyroData]);
 
   const handleJoystickMove = (x: number, y: number, z: number) => {
-    const simulatedX = y * 90; // -90 a 90 grados
-    const simulatedY = x * 90; // -90 a 90 grados
-    const simulatedZ = z * 360; // 0 a 360 grados
+    const simulatedX = y * 1000; // -90 a 90 grados
+    const simulatedY = x * 1000; // -90 a 90 grados
+    const simulatedZ = z * 1000; // 0 a 360 grados
     updateGyroData(simulatedX, simulatedY, simulatedZ);
   };
 
   const chartData = {
-    labels: Array(20).fill(''),
     datasets: [
-      { label: 'X', data: dataPoints[0], borderColor: 'rgb(255, 99, 132)', tension: 0.1 },
-      { label: 'Y', data: dataPoints[1], borderColor: 'rgb(54, 162, 235)', tension: 0.1 },
-      { label: 'Z', data: dataPoints[2], borderColor: 'rgb(75, 192, 192)', tension: 0.1 },
+      { 
+        label: 'X', 
+        data: dataPoints.map((p, index) => ({ x: index, y: p.x })),
+        borderColor: 'rgb(255, 99, 132)', 
+        tension: 0.1 
+      },
+      { 
+        label: 'Y', 
+        data: dataPoints.map((p, index) => ({ x: index, y: p.y })),
+        borderColor: 'rgb(54, 162, 235)', 
+        tension: 0.1 
+      },
+      { 
+        label: 'Z', 
+        data: dataPoints.map((p, index) => ({ x: index, y: p.z })),
+        borderColor: 'rgb(75, 192, 192)', 
+        tension: 0.1 
+      },
     ],
   };
 
   const options = {
     responsive: true,
     scales: {
+      x: {
+        type: 'linear' as const,
+        position: 'bottom' as const,
+        min: 0,
+        max: Math.max(100, dataPoints.length),
+        ticks: {
+          stepSize: 10,
+        },
+      },
       y: {
-        beginAtZero: true,
-        max: 360,
-        min: -360,
+        beginAtZero: false,
+        min: chartRange.min,
+        max: chartRange.max,
       },
     },
     animation: {
       duration: 0,
     },
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+    },
+    maintainAspectRatio: false,
   };
 
   if (isLoading) {
@@ -140,7 +182,9 @@ const GyroscopeChart = () => {
         <p>No se detectó giroscopio. Usando controles virtuales.</p>
         <VirtualControls onMove={handleJoystickMove} />
         <div className="mt-4">
-          <Line data={chartData} options={options} />
+          <div style={{ height: '400px' }}>
+            <Line data={chartData} options={options} />
+          </div>
           <div className="mt-4 text-center">
             <p>X: {gyroData.x.toFixed(2)}°</p>
             <p>Y: {gyroData.y.toFixed(2)}°</p>
@@ -184,7 +228,9 @@ const GyroscopeChart = () => {
 
   return (
     <div className="w-full max-w-2xl">
-      <Line data={chartData} options={options} />
+      <div style={{ height: '400px' }}>
+        <Line data={chartData} options={options} />
+      </div>
       <div className="mt-4 text-center">
         <p>X: {gyroData.x.toFixed(2)}°</p>
         <p>Y: {gyroData.y.toFixed(2)}°</p>
