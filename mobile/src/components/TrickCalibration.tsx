@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import type { TrickCatalogController } from '../hooks/useTrickCatalog';
 import { useMotionLab } from '../hooks/useMotionLab';
@@ -20,6 +20,33 @@ type StudioMode = 'catalog' | 'create';
 
 const axisStep: Record<keyof Vector3, number> = { x: 360, y: 360, z: 180 };
 
+function describeMotion(definition: TrickDefinition) {
+  const parts: string[] = [];
+  if (Math.abs(definition.rotation.x) >= 180) {
+    const turns = Math.max(1, Math.round(Math.abs(definition.rotation.x) / 360));
+    parts.push(`${turns} ${definition.rotation.x > 0 ? 'FRONT' : 'BACK'} FLIP`);
+  }
+  if (Math.abs(definition.rotation.y) >= 180) {
+    const turns = Math.max(1, Math.round(Math.abs(definition.rotation.y) / 360));
+    parts.push(`${turns} EDGE FLIP`);
+  }
+  if (Math.abs(definition.rotation.z) >= 90) {
+    const spins = Math.abs(definition.rotation.z) / 360;
+    parts.push(spins < 0.75 ? '½ FLAT SPIN' : `${Math.round(spins)} FULL SPIN`);
+  }
+  return parts.length > 0 ? parts.join(' + ') : 'NO FLIP · NO SPIN';
+}
+
+function MotionSummary({ definition }: { definition: TrickDefinition }) {
+  return (
+    <View style={styles.motionSummary}>
+      <Text style={styles.motionSummaryLabel}>HOW IT MOVES</Text>
+      <Text style={styles.motionSummaryMain}>{describeMotion(definition)}</Text>
+      <Text style={styles.motionSummaryDuration}>IDEAL DURATION · {(definition.durationMs / 1000).toFixed(2)}S</Text>
+    </View>
+  );
+}
+
 function AxisRecipe({
   definition,
   editable,
@@ -33,7 +60,7 @@ function AxisRecipe({
     <View style={styles.recipe}>
       <View style={styles.recipeHeader}>
         <Text style={styles.recipeTitle}>IDEAL MOTION RECIPE</Text>
-        <Text style={styles.recipeDuration}>{definition.durationMs}MS</Text>
+        <Text style={styles.recipeDuration}>{(definition.durationMs / 1000).toFixed(2)}S</Text>
       </View>
       {(['x', 'y', 'z'] as const).map((axis) => (
         <View key={axis} style={styles.axisRow}>
@@ -80,7 +107,7 @@ function AxisRecipe({
             >
               <Text style={styles.axisEditText}>−</Text>
             </Pressable>
-            <Text style={styles.axisDegrees}>{definition.durationMs}MS</Text>
+            <Text style={styles.axisDegrees}>{(definition.durationMs / 1000).toFixed(2)}S</Text>
             <Pressable
               onPress={() => onChange({ ...definition, durationMs: Math.min(2200, definition.durationMs + 100) })}
               style={styles.axisEditButton}
@@ -163,6 +190,20 @@ export function TrickCalibration({
     catalog.saveDefinition({ ...draft, name: newName.trim().toUpperCase() || draft.name });
     setSelectedId(draft.id);
     setMode('catalog');
+  };
+
+  const shareCapture = () => {
+    if (!attempt || !activeDefinition) return;
+    Share.share({
+      message: JSON.stringify({
+        app: 'KAMIKAZE PHONE',
+        expectedTrick: activeDefinition.name,
+        ideal: activeDefinition,
+        recordedAttempt: attempt,
+        schema: 'kpf-labelled-capture-v1',
+      }),
+      title: `${activeDefinition.name} sensor capture`,
+    }).catch(() => undefined);
   };
 
   return (
@@ -259,25 +300,37 @@ export function TrickCalibration({
             targetDefinition={activeDefinition}
             targetTrick={activeDefinition.name}
           />
-          <AxisRecipe
-            definition={activeDefinition}
-            editable={mode === 'create' && Boolean(draft)}
-            onChange={setDraft}
-          />
+          {mode === 'create' && draft ? (
+            <AxisRecipe definition={activeDefinition} editable onChange={setDraft} />
+          ) : (
+            <MotionSummary definition={activeDefinition} />
+          )}
         </>
       )}
 
       {attempt && activeDefinition && (
-        <View style={styles.verdict}>
-          <View>
-            <Text style={styles.verdictLabel}>RECORDED</Text>
-            <Text style={styles.verdictValue}>{Math.round(attempt.rotationDegrees.total)}° TOTAL</Text>
+        <View style={styles.captureResult}>
+          <View style={styles.captureResultTop}>
+            <View>
+              <Text style={styles.captureResultLabel}>CAPTURE SAVED</Text>
+              <Text style={styles.captureResultName}>{activeDefinition.name}</Text>
+            </View>
+            <Text style={styles.captureResultDuration}>
+              {(attempt.airtimeMs / 1000).toFixed(2)}S
+            </Text>
           </View>
-          <Text style={styles.verdictArrow}>→</Text>
-          <View style={styles.verdictRight}>
-            <Text style={styles.verdictLabel}>IDEALIZED AS</Text>
-            <Text style={styles.verdictValue}>{activeDefinition.name}</Text>
-          </View>
+          <Text style={styles.captureResultHelp}>Use ACTUAL and TARGET above to compare the recording with the clean version.</Text>
+          <Pressable onPress={shareCapture} style={styles.shareButton}>
+            <Text style={styles.shareButtonText}>SHARE TEST DATA</Text>
+            <Text style={styles.shareButtonText}>↗</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {!motion.manualRecording && !(mode === 'create' && draft) && (
+        <View style={styles.recordGuide}>
+          <Text style={styles.recordGuideLabel}>RECORD ONE CLEAN EXAMPLE</Text>
+          <Text style={styles.recordGuideText}>START FLAT  →  TAP RECORD  →  DO ONE TRICK  →  CATCH  →  STOP</Text>
         </View>
       )}
 
@@ -336,7 +389,7 @@ export function TrickCalibration({
         >
           <View style={styles.tapeCopy}>
             <Text style={styles.tapeTrick}>{record.expectedTrick}</Text>
-            <Text style={styles.tapeMeta}>{Math.round(record.attempt.airtimeMs)}MS · {record.attempt.samples.length} RAW · {Math.round(record.attempt.rotationDegrees.total)}°</Text>
+            <Text style={styles.tapeMeta}>{(record.attempt.airtimeMs / 1000).toFixed(2)}S · TAP TO REVIEW</Text>
           </View>
           <Text style={styles.tapeArrow}>→</Text>
         </Pressable>
@@ -374,7 +427,7 @@ const styles = StyleSheet.create({
   trickFamilyActive: { color: '#FFE2DD' },
   selectedCopy: { marginTop: 15 },
   selectedName: { color: colors.asphalt, fontFamily: fonts.display, fontSize: 25 },
-  selectedDescription: { color: colors.concrete, fontFamily: fonts.body, fontSize: 10, lineHeight: 15, marginTop: 4 },
+  selectedDescription: { color: colors.concrete, fontFamily: fonts.body, fontSize: 13, lineHeight: 19, marginTop: 5 },
   createPanel: { backgroundColor: colors.paper, borderColor: colors.asphalt, borderWidth: 1.5, marginTop: 20, padding: 15, shadowColor: colors.asphalt, shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0 },
   createIndex: { color: colors.cobalt, fontFamily: fonts.monoBold, fontSize: 7, letterSpacing: 1 },
   nameInput: { borderBottomColor: colors.asphalt, borderBottomWidth: 2, color: colors.asphalt, fontFamily: fonts.display, fontSize: 26, marginTop: 10, paddingBottom: 7, paddingHorizontal: 0 },
@@ -396,11 +449,21 @@ const styles = StyleSheet.create({
   axisEditText: { color: colors.asphalt, fontFamily: fonts.bodyBold, fontSize: 13 },
   durationEditor: { alignItems: 'center', borderTopColor: colors.asphalt, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', minHeight: 49, paddingHorizontal: 10 },
   durationLabel: { color: colors.concrete, fontFamily: fonts.monoBold, fontSize: 7 },
-  verdict: { alignItems: 'center', backgroundColor: colors.paper, borderColor: colors.asphalt, borderWidth: 1.5, flexDirection: 'row', justifyContent: 'space-between', marginTop: 11, padding: 13 },
-  verdictLabel: { color: colors.concrete, fontFamily: fonts.monoBold, fontSize: 6 },
-  verdictValue: { color: colors.asphalt, fontFamily: fonts.bodyBold, fontSize: 9, marginTop: 3 },
-  verdictArrow: { color: colors.coral, fontSize: 18 },
-  verdictRight: { alignItems: 'flex-end', flex: 1 },
+  motionSummary: { backgroundColor: colors.paper, borderColor: colors.asphalt, borderWidth: 1.5, marginTop: 11, padding: 16 },
+  motionSummaryLabel: { color: colors.cobalt, fontFamily: fonts.monoBold, fontSize: 8, letterSpacing: 1 },
+  motionSummaryMain: { color: colors.asphalt, fontFamily: fonts.display, fontSize: 25, letterSpacing: -0.8, lineHeight: 29, marginTop: 8 },
+  motionSummaryDuration: { color: colors.concrete, fontFamily: fonts.monoBold, fontSize: 8, letterSpacing: 0.5, marginTop: 10 },
+  captureResult: { backgroundColor: colors.paper, borderColor: colors.asphalt, borderWidth: 1.5, marginTop: 11, padding: 14 },
+  captureResultTop: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' },
+  captureResultLabel: { color: colors.cobalt, fontFamily: fonts.monoBold, fontSize: 7, letterSpacing: 1 },
+  captureResultName: { color: colors.asphalt, fontFamily: fonts.display, fontSize: 20, marginTop: 4 },
+  captureResultDuration: { color: colors.coral, fontFamily: fonts.display, fontSize: 28 },
+  captureResultHelp: { color: colors.concrete, fontFamily: fonts.body, fontSize: 11, lineHeight: 16, marginTop: 9 },
+  shareButton: { alignItems: 'center', borderColor: colors.asphalt, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, padding: 12 },
+  shareButtonText: { color: colors.asphalt, fontFamily: fonts.monoBold, fontSize: 8, letterSpacing: 0.6 },
+  recordGuide: { borderColor: colors.asphalt, borderStyle: 'dashed', borderWidth: 1, marginTop: 11, padding: 12 },
+  recordGuideLabel: { color: colors.coral, fontFamily: fonts.monoBold, fontSize: 7, letterSpacing: 0.8 },
+  recordGuideText: { color: colors.asphalt, fontFamily: fonts.bodyBold, fontSize: 10, lineHeight: 15, marginTop: 5 },
   recordingBar: { alignItems: 'center', backgroundColor: colors.coral, flexDirection: 'row', gap: 9, justifyContent: 'center', marginTop: 11, paddingVertical: 11 },
   recordDot: { backgroundColor: colors.white, borderRadius: 5, height: 9, width: 9 },
   recordingText: { color: colors.white, fontFamily: fonts.monoBold, fontSize: 9, letterSpacing: 0.8 },

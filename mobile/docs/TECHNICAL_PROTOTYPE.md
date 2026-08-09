@@ -49,13 +49,16 @@ The current deterministic classifier is useful for calibration, not a final defi
 | Provisional label | Signal rule |
 | --- | --- |
 | Straight Air | little rotation on every axis |
-| Phone Flip ± | at least ~0.55 turn around X |
-| Long Roll ± | at least ~0.55 turn around Y |
-| Shuvit ± | at least ~0.38 turn around Z |
-| Kamikaze Flip | X flip plus meaningful Y or Z motion |
-| Tre Combo | combined Y roll and Z spin |
+| Front / Back Flip | one turn around X |
+| Kickflip / Heelflip | one turn around Y, direction selected by grip |
+| Backside / Frontside Shuvit | half turn around Z, direction selected by grip |
+| Phone Flip | one Y edge flip plus one full Z spin; 360 Flip skate analogue |
+| Reverse Phone Flip | reverse Y edge flip plus reverse Z spin; Laser Flip analogue |
+| Kamikaze Flip | X flip plus a half Z spin |
 
-The `±` preserves direction. Names and thresholds should be changed after Daniel records and labels actual throws.
+Directional names remain provisional until the right/left grip convention is verified against Daniel's labelled throws.
+
+The 3D replay visualizes measured orientation only. Its phone position is intentionally locked because IMU-only translation would currently be a fabricated trajectory. Every replay begins from a phone lying screen-up on the reference grid.
 
 ## The mathematical upgrade path
 

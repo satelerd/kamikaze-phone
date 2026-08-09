@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import type { DetectedAttempt } from '../motion/types';
 import type { TrickMatch } from '../motion/trickCatalog';
+import type { DetectedAttempt } from '../motion/types';
 import { colors, fonts } from '../theme';
 
 type AttemptCardProps = {
@@ -9,117 +9,98 @@ type AttemptCardProps = {
   match?: TrickMatch | null;
 };
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.metric}>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
-    </View>
-  );
-}
-
 export function AttemptCard({ attempt, match }: AttemptCardProps) {
-  const isMotionWindow = attempt.captureMode === 'manual' || attempt.triggerMode === 'gyro';
-  const quality = Math.round((match?.overallScore ?? attempt.confidence) * 100);
+  const score = Math.round((match?.overallScore ?? attempt.confidence) * 100);
+  const durationS = (match?.motionDurationMs ?? attempt.airtimeMs) / 1000;
+  const verdict = score >= 85 ? 'CLEAN' : score >= 68 ? 'LANDED' : 'REVIEW';
   return (
     <View style={styles.card}>
-      <View style={styles.tag}>
-        <Text style={styles.tagText}>{quality}% QUALITY</Text>
+      <View style={styles.scoreBlock}>
+        <Text style={styles.score}>{score}</Text>
+        <Text style={styles.scoreLabel}>OVERALL SCORE</Text>
       </View>
-      <Text style={styles.label}>{quality >= 72 ? 'TRICK LANDED' : 'CLOSE / REVIEW'}</Text>
-      <Text style={styles.trick}>{match?.definition.name ?? attempt.trick}</Text>
-      <View style={styles.rule} />
-      <View style={styles.metrics}>
-        <Metric label={isMotionWindow ? 'TRICK TIME' : 'AIRTIME'} value={`${Math.round(match?.motionDurationMs ?? attempt.airtimeMs)}MS`} />
-        <Metric
-          label={isMotionWindow ? 'PEAK GYRO' : 'EST. HEIGHT'}
-          value={isMotionWindow ? `${Math.round(attempt.peakRotationDps)}°S` : `${attempt.estimatedHeightM.toFixed(2)}M`}
-        />
-        <Metric label="ROTATION" value={`${Math.round(attempt.rotationDegrees.total)}°`} />
-      </View>
-      {match && (
-        <View style={styles.qualityStrip}>
-          <Metric label="ROTATION MATCH" value={`${Math.round(match.rotationScore * 100)}%`} />
-          <Metric label="AXIS PURITY" value={`${Math.round(match.axisPurity * 100)}%`} />
-          <Metric label="TIMING" value={`${Math.round(match.timingScore * 100)}%`} />
-          <Metric label="CATCH" value={`${Math.round(match.landingScore * 100)}%`} />
+      <View style={styles.copy}>
+        <View style={styles.verdictTag}>
+          <Text style={styles.verdictText}>{verdict}</Text>
         </View>
-      )}
+        <Text style={styles.trick}>{match?.definition.name ?? attempt.trick}</Text>
+        <Text style={styles.description}>
+          {match?.definition.description ?? 'Recorded sensor attempt.'}
+        </Text>
+        <Text style={styles.duration}>TRICK DURATION · {durationS.toFixed(2)}S</Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
+    alignItems: 'stretch',
     backgroundColor: colors.paper,
     borderColor: colors.asphalt,
     borderWidth: 1.5,
+    flexDirection: 'row',
     marginTop: 24,
-    padding: 18,
-    position: 'relative',
     shadowColor: colors.asphalt,
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 1,
     shadowRadius: 0,
   },
-  tag: {
+  scoreBlock: {
+    alignItems: 'center',
     backgroundColor: colors.cobalt,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    position: 'absolute',
-    right: 14,
-    top: -13,
-    transform: [{ rotate: '2deg' }],
+    justifyContent: 'center',
+    paddingHorizontal: 15,
+    width: 102,
   },
-  tagText: {
+  score: {
+    color: colors.white,
+    fontFamily: fonts.display,
+    fontSize: 48,
+    lineHeight: 51,
+  },
+  scoreLabel: {
+    color: '#DDE3FF',
+    fontFamily: fonts.monoBold,
+    fontSize: 6,
+    letterSpacing: 0.7,
+    textAlign: 'center',
+  },
+  copy: {
+    flex: 1,
+    padding: 15,
+  },
+  verdictTag: {
+    alignSelf: 'flex-start',
+    backgroundColor: colors.coral,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+  },
+  verdictText: {
     color: colors.white,
     fontFamily: fonts.monoBold,
-    fontSize: 9,
-    letterSpacing: 1,
-  },
-  label: {
-    color: colors.concrete,
-    fontFamily: fonts.monoBold,
-    fontSize: 9,
-    letterSpacing: 1.5,
+    fontSize: 6,
+    letterSpacing: 0.9,
   },
   trick: {
     color: colors.asphalt,
     fontFamily: fonts.display,
-    fontSize: 28,
-    letterSpacing: -0.8,
+    fontSize: 21,
+    letterSpacing: -0.6,
     marginTop: 7,
   },
-  rule: {
-    backgroundColor: colors.asphalt,
-    height: 1.5,
-    marginVertical: 14,
-  },
-  metrics: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  qualityStrip: {
-    borderTopColor: '#C9C8C0',
-    borderTopWidth: 1,
-    flexDirection: 'row',
-    gap: 7,
-    marginTop: 13,
-    paddingTop: 12,
-  },
-  metric: {
-    flex: 1,
-  },
-  metricValue: {
-    color: colors.asphalt,
-    fontFamily: fonts.bodyBold,
-    fontSize: 17,
-  },
-  metricLabel: {
+  description: {
     color: colors.concrete,
-    fontFamily: fonts.mono,
-    fontSize: 8,
-    letterSpacing: 0.7,
-    marginTop: 3,
+    fontFamily: fonts.body,
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 4,
+  },
+  duration: {
+    color: colors.asphalt,
+    fontFamily: fonts.monoBold,
+    fontSize: 7,
+    letterSpacing: 0.45,
+    marginTop: 9,
   },
 });

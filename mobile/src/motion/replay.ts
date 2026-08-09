@@ -137,8 +137,10 @@ export function buildTargetFrames(
   const normalized = canonicalizeTrickName(typeof trick === 'string' ? trick : trick.name).toUpperCase();
   const targetRotation = typeof trick !== 'string'
     ? trick.rotation
-    : normalized.includes('TRE') || normalized.includes('360 FLIP')
+    : normalized === 'PHONE FLIP' || normalized.includes('FLIP 3') || normalized.includes('TRE') || normalized.includes('360 FLIP')
     ? { x: 0, y: 360, z: 360 }
+    : normalized === 'REVERSE PHONE FLIP' || normalized.includes('LASER FLIP')
+      ? { x: 0, y: -360, z: -360 }
     : normalized.includes('SHUVIT −') || normalized.includes('FRONTSIDE SHUVIT')
       ? { x: 0, y: 0, z: -180 }
       : normalized.includes('SHUVIT')

@@ -113,6 +113,7 @@ function PlayView({
   onOpenReplay: () => void;
 }) {
   const [recordMode, setRecordMode] = useState<'auto' | 'manual'>('auto');
+  const [showReplay, setShowReplay] = useState(false);
   const { snapshot, sensorStatus, arm, disarm } = motion;
   const isSessionActive = ['armed', 'airborne', 'settling'].includes(snapshot.phase);
   const trickMatch = snapshot.lastAttempt
@@ -128,7 +129,11 @@ function PlayView({
       ? 'Tracking rotation.'
       : snapshot.phase === 'settling'
         ? 'Keep the phone still for a clean catch.'
-        : 'Arm one attempt. Throw. Catch. Read the line.';
+        : 'Arm one attempt. Throw. Catch. Read the score.';
+
+  useEffect(() => {
+    setShowReplay(false);
+  }, [snapshot.lastAttempt?.id]);
 
   return (
     <>
@@ -197,12 +202,17 @@ function PlayView({
       {snapshot.lastAttempt ? (
         <>
           <AttemptCard attempt={snapshot.lastAttempt} match={trickMatch} />
-          <PhoneReplay
-            attempt={snapshot.lastAttempt}
-            targetDefinition={trickMatch?.definition}
-            targetTrick={trickMatch?.definition.name ?? snapshot.lastAttempt.trick}
-          />
-          <CurrentLine attempts={motion.attempts} catalog={catalog} />
+          <Pressable onPress={() => setShowReplay((value) => !value)} style={styles.replayToggle}>
+            <Text style={styles.replayToggleText}>{showReplay ? 'HIDE REPLAY' : 'WATCH REPLAY HERE'}</Text>
+            <Text style={styles.replayToggleText}>{showReplay ? '↑' : '↓'}</Text>
+          </Pressable>
+          {showReplay && (
+            <PhoneReplay
+              attempt={snapshot.lastAttempt}
+              targetDefinition={trickMatch?.definition}
+              targetTrick={trickMatch?.definition.name ?? snapshot.lastAttempt.trick}
+            />
+          )}
           <View style={styles.secondaryAction}>
             <PrimaryButton label="OPEN SESSION TAPE" onPress={onOpenReplay} tone="paper" />
           </View>
@@ -212,21 +222,23 @@ function PlayView({
           <Text style={styles.emptyNumber}>—</Text>
           <View style={styles.emptyCopy}>
             <Text style={styles.emptyTitle}>NO LINE YET</Text>
-            <Text style={styles.emptyBody}>Your first catch will leave airtime, height and rotation here.</Text>
+            <Text style={styles.emptyBody}>Your first completed trick will leave one score and a replay here.</Text>
           </View>
         </View>
       )}
 
-      <LivePoseMonitor
-        actualHz={snapshot.actualHz}
-        quaternion={motion.liveQuaternion}
-        ready={sensorStatus === 'ready'}
-      />
+      {!showReplay && (
+        <LivePoseMonitor
+          actualHz={snapshot.actualHz}
+          quaternion={motion.liveQuaternion}
+          ready={sensorStatus === 'ready'}
+        />
+      )}
     </>
   );
 }
 
-const trainingTricks = ['SHUVIT +', 'PHONE FLIP +', 'FLIP +'];
+const trainingTricks = ['PHONE FLIP'];
 
 function HistoryRow({
   attempt,
@@ -258,61 +270,11 @@ function HistoryRow({
       <View style={styles.historyCopy}>
         <Text style={[styles.historyTrick, selected && styles.historyTrickSelected]}>{match.definition.name}</Text>
         <Text style={[styles.historyMeta, selected && styles.historyMetaSelected]}>
-          {Math.round(match.overallScore * 100)}% / {Math.round(match.motionDurationMs)}MS / {Math.round(attempt.rotationDegrees.total)}°
+          {Math.round(match.overallScore * 100)} SCORE / {(match.motionDurationMs / 1000).toFixed(2)}S
         </Text>
       </View>
       <Text style={[styles.historyArrow, selected && styles.historyTrickSelected]}>→</Text>
     </Pressable>
-  );
-}
-
-function CurrentLine({
-  attempts,
-  catalog,
-}: {
-  attempts: DetectedAttempt[];
-  catalog: TrickCatalogController;
-}) {
-  if (attempts.length < 2) return null;
-  const line: DetectedAttempt[] = [attempts[0]];
-  for (const candidate of attempts.slice(1, 6)) {
-    const previous = line.at(-1)!;
-    const gapMs = new Date(previous.recordedAtIso).getTime() - new Date(candidate.recordedAtIso).getTime();
-    if (gapMs > 45_000 || gapMs < 0) break;
-    line.push(candidate);
-  }
-  if (line.length < 2) return null;
-  const chronological = [...line].reverse();
-  const scored = chronological.map((attempt) => findBestTrickMatch(attempt, catalog.definitions));
-  const lineScore = Math.round(scored.reduce((sum, match) => sum + match.overallScore, 0) / scored.length * 100);
-
-  return (
-    <View style={styles.linePanel}>
-      <View style={styles.lineHeader}>
-        <View>
-          <Text style={styles.lineKicker}>AUTO-GROUPED / 45S GAP</Text>
-          <Text style={styles.lineTitle}>CURRENT LINE</Text>
-        </View>
-        <View style={styles.lineScoreBox}>
-          <Text style={styles.lineScore}>{lineScore}</Text>
-          <Text style={styles.lineScoreLabel}>AVG</Text>
-        </View>
-      </View>
-      {chronological.map((attempt, index) => {
-        const match = scored[index];
-        return (
-          <View key={attempt.id} style={styles.lineStep}>
-            <Text style={styles.lineIndex}>{String(index + 1).padStart(2, '0')}</Text>
-            <View style={styles.lineStepCopy}>
-              <Text style={styles.lineTrick}>{match.definition.name}</Text>
-              <Text style={styles.lineMeta}>{Math.round(match.motionDurationMs)}MS · {Math.round(attempt.rotationDegrees.total)}°</Text>
-            </View>
-            <Text style={styles.lineQuality}>{Math.round(match.overallScore * 100)}%</Text>
-          </View>
-        );
-      })}
-      <Text style={styles.lineNote}>PROTOTYPE: CONSECUTIVE CAPTURES ARE GROUPED. CONTINUOUS MULTI-TRICK SEGMENTATION COMES NEXT.</Text>
-    </View>
   );
 }
 
@@ -336,9 +298,9 @@ function DojoView({ catalog, motion }: { catalog: TrickCatalogController; motion
     <>
       <View style={styles.dojoHero}>
         <Text style={styles.kicker}>DOJO / WATCH. TRY. TEACH.</Text>
-        <Text style={styles.dojoTitle}>REPLAY{`\n`}YOUR LINE.</Text>
+        <Text style={styles.dojoTitle}>REPLAY{`\n`}YOUR TRICK.</Text>
         <Text style={styles.dojoIntro}>
-          Rotation comes from the gyro. The flight arc is reconstructed from airtime.
+          Rotation comes from the gyro. Position stays locked until translation can be reconstructed honestly.
         </Text>
       </View>
 
@@ -851,84 +813,21 @@ const styles = StyleSheet.create({
   secondaryAction: {
     marginTop: 12,
   },
-  linePanel: {
+  replayToggle: {
+    alignItems: 'center',
     borderColor: colors.asphalt,
     borderWidth: 1.5,
-    marginTop: 14,
-  },
-  lineHeader: {
-    alignItems: 'center',
-    backgroundColor: colors.asphalt,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 13,
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
   },
-  lineKicker: {
-    color: colors.cobalt,
-    fontFamily: fonts.monoBold,
-    fontSize: 6,
-    letterSpacing: 0.8,
-  },
-  lineTitle: {
-    color: colors.white,
-    fontFamily: fonts.display,
-    fontSize: 20,
-    marginTop: 2,
-  },
-  lineScoreBox: {
-    alignItems: 'baseline',
-    flexDirection: 'row',
-    gap: 4,
-  },
-  lineScore: {
-    color: colors.coral,
-    fontFamily: fonts.display,
-    fontSize: 31,
-  },
-  lineScoreLabel: {
-    color: colors.concrete,
-    fontFamily: fonts.monoBold,
-    fontSize: 6,
-  },
-  lineStep: {
-    alignItems: 'center',
-    borderTopColor: colors.asphalt,
-    borderTopWidth: 1,
-    flexDirection: 'row',
-    minHeight: 52,
-    paddingHorizontal: 12,
-  },
-  lineIndex: {
-    color: colors.coral,
+  replayToggleText: {
+    color: colors.asphalt,
     fontFamily: fonts.monoBold,
     fontSize: 8,
-    width: 31,
-  },
-  lineStepCopy: { flex: 1 },
-  lineTrick: {
-    color: colors.asphalt,
-    fontFamily: fonts.bodyBold,
-    fontSize: 11,
-  },
-  lineMeta: {
-    color: colors.concrete,
-    fontFamily: fonts.mono,
-    fontSize: 6,
-    marginTop: 3,
-  },
-  lineQuality: {
-    color: colors.cobalt,
-    fontFamily: fonts.monoBold,
-    fontSize: 10,
-  },
-  lineNote: {
-    borderTopColor: colors.asphalt,
-    borderTopWidth: 1,
-    color: colors.concrete,
-    fontFamily: fonts.mono,
-    fontSize: 6,
-    lineHeight: 10,
-    padding: 10,
+    letterSpacing: 0.7,
   },
   dojoHero: {
     marginTop: 27,

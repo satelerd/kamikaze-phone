@@ -15,7 +15,6 @@ export type TrickDefinition = {
   name: string;
   rotation: Vector3;
   source: 'system' | 'recording';
-  verticalTravelM: number;
 };
 
 export type TrickMatch = {
@@ -41,75 +40,75 @@ export function buildDefaultTrickCatalog(hand: GripHand): TrickDefinition[] {
   return [
     {
       aliases: ['STRAIGHT AIR', 'AIR'], builtIn: true,
-      description: 'Clean release and catch without a full rotation.',
+      description: 'No flip and no spin. Release it flat and catch it flat.',
       durationMs: 520, exampleCount: 0, family: 'air', id: 'straight-air', name: 'STRAIGHT AIR',
-      rotation: { x: 0, y: 0, z: 0 }, source: 'system', verticalTravelM: 0.42,
+      rotation: { x: 0, y: 0, z: 0 }, source: 'system',
+    },
+    {
+      aliases: ['360 FLIP', 'TRE COMBO', 'FLIP 3'], builtIn: true,
+      description: 'One edge flip plus one full flat spin. Skate analogue: 360 Flip.',
+      durationMs: 820, exampleCount: 0, family: 'combo', id: 'phone-flip', name: 'PHONE FLIP',
+      rotation: { x: 0, y: y(360), z: z(360) }, source: 'system',
+    },
+    {
+      aliases: ['LASER FLIP'], builtIn: true,
+      description: 'The reverse edge flip plus reverse full spin. Skate analogue: Laser Flip.',
+      durationMs: 820, exampleCount: 0, family: 'combo', id: 'reverse-phone-flip', name: 'REVERSE PHONE FLIP',
+      rotation: { x: 0, y: y(-360), z: z(-360) }, source: 'system',
     },
     {
       aliases: ['PHONE FLIP +'], builtIn: true,
-      description: 'One full rotation around the phone width axis.',
-      durationMs: 620, exampleCount: 0, family: 'flip', id: 'phone-flip', name: 'PHONE FLIP',
-      rotation: { x: 360, y: 0, z: 0 }, source: 'system', verticalTravelM: 0.5,
+      description: 'One forward rotation around the phone width.',
+      durationMs: 620, exampleCount: 0, family: 'flip', id: 'front-flip', name: 'FRONT FLIP',
+      rotation: { x: 360, y: 0, z: 0 }, source: 'system',
     },
     {
       aliases: ['PHONE FLIP −'], builtIn: true,
-      description: 'The reverse direction of a Phone Flip.',
-      durationMs: 620, exampleCount: 0, family: 'flip', id: 'reverse-phone-flip', name: 'REVERSE PHONE FLIP',
-      rotation: { x: -360, y: 0, z: 0 }, source: 'system', verticalTravelM: 0.5,
+      description: 'One backward rotation around the phone width.',
+      durationMs: 620, exampleCount: 0, family: 'flip', id: 'back-flip', name: 'BACK FLIP',
+      rotation: { x: -360, y: 0, z: 0 }, source: 'system',
     },
     {
       aliases: ['FLIP +'], builtIn: true,
       description: 'Long-edge roll in the kickflip direction for the selected grip.',
       durationMs: 600, exampleCount: 0, family: 'flip', id: 'kickflip', name: 'KICKFLIP',
-      rotation: { x: 0, y: y(360), z: 0 }, source: 'system', verticalTravelM: 0.48,
+      rotation: { x: 0, y: y(360), z: 0 }, source: 'system',
     },
     {
       aliases: ['FLIP −'], builtIn: true,
       description: 'Long-edge roll in the opposite, heelflip direction.',
       durationMs: 600, exampleCount: 0, family: 'flip', id: 'heelflip', name: 'HEELFLIP',
-      rotation: { x: 0, y: y(-360), z: 0 }, source: 'system', verticalTravelM: 0.48,
+      rotation: { x: 0, y: y(-360), z: 0 }, source: 'system',
     },
     {
       aliases: ['SHUVIT +'], builtIn: true,
       description: 'Half turn around the screen-normal axis.',
       durationMs: 520, exampleCount: 0, family: 'shuvit', id: 'bs-shuvit', name: 'BACKSIDE SHUVIT',
-      rotation: { x: 0, y: 0, z: z(180) }, source: 'system', verticalTravelM: 0.38,
+      rotation: { x: 0, y: 0, z: z(180) }, source: 'system',
     },
     {
       aliases: ['SHUVIT −'], builtIn: true,
       description: 'The opposite half turn around the screen-normal axis.',
       durationMs: 520, exampleCount: 0, family: 'shuvit', id: 'fs-shuvit', name: 'FRONTSIDE SHUVIT',
-      rotation: { x: 0, y: 0, z: z(-180) }, source: 'system', verticalTravelM: 0.38,
+      rotation: { x: 0, y: 0, z: z(-180) }, source: 'system',
     },
     {
       aliases: [], builtIn: true,
       description: 'Kickflip plus a backside half shuvit.',
       durationMs: 700, exampleCount: 0, family: 'combo', id: 'varial-kickflip', name: 'VARIAL KICKFLIP',
-      rotation: { x: 0, y: y(360), z: z(180) }, source: 'system', verticalTravelM: 0.55,
+      rotation: { x: 0, y: y(360), z: z(180) }, source: 'system',
     },
     {
       aliases: [], builtIn: true,
       description: 'Heelflip plus a frontside half shuvit.',
       durationMs: 700, exampleCount: 0, family: 'combo', id: 'varial-heelflip', name: 'VARIAL HEELFLIP',
-      rotation: { x: 0, y: y(-360), z: z(-180) }, source: 'system', verticalTravelM: 0.55,
-    },
-    {
-      aliases: ['TRE COMBO', 'FLIP 3'], builtIn: true,
-      description: 'Kickflip plus a full backside 360 shuvit.',
-      durationMs: 820, exampleCount: 0, family: 'combo', id: '360-flip', name: '360 FLIP',
-      rotation: { x: 0, y: y(360), z: z(360) }, source: 'system', verticalTravelM: 0.62,
-    },
-    {
-      aliases: [], builtIn: true,
-      description: 'Heelflip plus a full frontside 360 shuvit.',
-      durationMs: 820, exampleCount: 0, family: 'combo', id: 'laser-flip', name: 'LASER FLIP',
-      rotation: { x: 0, y: y(-360), z: z(-360) }, source: 'system', verticalTravelM: 0.62,
+      rotation: { x: 0, y: y(-360), z: z(-180) }, source: 'system',
     },
     {
       aliases: ['KAMIKAZE FLIP'], builtIn: true,
-      description: 'House trick: Phone Flip combined with a half shuvit.',
+      description: 'House trick: one front flip plus one half flat spin.',
       durationMs: 760, exampleCount: 0, family: 'combo', id: 'kamikaze-flip', name: 'KAMIKAZE FLIP',
-      rotation: { x: 360, y: 0, z: z(180) }, source: 'system', verticalTravelM: 0.58,
+      rotation: { x: 360, y: 0, z: z(180) }, source: 'system',
     },
   ];
 }
@@ -202,7 +201,6 @@ export function inferIdealTrickDefinition(
       z: quantize(attempt.rotationDegrees.z, 180),
     },
     source: 'recording',
-    verticalTravelM: 0.48,
   };
 }
 
