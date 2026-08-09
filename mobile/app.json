@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "Kamikaze Phone",
+    "name": "Kamikaze: Phone Flip",
     "slug": "kamikaze-phone",
     "scheme": "kamikaze-phone",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "tech.sateler.kamikazephone"

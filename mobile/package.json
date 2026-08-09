@@ -1,6 +1,6 @@
 {
   "name": "mobile",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "main": "index.ts",
   "dependencies": {
     "@expo-google-fonts/archivo-black": "^0.4.1",
@@ -10,6 +10,7 @@
     "expo": "~54.0.0",
     "expo-font": "~14.0.12",
     "expo-gl": "~16.0.10",
+    "expo-glass-effect": "~0.1.10",
     "expo-haptics": "~15.0.8",
     "expo-keep-awake": "~15.0.8",
     "expo-sensors": "~15.0.8",
