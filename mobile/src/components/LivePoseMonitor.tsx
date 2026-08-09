@@ -8,7 +8,8 @@ import {
 } from '../motion/replay';
 import type { Quaternion, ReplayFrame } from '../motion/types';
 import { colors, fonts } from '../theme';
-import { PhoneScene3D } from './PhoneScene3D';
+import { OrbitCamera, PhoneScene3D } from './PhoneScene3D';
+import { useOrbitResponder } from './useOrbitResponder';
 
 type LivePoseMonitorProps = {
   actualHz: number;
@@ -16,7 +17,7 @@ type LivePoseMonitorProps = {
   ready: boolean;
 };
 
-const LIVE_CAMERA = {
+const LIVE_CAMERA: OrbitCamera = {
   azimuth: -0.36,
   elevation: 0.18,
   distance: 4.6,
@@ -32,6 +33,8 @@ const inverseQuaternion = (quaternion: Quaternion): Quaternion => ({
 export function LivePoseMonitor({ actualHz, quaternion, ready }: LivePoseMonitorProps) {
   const baselineRef = useRef<Quaternion | null>(null);
   const [calibrationId, setCalibrationId] = useState(0);
+  const [camera, setCamera] = useState<OrbitCamera>(LIVE_CAMERA);
+  const orbitResponder = useOrbitResponder(camera, setCamera);
 
   useEffect(() => {
     if (ready && baselineRef.current === null) {
@@ -77,14 +80,15 @@ export function LivePoseMonitor({ actualHz, quaternion, ready }: LivePoseMonitor
 
       <View style={styles.stage}>
         <PhoneScene3D
-          camera={LIVE_CAMERA}
+          camera={camera}
           frame={frame}
           tone="blue"
           variant="pose"
         />
+        <View style={styles.orbitSurface} {...orbitResponder.panHandlers} />
         <View pointerEvents="none" style={styles.stageCopy}>
           <Text style={styles.stageLabel}>ORIENTATION LIVE</Text>
-          <Text style={styles.stageLabel}>POSITION LOCKED</Text>
+          <Text style={styles.stageLabel}>DRAG: ORBIT · PINCH: ZOOM</Text>
         </View>
         {!ready && (
           <View pointerEvents="none" style={styles.sensorOverlay}>
@@ -172,6 +176,9 @@ const styles = StyleSheet.create({
     left: 12,
     position: 'absolute',
     right: 12,
+  },
+  orbitSurface: {
+    ...StyleSheet.absoluteFillObject,
   },
   stageLabel: {
     color: '#898A81',

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
-  type GestureResponderEvent,
   PanResponder,
   Pressable,
   StyleSheet,
@@ -17,6 +16,7 @@ import { loadCameraPreset, saveCameraPreset } from '../storage/cameraPreset';
 import { colors, fonts } from '../theme';
 import { OrbitCamera, PhoneScene3D } from './PhoneScene3D';
 import { useScrollLock } from './ScrollLock';
+import { useOrbitResponder } from './useOrbitResponder';
 
 type ReplayMode = 'actual' | 'target';
 
@@ -41,42 +41,6 @@ const CAMERA_PRESETS: Record<'SIDE' | 'ISO' | 'POV' | 'TOP', OrbitCamera> = {
 
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.min(maximum, Math.max(minimum, value));
-
-type SpatialGesture = {
-  camera: OrbitCamera;
-  centerX: number;
-  centerY: number;
-  pinchDistance: number;
-  touchCount: number;
-};
-
-function readSpatialGesture(
-  event: GestureResponderEvent,
-  camera: OrbitCamera,
-): SpatialGesture | null {
-  const touches = event.nativeEvent.touches;
-  if (touches.length === 0) return null;
-  const first = touches[0];
-  const second = touches[1];
-  if (!second) {
-    return {
-      camera,
-      centerX: first.pageX,
-      centerY: first.pageY,
-      pinchDistance: 0,
-      touchCount: 1,
-    };
-  }
-  const deltaX = second.pageX - first.pageX;
-  const deltaY = second.pageY - first.pageY;
-  return {
-    camera,
-    centerX: (first.pageX + second.pageX) / 2,
-    centerY: (first.pageY + second.pageY) / 2,
-    pinchDistance: Math.max(1, Math.hypot(deltaX, deltaY)),
-    touchCount: touches.length,
-  };
-}
 
 function radiansToDegrees(value: number) {
   return Math.round(value * 180 / Math.PI);
@@ -168,11 +132,8 @@ export function PhoneReplay({ attempt, targetDefinition, targetTrick }: PhoneRep
   const [cameraSaved, setCameraSaved] = useState(false);
   const timelineWidthRef = useRef(1);
   const timelineOriginXRef = useRef(0);
-  const cameraRef = useRef(DEFAULT_CAMERA);
-  const spatialGestureRef = useRef<SpatialGesture | null>(null);
   const setScrollLocked = useScrollLock();
-
-  cameraRef.current = camera;
+  const orbitResponder = useOrbitResponder(camera, setCamera);
 
   const actualFrames = useMemo(() => attempt ? buildReplayFrames(attempt) : [], [attempt]);
   const targetFrames = useMemo(
@@ -235,60 +196,6 @@ export function PhoneReplay({ attempt, targetDefinition, targetTrick }: PhoneRep
     }, 33);
     return () => clearInterval(timer);
   }, [durationMs, playbackSpeed, playing, reduceMotion]);
-
-  const orbitResponder = useMemo(() => {
-    const beginGesture = (event: GestureResponderEvent) => {
-      setScrollLocked(true);
-      spatialGestureRef.current = readSpatialGesture(event, cameraRef.current);
-    };
-    const endGesture = () => {
-      spatialGestureRef.current = null;
-      setScrollLocked(false);
-    };
-
-    return PanResponder.create({
-      onMoveShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponderCapture: () => true,
-      onPanResponderGrant: beginGesture,
-      onPanResponderMove: (event) => {
-        const touches = event.nativeEvent.touches;
-        if (touches.length === 0) return;
-
-        if (!spatialGestureRef.current || spatialGestureRef.current.touchCount !== touches.length) {
-          beginGesture(event);
-          return;
-        }
-
-        const start = spatialGestureRef.current;
-        const current = readSpatialGesture(event, start.camera);
-        if (!current) return;
-
-        const centerDeltaX = current.centerX - start.centerX;
-        const centerDeltaY = current.centerY - start.centerY;
-        const nextCamera: OrbitCamera = {
-          azimuth: start.camera.azimuth - centerDeltaX * 0.01,
-          elevation: clamp(start.camera.elevation + centerDeltaY * 0.0065, -0.18, 1.12),
-          distance: start.camera.distance,
-        };
-
-        if (current.touchCount >= 2 && start.pinchDistance > 0) {
-          nextCamera.distance = clamp(
-            start.camera.distance * start.pinchDistance / current.pinchDistance,
-            3.6,
-            11.5,
-          );
-        }
-
-        cameraRef.current = nextCamera;
-        setCamera(nextCamera);
-      },
-      onPanResponderRelease: endGesture,
-      onPanResponderTerminate: endGesture,
-      onPanResponderTerminationRequest: () => false,
-      onShouldBlockNativeResponder: () => true,
-      onStartShouldSetPanResponder: () => true,
-    });
-  }, [setScrollLocked]);
 
   const scrubResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: () => true,
