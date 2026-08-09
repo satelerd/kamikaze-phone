@@ -17,8 +17,9 @@ type PhoneScene3DProps = {
   camera: OrbitCamera;
   comparisonFrame?: ReplayFrame;
   frame: ReplayFrame;
+  shellColor?: string;
   tone: 'blue' | 'coral';
-  variant?: 'flight' | 'pose';
+  variant?: 'flight' | 'game' | 'pose';
 };
 
 const PHONE_BLUE = new THREE.Color(colors.cobalt);
@@ -105,6 +106,7 @@ export function PhoneScene3D({
   camera,
   comparisonFrame,
   frame,
+  shellColor,
   tone,
   variant = 'flight',
 }: PhoneScene3DProps) {
@@ -112,6 +114,7 @@ export function PhoneScene3D({
   const frameRef = useRef(frame);
   const cameraRef = useRef(camera);
   const comparisonFrameRef = useRef(comparisonFrame);
+  const shellColorRef = useRef(shellColor);
   const toneRef = useRef(tone);
   const variantRef = useRef(variant);
   const mountedRef = useRef(true);
@@ -119,6 +122,7 @@ export function PhoneScene3D({
   frameRef.current = frame;
   cameraRef.current = camera;
   comparisonFrameRef.current = comparisonFrame;
+  shellColorRef.current = shellColor;
   toneRef.current = tone;
   variantRef.current = variant;
 
@@ -195,6 +199,11 @@ export function PhoneScene3D({
 
       const currentFrame = frameRef.current;
       const isPoseMonitor = variantRef.current === 'pose';
+      const isGameStage = variantRef.current === 'game';
+      grid.visible = !isGameStage;
+      axes.visible = !isGameStage;
+      lookAt.y = isGameStage ? -0.08 : -0.72;
+      restPosition.y = isGameStage ? -0.08 : -0.82;
       phone.position.copy(restPosition);
       const { x, y, z, w } = currentFrame.quaternion;
       measuredOrientation.set(x, y, z, w);
@@ -212,8 +221,12 @@ export function PhoneScene3D({
         );
         comparisonPhone.quaternion.copy(baseOrientation).multiply(comparisonOrientation);
       }
-      shellMaterial.color.copy(toneRef.current === 'blue' ? PHONE_BLUE : PHONE_CORAL);
-      rimLight.color.set(toneRef.current === 'blue' ? colors.cobalt : colors.coral);
+      shellMaterial.color.set(
+        shellColorRef.current ?? (toneRef.current === 'blue' ? colors.cobalt : colors.coral),
+      );
+      rimLight.color.set(
+        shellColorRef.current ?? (toneRef.current === 'blue' ? colors.cobalt : colors.coral),
+      );
 
       const orbit = cameraRef.current;
       const horizontalDistance = orbit.distance * Math.cos(orbit.elevation);
