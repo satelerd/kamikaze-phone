@@ -16,7 +16,6 @@ export type OrbitCamera = {
 type PhoneScene3DProps = {
   camera: OrbitCamera;
   comparisonFrame?: ReplayFrame;
-  estimatedHeightM: number;
   frame: ReplayFrame;
   tone: 'blue' | 'coral';
   variant?: 'flight' | 'pose';
@@ -102,22 +101,9 @@ function createPhone(): { group: THREE.Group; shellMaterial: THREE.MeshStandardM
   return { group, shellMaterial };
 }
 
-function createFlightPath(estimatedHeightM: number): THREE.CatmullRomCurve3 {
-  const apexY = 0.65 + THREE.MathUtils.clamp(estimatedHeightM, 0.08, 1.8) * 0.75;
-  const shoulderY = -0.48 + (apexY + 0.48) * 0.7;
-  return new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0, -0.48, 0),
-    new THREE.Vector3(0, shoulderY, -0.06),
-    new THREE.Vector3(0, apexY, 0),
-    new THREE.Vector3(0, shoulderY, 0.06),
-    new THREE.Vector3(0, -0.48, 0),
-  ]);
-}
-
 export function PhoneScene3D({
   camera,
   comparisonFrame,
-  estimatedHeightM,
   frame,
   tone,
   variant = 'flight',
@@ -126,7 +112,6 @@ export function PhoneScene3D({
   const frameRef = useRef(frame);
   const cameraRef = useRef(camera);
   const comparisonFrameRef = useRef(comparisonFrame);
-  const heightRef = useRef(estimatedHeightM);
   const toneRef = useRef(tone);
   const variantRef = useRef(variant);
   const mountedRef = useRef(true);
@@ -134,7 +119,6 @@ export function PhoneScene3D({
   frameRef.current = frame;
   cameraRef.current = camera;
   comparisonFrameRef.current = comparisonFrame;
-  heightRef.current = estimatedHeightM;
   toneRef.current = tone;
   variantRef.current = variant;
 
@@ -171,14 +155,6 @@ export function PhoneScene3D({
     rimLight.position.set(4, 1, -4);
     scene.add(rimLight);
 
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(16, 12),
-      new THREE.MeshStandardMaterial({ color: 0x20211d, metalness: 0.05, roughness: 0.98 }),
-    );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -1.04;
-    scene.add(floor);
-
     const grid = new THREE.GridHelper(12, 18, 0x4b4d45, 0x30312c);
     grid.position.y = -1.025;
     scene.add(grid);
@@ -186,28 +162,6 @@ export function PhoneScene3D({
     const axes = new THREE.AxesHelper(1.35);
     axes.position.set(-1.95, -0.93, 0.2);
     scene.add(axes);
-
-    let activeHeightM = heightRef.current;
-    let curve = createFlightPath(activeHeightM);
-    const pathGeometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(90));
-    const path = new THREE.Line(
-      pathGeometry,
-      new THREE.LineBasicMaterial({ color: 0xa8a99f, transparent: true, opacity: 0.52 }),
-    );
-    scene.add(path);
-
-    const apex = new THREE.Mesh(
-      new THREE.SphereGeometry(0.055, 14, 14),
-      new THREE.MeshBasicMaterial({ color: colors.coral }),
-    );
-    apex.position.copy(curve.getPointAt(0.5));
-    scene.add(apex);
-
-    const cursor = new THREE.Mesh(
-      new THREE.SphereGeometry(0.075, 16, 16),
-      new THREE.MeshBasicMaterial({ color: colors.white, transparent: true, opacity: 0.78 }),
-    );
-    scene.add(cursor);
 
     const { group: phone, shellMaterial } = createPhone();
     scene.add(phone);
@@ -218,8 +172,14 @@ export function PhoneScene3D({
     if (mountedRef.current) setReady(true);
 
     let animationFrame = 0;
-    const lookAt = new THREE.Vector3(0, 0.32, 0);
-    const posePosition = new THREE.Vector3(0, 0.18, 0);
+    const lookAt = new THREE.Vector3(0, -0.72, 0);
+    const restPosition = new THREE.Vector3(0, -0.82, 0);
+    const baseOrientation = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(1, 0, 0),
+      -Math.PI / 2,
+    );
+    const measuredOrientation = new THREE.Quaternion();
+    const comparisonOrientation = new THREE.Quaternion();
     const render = () => {
       if (!mountedRef.current) {
         cancelAnimationFrame(animationFrame);
@@ -234,34 +194,23 @@ export function PhoneScene3D({
       }
 
       const currentFrame = frameRef.current;
-      if (Math.abs(activeHeightM - heightRef.current) > 0.001) {
-        activeHeightM = heightRef.current;
-        curve = createFlightPath(activeHeightM);
-        pathGeometry.setFromPoints(curve.getPoints(90));
-        apex.position.copy(curve.getPointAt(0.5));
-      }
       const isPoseMonitor = variantRef.current === 'pose';
-      const position = isPoseMonitor
-        ? posePosition
-        : curve.getPointAt(currentFrame.progress);
-      phone.position.copy(position);
-      cursor.position.copy(position);
-      cursor.visible = !isPoseMonitor;
-      path.visible = !isPoseMonitor;
-      apex.visible = !isPoseMonitor;
+      phone.position.copy(restPosition);
       const { x, y, z, w } = currentFrame.quaternion;
-      phone.quaternion.set(x, y, z, w);
+      measuredOrientation.set(x, y, z, w);
+      phone.quaternion.copy(baseOrientation).multiply(measuredOrientation);
       const comparison = comparisonFrameRef.current;
       comparisonPhone.visible = isPoseMonitor && Boolean(comparison);
       if (comparison && isPoseMonitor) {
         phone.position.x = -0.72;
-        comparisonPhone.position.set(0.72, posePosition.y, posePosition.z);
-        comparisonPhone.quaternion.set(
+        comparisonPhone.position.set(0.72, restPosition.y, restPosition.z);
+        comparisonOrientation.set(
           comparison.quaternion.x,
           comparison.quaternion.y,
           comparison.quaternion.z,
           comparison.quaternion.w,
         );
+        comparisonPhone.quaternion.copy(baseOrientation).multiply(comparisonOrientation);
       }
       shellMaterial.color.copy(toneRef.current === 'blue' ? PHONE_BLUE : PHONE_CORAL);
       rimLight.color.set(toneRef.current === 'blue' ? colors.cobalt : colors.coral);
@@ -284,10 +233,10 @@ export function PhoneScene3D({
 
   return (
     <View style={styles.shell}>
-      <GLView msaaSamples={4} onContextCreate={handleContextCreate} style={styles.canvas} />
+      <GLView msaaSamples={2} onContextCreate={handleContextCreate} style={styles.canvas} />
       {!ready && (
         <View pointerEvents="none" style={styles.loading}>
-          <Text style={styles.loadingText}>BUILDING 3D FLIGHT…</Text>
+          <Text style={styles.loadingText}>BUILDING 3D REPLAY…</Text>
         </View>
       )}
     </View>

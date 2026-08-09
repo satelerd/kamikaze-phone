@@ -12,7 +12,7 @@ import {
 import { buildReplayFrames, buildTargetFrames } from '../motion/replay';
 import { canonicalizeTrickName } from '../motion/tricks';
 import type { TrickDefinition } from '../motion/trickCatalog';
-import type { DetectedAttempt, ReplayFrame, RotationSummary } from '../motion/types';
+import type { DetectedAttempt, ReplayFrame } from '../motion/types';
 import { loadCameraPreset, saveCameraPreset } from '../storage/cameraPreset';
 import { colors, fonts } from '../theme';
 import { OrbitCamera, PhoneScene3D } from './PhoneScene3D';
@@ -76,21 +76,6 @@ function readSpatialGesture(
     pinchDistance: Math.max(1, Math.hypot(deltaX, deltaY)),
     touchCount: touches.length,
   };
-}
-
-function getTargetRotation(trick: string, definition?: TrickDefinition): RotationSummary {
-  if (definition) {
-    const { x, y, z } = definition.rotation;
-    return { x, y, z, total: Math.abs(x) + Math.abs(y) + Math.abs(z) };
-  }
-  const normalized = canonicalizeTrickName(trick).toUpperCase();
-  if (normalized.includes('TRE')) return { x: 0, y: 360, z: 360, total: 720 };
-  if (normalized.includes('SHUVIT')) return { x: 0, y: 0, z: 360, total: 360 };
-  if (normalized.startsWith('PHONE FLIP') || normalized.includes('KAMIKAZE')) {
-    return { x: 360, y: 0, z: 0, total: 360 };
-  }
-  if (normalized.startsWith('FLIP')) return { x: 0, y: 360, z: 0, total: 360 };
-  return { x: 360, y: 0, z: 0, total: 360 };
 }
 
 function radiansToDegrees(value: number) {
@@ -159,31 +144,6 @@ function CameraSlider({
   );
 }
 
-function AxisReadout({ rotation }: { rotation: RotationSummary }) {
-  const values = [
-    { axis: 'X', value: rotation.x },
-    { axis: 'Y', value: rotation.y },
-    { axis: 'Z', value: rotation.z },
-  ];
-  const dominant = Math.max(...values.map(({ value }) => Math.abs(value)));
-
-  return (
-    <View style={styles.axisReadout}>
-      {values.map(({ axis, value }) => {
-        const isDominant = dominant > 0 && Math.abs(value) === dominant;
-        return (
-          <View key={axis} style={[styles.axisCell, isDominant && styles.axisCellDominant]}>
-            <Text style={[styles.axisLabel, isDominant && styles.axisTextDominant]}>{axis}</Text>
-            <Text style={[styles.axisValue, isDominant && styles.axisTextDominant]}>
-              {value >= 0 ? '+' : '−'}{Math.abs(Math.round(value))}°
-            </Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
 function PlaybackIcon({ playing }: { playing: boolean }) {
   if (playing) {
     return (
@@ -226,12 +186,6 @@ export function PhoneReplay({ attempt, targetDefinition, targetTrick }: PhoneRep
   const durationMs = displayedMode === 'actual'
     ? Math.max(attempt?.airtimeMs ?? 0, frames.at(-1)?.timestampMs ?? 0, 1)
     : Math.max(frames.at(-1)?.timestampMs ?? 900, 1);
-  const rotation = displayedMode === 'actual' && attempt
-    ? attempt.rotationDegrees
-    : getTargetRotation(targetTrick, targetDefinition);
-  const estimatedHeightM = displayedMode === 'actual' && attempt
-    ? attempt.estimatedHeightM > 0.02 ? attempt.estimatedHeightM : 0.46
-    : targetDefinition?.verticalTravelM ?? 0.58;
   const isMotionWindow = attempt?.captureMode === 'manual' || attempt?.triggerMode === 'gyro';
 
   useEffect(() => {
@@ -394,7 +348,6 @@ export function PhoneReplay({ attempt, targetDefinition, targetTrick }: PhoneRep
       <View style={styles.stage}>
         <PhoneScene3D
           camera={camera}
-          estimatedHeightM={estimatedHeightM}
           frame={frame}
           tone={displayedMode === 'actual' ? 'blue' : 'coral'}
           variant="flight"
@@ -402,7 +355,7 @@ export function PhoneReplay({ attempt, targetDefinition, targetTrick }: PhoneRep
         <View style={styles.orbitSurface} {...orbitResponder.panHandlers} />
         <View pointerEvents="none" style={styles.stageLegend}>
           <Text style={styles.stageHint}>1 FINGER: ORBIT · PINCH: ZOOM</Text>
-          <Text style={styles.stageHint}>{`${estimatedHeightM.toFixed(2)}M VERTICAL EST. · ROTATION MEASURED`}</Text>
+          <Text style={styles.stageHint}>POSITION LOCKED · ROTATION MEASURED</Text>
         </View>
         <View style={styles.cameraControls}>
           <Pressable
@@ -540,8 +493,6 @@ export function PhoneReplay({ attempt, targetDefinition, targetTrick }: PhoneRep
           <Text style={styles.speedLabel}>SPEED</Text>
         </Pressable>
       </View>
-
-      <AxisReadout rotation={rotation} />
 
       <View style={styles.replayControls}>
         <View style={styles.modeSwitch}>
@@ -899,35 +850,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     width: 22,
-  },
-  axisReadout: {
-    borderTopColor: '#404139',
-    borderTopWidth: 1,
-    flexDirection: 'row',
-  },
-  axisCell: {
-    borderRightColor: '#404139',
-    borderRightWidth: 1,
-    flex: 1,
-    gap: 3,
-    paddingHorizontal: 13,
-    paddingVertical: 11,
-  },
-  axisCellDominant: {
-    backgroundColor: '#292B25',
-  },
-  axisLabel: {
-    color: '#83847B',
-    fontFamily: fonts.monoBold,
-    fontSize: 7,
-  },
-  axisValue: {
-    color: colors.white,
-    fontFamily: fonts.monoBold,
-    fontSize: 13,
-  },
-  axisTextDominant: {
-    color: colors.coral,
   },
   replayControls: {
     alignItems: 'center',

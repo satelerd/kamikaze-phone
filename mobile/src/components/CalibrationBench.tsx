@@ -454,7 +454,6 @@ export function CalibrationBench({ motion }: { motion: ReturnType<typeof useMoti
         <PhoneScene3D
           camera={DEMO_CAMERA}
           comparisonFrame={phase === 'result' && replayFrames.length > 0 ? targetFrame : undefined}
-          estimatedHeightM={0.1}
           frame={phase === 'result' && replayFrames.length > 0 ? actualReplayFrame : targetFrame}
           tone="blue"
           variant="pose"

@@ -78,7 +78,6 @@ export function LivePoseMonitor({ actualHz, quaternion, ready }: LivePoseMonitor
       <View style={styles.stage}>
         <PhoneScene3D
           camera={LIVE_CAMERA}
-          estimatedHeightM={0.1}
           frame={frame}
           tone="blue"
           variant="pose"
