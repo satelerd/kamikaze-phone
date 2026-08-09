@@ -50,13 +50,23 @@ The current deterministic classifier is useful for calibration, not a final defi
 | --- | --- |
 | Straight Air | little rotation on every axis |
 | Front / Back Flip | one turn around X |
-| Kickflip / Heelflip | one turn around Y, direction selected by grip |
+| Phone Flip / Reverse Phone Flip | one turn around Y, direction selected by grip and verified against two labelled throws |
 | Backside / Frontside Shuvit | half turn around Z, direction selected by grip |
-| Phone Flip | one Y edge flip plus one full Z spin; 360 Flip skate analogue |
-| Reverse Phone Flip | reverse Y edge flip plus reverse Z spin; Laser Flip analogue |
+| 360 Flip / Laser Flip | one Y edge flip plus one full Z spin; still provisional until labelled examples exist |
 | Kamikaze Flip | X flip plus a half Z spin |
 
 Directional names remain provisional until the right/left grip convention is verified against Daniel's labelled throws.
+
+### First labelled Phone Flip pair (2026-08-09)
+
+The first two shared raw captures disprove the earlier assumption that the main Phone Flip includes a full Z spin. After isolating the primary angular-velocity burst from each manual recording:
+
+| Label | Motion window | Integrated X | Integrated Y | Integrated Z |
+| --- | ---: | ---: | ---: | ---: |
+| Phone Flip | 688 ms | +8° | +507° | −1° |
+| Reverse Phone Flip | 867 ms | −89° | −467° | +14° |
+
+Both examples have a strong signed Y rotation and almost no net Z rotation. X and Z contain substantial temporary wobble, but mostly cancel by the end of the trick. The clean target is therefore Y ±360°, while 360 Flip remains a separate Y+Z compound trick awaiting its own labelled captures.
 
 The 3D replay visualizes measured orientation only. Its phone position is intentionally locked because IMU-only translation would currently be a fabricated trajectory. Every replay begins from a phone lying screen-up on the reference grid.
 

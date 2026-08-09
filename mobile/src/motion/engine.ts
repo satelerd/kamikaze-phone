@@ -63,7 +63,11 @@ export function classifyRotation(rotation: RotationSummary): {
   const dominantTurns = Math.max(turns.x, turns.y, turns.z);
 
   if (turns.y >= 0.55 && turns.z >= 0.38) {
-    return { trick: 'TRE COMBO', confidence: clamp((turns.y + turns.z) / 2, 0.55, 0.98) };
+    const sameDirection = Math.sign(rotation.y) === Math.sign(rotation.z);
+    const trick = sameDirection
+      ? rotation.y >= 0 ? '360 FLIP' : 'LASER FLIP'
+      : 'MULTI-AXIS FLIP';
+    return { trick, confidence: clamp((turns.y + turns.z) / 2, 0.55, 0.98) };
   }
 
   if (turns.x >= 0.55 && Math.max(turns.y, turns.z) >= 0.22) {
@@ -71,11 +75,14 @@ export function classifyRotation(rotation: RotationSummary): {
   }
 
   if (turns.x >= 0.55) {
-    return { trick: rotation.x >= 0 ? 'PHONE FLIP +' : 'PHONE FLIP −', confidence: clamp(turns.x, 0.55, 0.98) };
+    return { trick: rotation.x >= 0 ? 'FRONT FLIP' : 'BACK FLIP', confidence: clamp(turns.x, 0.55, 0.98) };
   }
 
   if (turns.y >= 0.55) {
-    return { trick: rotation.y >= 0 ? 'FLIP +' : 'FLIP −', confidence: clamp(turns.y, 0.55, 0.98) };
+    return {
+      trick: rotation.y >= 0 ? 'PHONE FLIP' : 'REVERSE PHONE FLIP',
+      confidence: clamp(turns.y, 0.55, 0.98),
+    };
   }
 
   if (turns.z >= 0.38) {

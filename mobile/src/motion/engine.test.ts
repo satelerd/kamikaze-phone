@@ -14,11 +14,11 @@ function run(samples: MotionSample[]) {
 }
 
 describe('MotionDetector', () => {
-  it('detects a caught phone flip from a 100 Hz flight window', () => {
+  it('detects a caught front flip from a 100 Hz flight window', () => {
     const snapshot = run(makeSyntheticThrowSamples());
 
     expect(snapshot.phase).toBe('complete');
-    expect(snapshot.lastAttempt?.trick).toContain('PHONE FLIP');
+    expect(snapshot.lastAttempt?.trick).toBe('FRONT FLIP');
     expect(snapshot.lastAttempt?.airtimeMs).toBeCloseTo(920, -1);
     expect(snapshot.lastAttempt?.estimatedHeightM).toBeCloseTo(1.04, 1);
     expect(snapshot.lastAttempt?.rotationDegrees.x).toBeGreaterThan(300);
@@ -31,7 +31,7 @@ describe('MotionDetector', () => {
     }));
 
     expect(snapshot.phase).toBe('complete');
-    expect(snapshot.lastAttempt?.trick).toBe('TRE COMBO');
+    expect(snapshot.lastAttempt?.trick).toBe('360 FLIP');
   });
 
   it('keeps a straight throw separate from a flip', () => {
@@ -42,13 +42,13 @@ describe('MotionDetector', () => {
     expect(snapshot.lastAttempt?.trick).toBe('STRAIGHT AIR');
   });
 
-  it('names a dominant long-edge rotation FLIP', () => {
+  it('names a dominant long-edge rotation PHONE FLIP', () => {
     const snapshot = run(makeSyntheticThrowSamples({
       airtimeMs: 420,
       rotationDps: { x: 8, y: 900, z: 12 },
     }));
 
-    expect(snapshot.lastAttempt?.trick).toBe('FLIP +');
+    expect(snapshot.lastAttempt?.trick).toBe('PHONE FLIP');
     expect(snapshot.lastAttempt?.rotationDegrees.y).toBeGreaterThan(330);
   });
 
@@ -81,14 +81,14 @@ describe('MotionDetector', () => {
     expect(snapshot.phase).toBe('armed');
   });
 
-  it('captures a fast low phone flip without losing the first rotation samples', () => {
+  it('captures a fast low front flip without losing the first rotation samples', () => {
     const snapshot = run(makeSyntheticThrowSamples({
       airtimeMs: 190,
       rotationDps: { x: 1900, y: 20, z: 10 },
     }));
 
     expect(snapshot.phase).toBe('complete');
-    expect(snapshot.lastAttempt?.trick).toContain('PHONE FLIP');
+    expect(snapshot.lastAttempt?.trick).toBe('FRONT FLIP');
     expect(snapshot.lastAttempt?.rotationDegrees.x).toBeGreaterThan(330);
     expect(snapshot.lastAttempt?.samples.length).toBeGreaterThan(40);
   });

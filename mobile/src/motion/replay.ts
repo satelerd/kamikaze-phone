@@ -96,9 +96,10 @@ export function quaternionFromEulerDegrees(euler: Vector3): Quaternion {
 }
 
 export function buildReplayFrames(attempt: DetectedAttempt): ReplayFrame[] {
+  const preRollS = attempt.captureMode === 'manual' ? 0.12 : 0;
   const postRollS = 0.22;
   const flightSamples = attempt.samples.filter((sample) =>
-    sample.timestampS >= attempt.releaseTimestampS &&
+    sample.timestampS >= attempt.releaseTimestampS - preRollS &&
     sample.timestampS <= attempt.catchTimestampS + postRollS,
   );
   if (flightSamples.length === 0) return [];
@@ -137,9 +138,13 @@ export function buildTargetFrames(
   const normalized = canonicalizeTrickName(typeof trick === 'string' ? trick : trick.name).toUpperCase();
   const targetRotation = typeof trick !== 'string'
     ? trick.rotation
-    : normalized === 'PHONE FLIP' || normalized.includes('FLIP 3') || normalized.includes('TRE') || normalized.includes('360 FLIP')
-    ? { x: 0, y: 360, z: 360 }
-    : normalized === 'REVERSE PHONE FLIP' || normalized.includes('LASER FLIP')
+    : normalized === 'PHONE FLIP' || normalized === 'FLIP 3'
+      ? { x: 0, y: 360, z: 0 }
+    : normalized === 'REVERSE PHONE FLIP' || normalized === 'REVERSE FLIP 3'
+      ? { x: 0, y: -360, z: 0 }
+    : normalized.includes('TRE') || normalized.includes('360 FLIP')
+      ? { x: 0, y: 360, z: 360 }
+    : normalized.includes('LASER FLIP')
       ? { x: 0, y: -360, z: -360 }
     : normalized.includes('SHUVIT −') || normalized.includes('FRONTSIDE SHUVIT')
       ? { x: 0, y: 0, z: -180 }
@@ -147,7 +152,9 @@ export function buildTargetFrames(
         ? { x: 0, y: 0, z: 180 }
         : normalized.includes('HEELFLIP') || normalized.includes('FLIP −')
           ? { x: 0, y: -360, z: 0 }
-      : normalized.startsWith('PHONE FLIP') || normalized.includes('KAMIKAZE')
+      : normalized.includes('BACK FLIP')
+        ? { x: -360, y: 0, z: 0 }
+      : normalized.includes('FRONT FLIP') || normalized.includes('KAMIKAZE')
         ? { x: 360, y: 0, z: 0 }
         : normalized.startsWith('FLIP') || normalized.includes('KICKFLIP')
           ? { x: 0, y: 360, z: 0 }

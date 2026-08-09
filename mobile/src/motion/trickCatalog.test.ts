@@ -33,19 +33,26 @@ describe('trick catalog', () => {
   it('uses skate rotation conventions for shuvits and 360 flips', () => {
     const catalog = buildDefaultTrickCatalog('right');
     expect(catalog.find(({ id }) => id === 'bs-shuvit')?.rotation.z).toBe(180);
-    expect(catalog.find(({ id }) => id === 'phone-flip')?.rotation).toEqual({ x: 0, y: 360, z: 360 });
+    expect(catalog.find(({ id }) => id === 'phone-flip')?.rotation).toEqual({ x: 0, y: 360, z: 0 });
+    expect(catalog.find(({ id }) => id === '360-flip')?.rotation).toEqual({ x: 0, y: 360, z: 360 });
   });
 
-  it('distinguishes kickflip and heelflip by direction', () => {
+  it('distinguishes the Phone Flip pair by direction', () => {
     const catalog = buildDefaultTrickCatalog('right');
-    expect(findBestTrickMatch(attempt({ x: 8, y: 356, z: 9 }), catalog).definition.name).toBe('KICKFLIP');
-    expect(findBestTrickMatch(attempt({ x: -5, y: -370, z: 4 }), catalog).definition.name).toBe('HEELFLIP');
+    expect(findBestTrickMatch(attempt({ x: 8, y: 356, z: 9 }), catalog).definition.name).toBe('PHONE FLIP');
+    expect(findBestTrickMatch(attempt({ x: -5, y: -370, z: 4 }), catalog).definition.name).toBe('REVERSE PHONE FLIP');
   });
 
-  it('treats the combined edge flip and full spin as the main Phone Flip', () => {
+  it('keeps a 360 Flip separate from the measured Phone Flip', () => {
     const catalog = buildDefaultTrickCatalog('right');
-    expect(findBestTrickMatch(attempt({ x: 12, y: 352, z: 371 }), catalog).definition.name).toBe('PHONE FLIP');
-    expect(findBestTrickMatch(attempt({ x: -8, y: -365, z: -349 }), catalog).definition.name).toBe('REVERSE PHONE FLIP');
+    expect(findBestTrickMatch(attempt({ x: 12, y: 352, z: 371 }), catalog).definition.name).toBe('360 FLIP');
+    expect(findBestTrickMatch(attempt({ x: -8, y: -365, z: -349 }), catalog).definition.name).toBe('LASER FLIP');
+  });
+
+  it('matches Daniel’s two labelled captures to the Phone Flip pair', () => {
+    const catalog = buildDefaultTrickCatalog('right');
+    expect(findBestTrickMatch(attempt({ x: 8, y: 507, z: -1 }), catalog).definition.name).toBe('PHONE FLIP');
+    expect(findBestTrickMatch(attempt({ x: -89, y: -467, z: 14 }), catalog).definition.name).toBe('REVERSE PHONE FLIP');
   });
 
   it('quantizes a recording into an editable mathematical recipe', () => {

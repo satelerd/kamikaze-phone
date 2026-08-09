@@ -45,40 +45,40 @@ export function buildDefaultTrickCatalog(hand: GripHand): TrickDefinition[] {
       rotation: { x: 0, y: 0, z: 0 }, source: 'system',
     },
     {
-      aliases: ['360 FLIP', 'TRE COMBO', 'FLIP 3'], builtIn: true,
-      description: 'One edge flip plus one full flat spin. Skate analogue: 360 Flip.',
-      durationMs: 820, exampleCount: 0, family: 'combo', id: 'phone-flip', name: 'PHONE FLIP',
+      aliases: ['FLIP 3', 'KICKFLIP', 'FLIP +'], builtIn: true,
+      description: 'The main phone trick: one long-edge rotation, measured from labelled throws.',
+      durationMs: 780, exampleCount: 1, family: 'flip', id: 'phone-flip', name: 'PHONE FLIP',
+      rotation: { x: 0, y: y(360), z: 0 }, source: 'system',
+    },
+    {
+      aliases: ['REVERSE FLIP 3', 'HEELFLIP', 'FLIP −'], builtIn: true,
+      description: 'The same long-edge phone rotation in the opposite direction.',
+      durationMs: 780, exampleCount: 1, family: 'flip', id: 'reverse-phone-flip', name: 'REVERSE PHONE FLIP',
+      rotation: { x: 0, y: y(-360), z: 0 }, source: 'system',
+    },
+    {
+      aliases: ['TRE FLIP', 'TRE COMBO'], builtIn: true,
+      description: 'A long-edge flip combined with one full screen-normal spin.',
+      durationMs: 820, exampleCount: 0, family: 'combo', id: '360-flip', name: '360 FLIP',
       rotation: { x: 0, y: y(360), z: z(360) }, source: 'system',
     },
     {
-      aliases: ['LASER FLIP'], builtIn: true,
-      description: 'The reverse edge flip plus reverse full spin. Skate analogue: Laser Flip.',
-      durationMs: 820, exampleCount: 0, family: 'combo', id: 'reverse-phone-flip', name: 'REVERSE PHONE FLIP',
+      aliases: [], builtIn: true,
+      description: 'The reverse long-edge flip combined with a reverse full spin.',
+      durationMs: 820, exampleCount: 0, family: 'combo', id: 'laser-flip', name: 'LASER FLIP',
       rotation: { x: 0, y: y(-360), z: z(-360) }, source: 'system',
     },
     {
-      aliases: ['PHONE FLIP +'], builtIn: true,
+      aliases: [], builtIn: true,
       description: 'One forward rotation around the phone width.',
       durationMs: 620, exampleCount: 0, family: 'flip', id: 'front-flip', name: 'FRONT FLIP',
       rotation: { x: 360, y: 0, z: 0 }, source: 'system',
     },
     {
-      aliases: ['PHONE FLIP −'], builtIn: true,
+      aliases: [], builtIn: true,
       description: 'One backward rotation around the phone width.',
       durationMs: 620, exampleCount: 0, family: 'flip', id: 'back-flip', name: 'BACK FLIP',
       rotation: { x: -360, y: 0, z: 0 }, source: 'system',
-    },
-    {
-      aliases: ['FLIP +'], builtIn: true,
-      description: 'Long-edge roll in the kickflip direction for the selected grip.',
-      durationMs: 600, exampleCount: 0, family: 'flip', id: 'kickflip', name: 'KICKFLIP',
-      rotation: { x: 0, y: y(360), z: 0 }, source: 'system',
-    },
-    {
-      aliases: ['FLIP −'], builtIn: true,
-      description: 'Long-edge roll in the opposite, heelflip direction.',
-      durationMs: 600, exampleCount: 0, family: 'flip', id: 'heelflip', name: 'HEELFLIP',
-      rotation: { x: 0, y: y(-360), z: 0 }, source: 'system',
     },
     {
       aliases: ['SHUVIT +'], builtIn: true,
@@ -141,7 +141,9 @@ export function scoreAttemptAgainstTrick(
     Math.hypot(sample.rotationRateDps.x, sample.rotationRateDps.y, sample.rotationRateDps.z) >=
     Math.max(70, attempt.peakRotationDps * 0.14),
   );
-  const measuredMotionDurationMs = dynamicSamples.length > 1
+  const measuredMotionDurationMs = attempt.captureMode === 'manual'
+    ? attempt.airtimeMs
+    : dynamicSamples.length > 1
     ? (dynamicSamples.at(-1)!.timestampS - dynamicSamples[0].timestampS) * 1000
     : attempt.airtimeMs;
   const timingScore = clamp(1 - Math.abs(measuredMotionDurationMs - definition.durationMs) /

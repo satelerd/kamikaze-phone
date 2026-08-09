@@ -20,13 +20,20 @@ describe('replay reconstruction', () => {
     expect(frames.at(-1)!.progress).toBeCloseTo(1, 1);
   });
 
-  it('keeps FLIP on Y and PHONE FLIP on X in target replays', () => {
-    const flipHalfway = buildTargetFrames('FLIP +')[30].quaternion;
-    const phoneFlipHalfway = buildTargetFrames('PHONE FLIP +')[30].quaternion;
+  it('keeps PHONE FLIP on Y and FRONT FLIP on X in target replays', () => {
+    const phoneFlipHalfway = buildTargetFrames('PHONE FLIP')[30].quaternion;
+    const frontFlipHalfway = buildTargetFrames('FRONT FLIP')[30].quaternion;
 
-    expect(Math.abs(flipHalfway.y)).toBeCloseTo(1, 4);
-    expect(Math.abs(flipHalfway.x)).toBeCloseTo(0, 4);
-    expect(Math.abs(phoneFlipHalfway.x)).toBeCloseTo(1, 4);
-    expect(Math.abs(phoneFlipHalfway.y)).toBeCloseTo(0, 4);
+    expect(Math.abs(phoneFlipHalfway.y)).toBeCloseTo(1, 4);
+    expect(Math.abs(phoneFlipHalfway.x)).toBeCloseTo(0, 4);
+    expect(Math.abs(frontFlipHalfway.x)).toBeCloseTo(1, 4);
+    expect(Math.abs(frontFlipHalfway.y)).toBeCloseTo(0, 4);
+  });
+
+  it('preserves the opposite X direction for a BACK FLIP target', () => {
+    const quarterFrame = buildTargetFrames('BACK FLIP')[15].quaternion;
+
+    expect(quarterFrame.x).toBeLessThan(0);
+    expect(Math.abs(quarterFrame.y)).toBeCloseTo(0, 4);
   });
 });
