@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Kamikaze Phone",
+    "slug": "kamikaze-phone",
+    "scheme": "kamikaze-phone",
+    "version": "0.2.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "tech.sateler.kamikazephone"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "tech.sateler.kamikazephone"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Kamikaze Phone uses motion data to detect airtime, rotation and catches."
+        }
+      ],
+      "expo-sqlite"
+    ]
+  }
+}
