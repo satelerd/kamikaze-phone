@@ -77,6 +77,12 @@ The phone is the avatar. It stays in the center of a circular landing zone and m
 
 Liquid Glass belongs to floating controls and navigation. It should reveal moving color beneath it and react to touch; it should not become a generic glass card applied to every block.
 
+The app background is a lightweight kinetic color field rather than a second permanent WebGL context. It changes with play state and gives native glass moving material to refract without competing with the phone renderer for battery or frame time.
+
+All player-facing 3D scenes share the same interaction vocabulary: one finger orbits, two fingers pinch to zoom and **Reset View** restores the camera without changing sensor calibration. Replays add a draggable scrubber and 1×, 0.5× and 0.25× playback speeds.
+
+Practice is a six-level path in the prototype: backside shuvit, frontside shuvit, Phone Flip, Reverse Phone Flip, front flip and back flip. One 55+ landing unlocks the next level; three reps marks mastery. This progression is derived from saved attempts so it cannot drift away from the evidence in the local history.
+
 ## Screen sketches
 
 ```text

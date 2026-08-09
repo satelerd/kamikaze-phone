@@ -44,18 +44,29 @@ import {
 } from './gameProfile';
 import { GameStage } from './GameStage';
 import { GlassSurface } from './GlassSurface';
+import { KineticBackdrop } from './KineticBackdrop';
 import { MiniReplay } from './MiniReplay';
 import { gameColors, gameRadii } from './theme';
 
 type GameTab = 'play' | 'practice' | 'locker' | 'profile';
 type MotionController = ReturnType<typeof useMotionLab>;
 type CaptureMode = 'auto' | 'manual';
+type RunComparison = { attempt: DetectedAttempt; label: string; score: number };
 
 const SKINS = [
   { id: 'ion', name: 'ION BLUE', color: gameColors.ion, cost: 0, note: 'Founding deck' },
   { id: 'hazard', name: 'HAZARD', color: gameColors.hazard, cost: 180, note: 'Impact orange' },
   { id: 'volt', name: 'VOLT', color: gameColors.volt, cost: 520, note: 'Night session' },
   { id: 'graphite', name: 'GRAPHITE', color: '#8F928B', cost: 980, note: 'Raw titanium' },
+] as const;
+
+const PRACTICE_LEVEL_IDS = [
+  'bs-shuvit',
+  'fs-shuvit',
+  'phone-flip',
+  'reverse-phone-flip',
+  'front-flip',
+  'back-flip',
 ] as const;
 
 const identityFrame: ReplayFrame = {
@@ -80,22 +91,14 @@ function skinFor(id: string) {
   return SKINS.find((skin) => skin.id === id) ?? SKINS[0];
 }
 
-function Brand({ compact = false }: { compact?: boolean }) {
-  return (
-    <View style={styles.brandRow}>
-      <Text style={[styles.brand, compact && styles.brandCompact]}>KAMIKAZE</Text>
-      <Text style={[styles.brandColon, compact && styles.brandColonCompact]}>:</Text>
-      <Text style={[styles.brandProduct, compact && styles.brandProductCompact]}>PHONE FLIP</Text>
-    </View>
-  );
-}
-
 function GameButton({
   label,
+  large = false,
   onPress,
   secondary = false,
 }: {
   label: string;
+  large?: boolean;
   onPress: () => void;
   secondary?: boolean;
 }) {
@@ -106,9 +109,11 @@ function GameButton({
           interactive
           style={[
             styles.gameButton,
+            large && styles.gameButtonLarge,
             secondary && styles.gameButtonSecondary,
             pressed && styles.gameButtonPressed,
           ]}
+          fallbackColor={secondary ? 'rgba(233,236,248,0.13)' : 'rgba(91,115,255,0.56)'}
           tintColor={secondary ? gameColors.frost : gameColors.ion}
         >
           <Text style={[styles.gameButtonText, secondary && styles.gameButtonTextSecondary]}>{label}</Text>
@@ -138,17 +143,14 @@ function Onboarding({
   };
   const copy = [
     {
-      eyebrow: 'A PHYSICAL TRICK GAME',
       title: 'YOUR PHONE\nIS THE BOARD.',
       body: 'Throw it. Flip it. Catch it. Kamikaze reads the motion and turns every landing into a score.',
     },
     {
-      eyebrow: 'BEFORE YOU THROW',
-      title: 'PLAY OVER\nSOMETHING SOFT.',
-      body: 'Use a case, clear your space and start low. Kamikaze measures motion — it cannot protect the phone from impact.',
+      title: 'SOFT LANDINGS.\nHARD TRICKS.',
+      body: 'A case and something soft are the smart move. Kamikaze is a game, not a warranty.',
     },
     {
-      eyebrow: 'MOTION MIRROR',
       title: sensorReady ? 'YOU ARE\nCONNECTED.' : 'MAKE IT\nMOVE.',
       body: sensorReady
         ? 'Move the phone. The object below should follow you. Your first guided flip is waiting.'
@@ -159,25 +161,19 @@ function Onboarding({
   return (
     <SafeAreaView style={styles.onboardingSafe}>
       <StatusBar style="light" />
-      <View style={styles.onboardingTop}>
-        <Brand compact />
-        <Pressable onPress={onComplete} hitSlop={12}>
-          <Text style={styles.skip}>SKIP</Text>
-        </Pressable>
-      </View>
-      <View style={styles.onboardingCopy}>
-        <Text style={styles.eyebrow}>{copy.eyebrow}</Text>
-        <Text style={styles.onboardingTitle}>{copy.title}</Text>
-        <Text style={styles.onboardingBody}>{copy.body}</Text>
-      </View>
+      <KineticBackdrop atmosphere={sensorReady ? 'armed' : 'idle'} />
       <View style={styles.onboardingStage}>
         <GameStage
           frame={frame}
-          height={300}
+          height={330}
           phase={sensorReady ? 'armed' : 'idle'}
           sensorHz={motion.snapshot.actualHz}
           skinColor={skinColor}
         />
+      </View>
+      <View style={styles.onboardingCopy}>
+        <Text style={styles.onboardingTitle}>{copy.title}</Text>
+        <Text style={styles.onboardingBody}>{copy.body}</Text>
       </View>
       <View style={styles.onboardingBottom}>
         <View style={styles.pageDots}>
@@ -199,6 +195,7 @@ function Onboarding({
 
 function ResultScreen({
   attempt,
+  comparisons,
   definition,
   match,
   onAgain,
@@ -207,6 +204,7 @@ function ResultScreen({
   streak,
 }: {
   attempt: DetectedAttempt;
+  comparisons: RunComparison[];
   definition: TrickDefinition;
   match: TrickMatch;
   onAgain: () => void;
@@ -216,6 +214,8 @@ function ResultScreen({
 }) {
   const score = scoreFor(match, attempt);
   const verdict = score >= 88 ? 'CLEAN' : score >= 68 ? 'LANDED' : 'ROUGH';
+  const [replayAttemptId, setReplayAttemptId] = useState(attempt.id);
+  const replayAttempt = comparisons.find((item) => item.attempt.id === replayAttemptId)?.attempt ?? attempt;
   return (
     <ScrollView contentContainerStyle={styles.resultContent} showsVerticalScrollIndicator={false}>
       <View style={styles.resultTopline}>
@@ -230,8 +230,28 @@ function ResultScreen({
         <Text style={styles.resultScore}>{score}</Text>
       </View>
       <View style={styles.resultReplay}>
-        <MiniReplay attempt={attempt} definition={definition} shellColor={shellColor} />
+        <MiniReplay attempt={replayAttempt} definition={definition} shellColor={shellColor} />
       </View>
+      {comparisons.length > 1 && (
+        <View style={styles.comparisonBlock}>
+          <Text style={styles.comparisonLabel}>COMPARE RUNS</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {comparisons.map((item) => {
+              const selected = replayAttempt.id === item.attempt.id;
+              return (
+                <Pressable
+                  key={item.attempt.id}
+                  onPress={() => setReplayAttemptId(item.attempt.id)}
+                  style={[styles.comparisonChip, selected && styles.comparisonChipActive]}
+                >
+                  <Text style={[styles.comparisonChipLabel, selected && styles.comparisonChipLabelActive]}>{item.label}</Text>
+                  <Text style={[styles.comparisonChipScore, selected && styles.comparisonChipLabelActive]}>{item.score}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
       <View style={styles.resultStats}>
         <View>
           <Text style={styles.statValue}>{Math.round(match.axisPurity * 100)}</Text>
@@ -301,6 +321,20 @@ function PlayScreen({
     }
     return count;
   }, [catalog.definitions, motion.attempts]);
+  const comparisons = useMemo<RunComparison[]>(() => {
+    if (!attempt || !match) return [];
+    const matchingHistory = motion.attempts.filter((item) =>
+      item.id !== attempt.id &&
+      findBestTrickMatch(item, catalog.definitions).definition.id === match.definition.id,
+    );
+    return [attempt, ...matchingHistory]
+      .slice(0, 4)
+      .map((item, index) => ({
+        attempt: item,
+        label: index === 0 ? 'THIS RUN' : `PREV ${index}`,
+        score: scoreFor(findBestTrickMatch(item, catalog.definitions), item),
+      }));
+  }, [attempt, catalog.definitions, match?.definition.id, motion.attempts]);
 
   useEffect(() => {
     if (
@@ -326,6 +360,7 @@ function PlayScreen({
     return (
       <ResultScreen
         attempt={attempt}
+        comparisons={comparisons}
         definition={match.definition}
         match={match}
         onAgain={() => {
@@ -351,14 +386,13 @@ function PlayScreen({
         onPress={() => { motion.stopManualCapture(); }}
         style={styles.manualFullScreen}
       >
-        <View style={styles.playHeader}>
-          <Brand compact />
+        <View style={styles.playUtilityRow}>
           <View style={styles.liveRunPill}>
             <View style={styles.recordingDot} />
             <Text style={styles.liveRunText}>REC {(motion.manualElapsedMs / 1000).toFixed(2)}S</Text>
           </View>
         </View>
-        <GameStage frame={frame} height={stageHeight} phase="airborne" sensorHz={motion.snapshot.actualHz} skinColor={shellColor} />
+        <GameStage frame={frame} height={stageHeight} interactive={false} phase="airborne" sensorHz={motion.snapshot.actualHz} skinColor={shellColor} />
         <View style={styles.tapAnywhere}>
           <Text style={styles.tapAnywhereTitle}>DO THE TRICK.</Text>
           <Text style={styles.tapAnywhereBody}>Tap anywhere when the phone is back in your hand.</Text>
@@ -370,8 +404,7 @@ function PlayScreen({
 
   return (
     <View style={styles.playScreen}>
-      <View style={styles.playHeader}>
-        <Brand compact />
+      <View style={styles.playUtilityRow}>
         <View style={styles.liveRunPill}>
           <Text style={styles.liveRunText}>{runActive ? `RUN ×${Math.max(1, streak)}` : 'FREE PLAY'}</Text>
         </View>
@@ -406,17 +439,20 @@ function PlayScreen({
           ))}
         </View>
       </View>
-      {active ? (
-        <GameButton
-          label="CANCEL SESSION"
-          onPress={() => { motion.disarm(); setRunActive(false); }}
-          secondary
-        />
-      ) : motion.sensorStatus === 'ready' ? (
-        <GameButton label={mode === 'auto' ? 'START SESSION' : 'START MANUAL TRICK'} onPress={start} />
-      ) : (
-        <GameButton label="ENABLE MOTION" onPress={() => { motion.requestPermission(); }} />
-      )}
+      <View style={styles.playActionDock}>
+        {active ? (
+          <GameButton
+            label="SESSION ARMED · CANCEL"
+            large
+            onPress={() => { motion.disarm(); setRunActive(false); }}
+            secondary
+          />
+        ) : motion.sensorStatus === 'ready' ? (
+          <GameButton large label={mode === 'auto' ? 'START SESSION' : 'START MANUAL TRICK'} onPress={start} />
+        ) : (
+          <GameButton large label="ENABLE MOTION" onPress={() => { motion.requestPermission(); }} />
+        )}
+      </View>
     </View>
   );
 }
@@ -432,12 +468,26 @@ function PracticeScreen({
   scrollEnabled: boolean;
   shellColor: string;
 }) {
-  const [selectedId, setSelectedId] = useState('phone-flip');
+  const levels = PRACTICE_LEVEL_IDS
+    .map((id) => catalog.definitions.find((definition) => definition.id === id))
+    .filter((definition): definition is TrickDefinition => Boolean(definition));
+  const passedCounts = levels.map((level) => motion.attempts.filter((item) => {
+    const itemMatch = findBestTrickMatch(item, catalog.definitions);
+    return itemMatch.definition.id === level.id && scoreFor(itemMatch, item) >= 55;
+  }).length);
+  let unlockedLevelCount = 1;
+  for (let index = 0; index < levels.length - 1; index += 1) {
+    if (passedCounts[index] < 1) break;
+    unlockedLevelCount = index + 2;
+  }
+  const [selectedId, setSelectedId] = useState('bs-shuvit');
   const [attempt, setAttempt] = useState<DetectedAttempt | null>(null);
-  const definition = catalog.definitions.find(({ id }) => id === selectedId) ?? catalog.definitions[1];
+  const selectedIndex = Math.max(0, levels.findIndex(({ id }) => id === selectedId));
+  const definition = levels[selectedIndex] ?? levels[0] ?? catalog.definitions[1];
   const reps = motion.attempts.filter((item) =>
     findBestTrickMatch(item, catalog.definitions).definition.id === definition.id,
   ).length;
+  const levelPassed = passedCounts[selectedIndex] > 0;
 
   if (motion.manualRecording) {
     return (
@@ -450,7 +500,7 @@ function PracticeScreen({
       >
         <Text style={styles.eyebrow}>GUIDED REP / {definition.name}</Text>
         <Text style={styles.practiceRecordingTitle}>LAND IT.{`\n`}THEN TAP.</Text>
-        <MiniReplay definition={definition} shellColor={shellColor} />
+        <MiniReplay definition={definition} interactive={false} shellColor={shellColor} />
         <Text style={styles.practiceRecordingTime}>{(motion.manualElapsedMs / 1000).toFixed(2)}S RECORDING</Text>
         <Text style={styles.practiceRecordingStop}>THE WHOLE SCREEN STOPS THE CAPTURE</Text>
       </Pressable>
@@ -464,25 +514,45 @@ function PracticeScreen({
       scrollEnabled={scrollEnabled}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.eyebrow}>PRACTICE / WATCH. TRY. LEARN.</Text>
-      <Text style={styles.screenTitle}>BUILD YOUR{`\n`}TRICK DECK.</Text>
-      <Text style={styles.screenIntro}>Pick one motion, study the clean version and record three intentional reps.</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.trickScroller}>
-        {catalog.definitions.filter(({ family }) => family !== 'air').map((item) => (
+      <Text style={styles.eyebrow}>TRICK PATH / {unlockedLevelCount} OF {levels.length} OPEN</Text>
+      <Text style={styles.screenTitle}>EARN THE{`\n`}NEXT MOVE.</Text>
+      <Text style={styles.screenIntro}>Land each level once to unlock the next. Three clean reps turns a pass into mastery.</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.levelScroller}>
+        {levels.map((item, index) => {
+          const unlocked = index < unlockedLevelCount;
+          const passed = passedCounts[index] > 0;
+          return (
           <Pressable
+            disabled={!unlocked}
             key={item.id}
             onPress={() => { setSelectedId(item.id); setAttempt(null); }}
-            style={[styles.trickPill, item.id === definition.id && styles.trickPillActive]}
+            style={[
+              styles.levelCard,
+              item.id === definition.id && styles.levelCardActive,
+              !unlocked && styles.levelCardLocked,
+            ]}
           >
-            <Text style={[styles.trickPillText, item.id === definition.id && styles.trickPillTextActive]}>{item.name}</Text>
+            <View style={styles.levelCardTop}>
+              <Text style={[styles.levelNumber, item.id === definition.id && styles.levelCardTextActive]}>
+                {String(index + 1).padStart(2, '0')}
+              </Text>
+              <Text style={[styles.levelState, passed && styles.levelStatePassed]}>
+                {!unlocked ? 'LOCKED' : passed ? 'PASSED' : 'OPEN'}
+              </Text>
+            </View>
+            <Text style={[styles.levelName, item.id === definition.id && styles.levelCardTextActive]}>{item.name}</Text>
           </Pressable>
-        ))}
+          );
+        })}
       </ScrollView>
       <View style={styles.practiceReplay}>
         <MiniReplay attempt={attempt} definition={definition} shellColor={shellColor} />
       </View>
       <View style={styles.practiceProgressRow}>
         <View>
+          <Text style={[styles.levelStatus, levelPassed && styles.levelStatusPassed]}>
+            LEVEL {String(selectedIndex + 1).padStart(2, '0')} · {levelPassed ? 'PASSED' : 'LAND 55+ TO PASS'}
+          </Text>
           <Text style={styles.practiceSelected}>{definition.name}</Text>
           <Text style={styles.practiceDescription}>{definition.description}</Text>
         </View>
@@ -497,7 +567,7 @@ function PracticeScreen({
           <Text style={styles.practiceResultScore}>{scoreFor(match, attempt)}</Text>
         </View>
       )}
-      <GameButton label="START GUIDED REP" onPress={() => { motion.startManualCapture(); }} />
+      <GameButton label={levelPassed ? 'PRACTICE AGAIN' : 'START LEVEL'} onPress={() => { motion.startManualCapture(); }} />
     </ScrollView>
   );
 }
@@ -699,7 +769,12 @@ function BottomNavigation({ tab, setTab }: { tab: GameTab; setTab: (tab: GameTab
     { id: 'profile', glyph: '○', label: 'ME' },
   ];
   return (
-    <GlassSurface style={styles.bottomNav} tintColor={gameColors.pitchRaised}>
+    <GlassSurface
+      fallbackColor="rgba(28,30,36,0.72)"
+      interactive
+      style={styles.bottomNav}
+      tintColor="rgba(28,30,36,0.42)"
+    >
       {tabs.map((item) => (
         <Pressable
           accessibilityRole="tab"
@@ -769,6 +844,7 @@ export default function GamePrototypeApp() {
     setTab('play');
   };
   const selectedSkin = skinFor(preferences.selectedSkinId);
+  const atmosphere = tab === 'play' ? motion.snapshot.phase : tab;
 
   if (showOnboarding) {
     return <Onboarding motion={motion} onComplete={completeOnboarding} skinColor={selectedSkin.color} />;
@@ -802,6 +878,7 @@ export default function GamePrototypeApp() {
       <StatusBar style="light" />
       <ScrollLockContext.Provider value={setScrollLocked}>
         <View style={styles.appShell}>
+          {!reduceTransparency && <KineticBackdrop atmosphere={atmosphere} />}
           <View style={styles.screenBody}>
             {tab === 'play' && <PlayScreen catalog={catalog} motion={motion} shellColor={selectedSkin.color} />}
             {tab === 'practice' && (
@@ -839,47 +916,39 @@ const styles = StyleSheet.create({
   safeAreaOpaque: { backgroundColor: '#151612' },
   appShell: { flex: 1, position: 'relative' },
   screenBody: { flex: 1, paddingBottom: 92 },
-  brandRow: { alignItems: 'baseline', flexDirection: 'row' },
-  brand: { color: gameColors.white, fontFamily: fonts.display, fontSize: 22, letterSpacing: -0.9 },
-  brandCompact: { fontSize: 15, letterSpacing: -0.5 },
-  brandColon: { color: gameColors.hazard, fontFamily: fonts.display, fontSize: 23, marginHorizontal: 4 },
-  brandColonCompact: { fontSize: 16, marginHorizontal: 3 },
-  brandProduct: { color: gameColors.frostMuted, fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 1.4 },
-  brandProductCompact: { fontSize: 7, letterSpacing: 1 },
   eyebrow: { color: gameColors.ion, fontFamily: fonts.monoBold, fontSize: 9, letterSpacing: 1.4 },
   buttonPressable: { borderRadius: gameRadii.control, marginTop: 12 },
   gameButton: {
     alignItems: 'center',
-    backgroundColor: 'rgba(91,115,255,0.78)',
     borderRadius: gameRadii.control,
     flexDirection: 'row',
     justifyContent: 'space-between',
     minHeight: 62,
     paddingHorizontal: 22,
   },
-  gameButtonSecondary: { backgroundColor: 'rgba(255,255,255,0.09)' },
+  gameButtonLarge: { minHeight: 82, paddingHorizontal: 28 },
+  gameButtonSecondary: {},
   gameButtonPressed: { transform: [{ scale: 0.985 }] },
   gameButtonText: { color: gameColors.white, fontFamily: fonts.bodyBold, fontSize: 15, letterSpacing: 0.3 },
   gameButtonTextSecondary: { color: gameColors.frost },
   gameButtonArrow: { color: gameColors.white, fontFamily: fonts.body, fontSize: 22 },
   onboardingSafe: { backgroundColor: gameColors.pitch, flex: 1 },
-  onboardingTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 22, paddingTop: 10 },
-  skip: { color: gameColors.frostMuted, fontFamily: fonts.monoBold, fontSize: 9, letterSpacing: 1 },
-  onboardingCopy: { paddingHorizontal: 24, paddingTop: 24 },
-  onboardingTitle: { color: gameColors.white, fontFamily: fonts.display, fontSize: 43, letterSpacing: -2, lineHeight: 41, marginTop: 10 },
+  onboardingCopy: { paddingHorizontal: 24, paddingTop: 2 },
+  onboardingTitle: { color: gameColors.white, fontFamily: fonts.display, fontSize: 39, letterSpacing: -1.8, lineHeight: 38 },
   onboardingBody: { color: gameColors.frostMuted, fontFamily: fonts.body, fontSize: 14, lineHeight: 20, marginTop: 13, maxWidth: 340 },
-  onboardingStage: { flex: 1, justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 18 },
-  onboardingBottom: { paddingBottom: 14, paddingHorizontal: 22 },
+  onboardingStage: { paddingHorizontal: 18, paddingTop: 12 },
+  onboardingBottom: { marginTop: 'auto', paddingBottom: 18, paddingHorizontal: 22 },
   pageDots: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginBottom: 2 },
   pageDot: { backgroundColor: '#3D3E38', borderRadius: 3, height: 5, width: 18 },
   pageDotActive: { backgroundColor: gameColors.volt, width: 34 },
-  playScreen: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  playHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 12, paddingHorizontal: 4 },
-  liveRunPill: { alignItems: 'center', backgroundColor: '#23241F', borderRadius: 16, flexDirection: 'row', gap: 7, paddingHorizontal: 11, paddingVertical: 8 },
+  playScreen: { flex: 1, paddingHorizontal: 16, paddingTop: 6 },
+  playUtilityRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'flex-end', minHeight: 38, paddingBottom: 8, paddingHorizontal: 4 },
+  liveRunPill: { alignItems: 'center', backgroundColor: 'rgba(35,36,31,0.66)', borderColor: 'rgba(255,255,255,0.12)', borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 7, paddingHorizontal: 11, paddingVertical: 8 },
   liveRunText: { color: gameColors.frost, fontFamily: fonts.monoBold, fontSize: 8, letterSpacing: 0.7 },
   recordingDot: { backgroundColor: gameColors.hazard, borderRadius: 4, height: 8, width: 8 },
   playInstructionRow: { alignItems: 'center', flexDirection: 'row', gap: 12, justifyContent: 'space-between', marginTop: 14 },
   playInstruction: { color: gameColors.frost, flex: 1, fontFamily: fonts.body, fontSize: 13, lineHeight: 18 },
+  playActionDock: { flex: 1, justifyContent: 'flex-end', paddingBottom: 5 },
   modeSwitch: { backgroundColor: '#20211D', borderRadius: 18, flexDirection: 'row', padding: 3 },
   modeOption: { borderRadius: 14, paddingHorizontal: 10, paddingVertical: 7 },
   modeOptionActive: { backgroundColor: gameColors.frost },
@@ -900,6 +969,13 @@ const styles = StyleSheet.create({
   resultMeta: { color: gameColors.frostMuted, fontFamily: fonts.mono, fontSize: 8, letterSpacing: 0.5, marginTop: 7 },
   resultScore: { color: gameColors.volt, fontFamily: fonts.display, fontSize: 76, letterSpacing: -4, lineHeight: 77 },
   resultReplay: { borderColor: 'rgba(215,255,74,0.35)', borderRadius: gameRadii.card, borderWidth: 1 },
+  comparisonBlock: { marginTop: 14 },
+  comparisonLabel: { color: gameColors.frostMuted, fontFamily: fonts.monoBold, fontSize: 7, letterSpacing: 0.8, marginBottom: 8 },
+  comparisonChip: { alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'transparent', borderRadius: 18, borderWidth: 1, flexDirection: 'row', gap: 8, marginRight: 8, paddingHorizontal: 12, paddingVertical: 9 },
+  comparisonChipActive: { backgroundColor: 'rgba(215,255,74,0.12)', borderColor: gameColors.volt },
+  comparisonChipLabel: { color: gameColors.frostMuted, fontFamily: fonts.monoBold, fontSize: 7 },
+  comparisonChipLabelActive: { color: gameColors.volt },
+  comparisonChipScore: { color: gameColors.white, fontFamily: fonts.display, fontSize: 14 },
   resultStats: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 18 },
   statValue: { color: gameColors.white, fontFamily: fonts.display, fontSize: 22, textAlign: 'center' },
   statLabel: { color: gameColors.frostMuted, fontFamily: fonts.mono, fontSize: 7, marginTop: 3, textAlign: 'center' },
@@ -909,11 +985,18 @@ const styles = StyleSheet.create({
   screenScrollContent: { paddingBottom: 28, paddingHorizontal: 18, paddingTop: 20 },
   screenTitle: { color: gameColors.white, fontFamily: fonts.display, fontSize: 39, letterSpacing: -1.8, lineHeight: 39, marginTop: 9 },
   screenIntro: { color: gameColors.frostMuted, fontFamily: fonts.body, fontSize: 13, lineHeight: 19, marginTop: 11, maxWidth: 340 },
-  trickScroller: { marginHorizontal: -18, marginTop: 18, paddingHorizontal: 18 },
-  trickPill: { backgroundColor: '#23241F', borderRadius: 18, marginRight: 8, paddingHorizontal: 13, paddingVertical: 10 },
-  trickPillActive: { backgroundColor: gameColors.hazard },
-  trickPillText: { color: gameColors.frostMuted, fontFamily: fonts.bodyBold, fontSize: 9 },
-  trickPillTextActive: { color: gameColors.white },
+  levelScroller: { marginHorizontal: -18, marginTop: 18, paddingHorizontal: 18 },
+  levelCard: { backgroundColor: 'rgba(35,36,31,0.78)', borderColor: 'rgba(255,255,255,0.1)', borderRadius: 20, borderWidth: 1, marginRight: 9, minHeight: 92, padding: 13, width: 142 },
+  levelCardActive: { backgroundColor: gameColors.hazard, borderColor: '#FF9A84' },
+  levelCardLocked: { opacity: 0.42 },
+  levelCardTop: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  levelNumber: { color: gameColors.frostMuted, fontFamily: fonts.display, fontSize: 17 },
+  levelState: { color: gameColors.frostMuted, fontFamily: fonts.monoBold, fontSize: 5, letterSpacing: 0.6 },
+  levelStatePassed: { color: gameColors.volt },
+  levelName: { color: gameColors.white, fontFamily: fonts.bodyBold, fontSize: 10, lineHeight: 13, marginTop: 14 },
+  levelCardTextActive: { color: gameColors.white },
+  levelStatus: { color: gameColors.hazard, fontFamily: fonts.monoBold, fontSize: 7, letterSpacing: 0.6, marginBottom: 5 },
+  levelStatusPassed: { color: gameColors.volt },
   practiceReplay: { marginTop: 16 },
   practiceProgressRow: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between', marginTop: 17 },
   practiceSelected: { color: gameColors.white, fontFamily: fonts.display, fontSize: 22 },
@@ -975,12 +1058,12 @@ const styles = StyleSheet.create({
   settingsRow: { alignItems: 'center', borderBottomColor: '#393A34', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', minHeight: 54, paddingHorizontal: 15 },
   settingsText: { color: gameColors.frost, fontFamily: fonts.bodyBold, fontSize: 10 },
   settingsArrow: { color: gameColors.frostMuted, fontSize: 16 },
-  bottomNav: { alignItems: 'center', borderRadius: 30, bottom: 8, flexDirection: 'row', height: 72, left: 12, padding: 6, position: 'absolute', right: 12 },
-  bottomTab: { alignItems: 'center', borderRadius: 23, flex: 1, height: 58, justifyContent: 'center' },
-  bottomTabActive: { backgroundColor: 'rgba(255,255,255,0.16)' },
-  bottomGlyph: { color: gameColors.frostMuted, fontFamily: fonts.body, fontSize: 14 },
+  bottomNav: { alignItems: 'center', borderRadius: 34, bottom: 8, flexDirection: 'row', height: 78, left: 12, padding: 6, position: 'absolute', right: 12 },
+  bottomTab: { alignItems: 'center', borderRadius: 27, flex: 1, height: 64, justifyContent: 'center' },
+  bottomTabActive: { backgroundColor: 'rgba(255,255,255,0.18)' },
+  bottomGlyph: { color: gameColors.frostMuted, fontFamily: fonts.body, fontSize: 21, lineHeight: 22 },
   bottomGlyphActive: { color: gameColors.volt },
-  bottomLabel: { color: gameColors.frostMuted, fontFamily: fonts.monoBold, fontSize: 6, letterSpacing: 0.5, marginTop: 3 },
+  bottomLabel: { color: gameColors.frostMuted, fontFamily: fonts.monoBold, fontSize: 7, letterSpacing: 0.5, marginTop: 3 },
   bottomLabelActive: { color: gameColors.white },
   developerContent: { paddingBottom: 40, paddingHorizontal: 20, paddingTop: 10 },
   developerHeader: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' },

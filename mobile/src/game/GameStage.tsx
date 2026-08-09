@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PhoneScene3D, type OrbitCamera } from '../components/PhoneScene3D';
+import { useOrbitResponder } from '../components/useOrbitResponder';
 import type { FlightPhase, ReplayFrame } from '../motion/types';
 import { fonts } from '../theme';
 import { gameColors, gameRadii } from './theme';
@@ -23,18 +24,22 @@ const phaseLanguage: Record<FlightPhase, { label: string; prompt: string }> = {
 export function GameStage({
   frame,
   height = 440,
+  interactive = true,
   phase,
   sensorHz,
   skinColor,
 }: {
   frame: ReplayFrame;
   height?: number;
+  interactive?: boolean;
   phase: FlightPhase;
   sensorHz: number;
   skinColor: string;
 }) {
   const pulse = useRef(new Animated.Value(1)).current;
   const spin = useRef(new Animated.Value(0)).current;
+  const [camera, setCamera] = useState<OrbitCamera>(GAME_CAMERA);
+  const orbitResponder = useOrbitResponder(camera, setCamera, { maximumDistance: 7, minimumDistance: 3.4 });
 
   useEffect(() => {
     pulse.stopAnimation();
@@ -75,12 +80,14 @@ export function GameStage({
   return (
     <View style={[styles.stage, { height }]}>
       <PhoneScene3D
-        camera={GAME_CAMERA}
+        camera={camera}
         frame={frame}
+        key={skinColor}
         shellColor={skinColor}
         tone="blue"
         variant="game"
       />
+      {interactive && <View style={styles.orbitSurface} {...orbitResponder.panHandlers} />}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -103,6 +110,16 @@ export function GameStage({
         <Text style={styles.prompt}>{copy.prompt}</Text>
         <Text style={styles.telemetry}>{frame.accelG.toFixed(2)}G · {Math.round(frame.gyroDps)}°/S</Text>
       </View>
+      {interactive && (
+        <Pressable
+          accessibilityLabel="Reset 3D camera"
+          onPress={() => setCamera({ ...GAME_CAMERA })}
+          style={styles.resetCamera}
+        >
+          <Text style={styles.resetCameraText}>RESET VIEW</Text>
+        </Pressable>
+      )}
+      {interactive && <Text pointerEvents="none" style={styles.gestureHint}>DRAG · PINCH</Text>}
     </View>
   );
 }
@@ -113,6 +130,9 @@ const styles = StyleSheet.create({
     borderRadius: gameRadii.stage,
     overflow: 'hidden',
     position: 'relative',
+  },
+  orbitSurface: {
+    ...StyleSheet.absoluteFillObject,
   },
   haloOuter: {
     borderRadius: 138,
@@ -196,5 +216,31 @@ const styles = StyleSheet.create({
     color: gameColors.frostMuted,
     fontFamily: fonts.mono,
     fontSize: 8,
+  },
+  resetCamera: {
+    backgroundColor: 'rgba(10,11,10,0.58)',
+    borderColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    position: 'absolute',
+    right: 18,
+    top: 48,
+  },
+  resetCameraText: {
+    color: gameColors.frost,
+    fontFamily: fonts.monoBold,
+    fontSize: 7,
+    letterSpacing: 0.7,
+  },
+  gestureHint: {
+    color: 'rgba(233,236,248,0.46)',
+    fontFamily: fonts.mono,
+    fontSize: 6,
+    left: 20,
+    letterSpacing: 0.7,
+    position: 'absolute',
+    top: 51,
   },
 });

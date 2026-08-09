@@ -15,6 +15,7 @@ import {
 import { gameColors } from './theme';
 
 type GlassSurfaceProps = PropsWithChildren<{
+  fallbackColor?: string;
   interactive?: boolean;
   style?: StyleProp<ViewStyle>;
   tintColor?: string;
@@ -31,6 +32,7 @@ function canUseLiquidGlass() {
 
 export function GlassSurface({
   children,
+  fallbackColor = gameColors.glassFallback,
   interactive = false,
   style,
   tintColor,
@@ -38,7 +40,7 @@ export function GlassSurface({
   if (canUseLiquidGlass()) {
     return (
       <GlassView
-        glassEffectStyle="regular"
+        glassEffectStyle="clear"
         isInteractive={interactive}
         style={style}
         tintColor={tintColor}
@@ -48,12 +50,11 @@ export function GlassSurface({
     );
   }
 
-  return <View style={[styles.fallback, style]}>{children}</View>;
+  return <View style={[styles.fallback, { backgroundColor: fallbackColor }, style]}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
   fallback: {
-    backgroundColor: gameColors.glassFallback,
     borderColor: 'rgba(255,255,255,0.2)',
     borderWidth: StyleSheet.hairlineWidth,
   },
