@@ -8,6 +8,7 @@ import { buildReplayFrames, buildTargetFrames } from '../motion/replay';
 import type { TrickDefinition } from '../motion/trickCatalog';
 import type { DetectedAttempt, ReplayFrame } from '../motion/types';
 import { fonts } from '../theme';
+import { GlassSurface } from './GlassSurface';
 import { gameColors, gameRadii } from './theme';
 
 const REPLAY_CAMERA: OrbitCamera = { azimuth: -0.54, elevation: 0.2, distance: 4.8 };
@@ -114,6 +115,14 @@ export function MiniReplay({
 
   return (
     <View style={styles.shell}>
+      <View pointerEvents="none" style={styles.material}>
+        <GlassSurface
+          fallbackColor="rgba(112,126,172,0.08)"
+          fallbackIntensity={54}
+          glassEffectStyle="regular"
+          style={styles.materialFill}
+        />
+      </View>
       <View style={styles.stage}>
         <PhoneScene3D
           camera={camera}
@@ -123,7 +132,7 @@ export function MiniReplay({
           tone={attempt ? 'blue' : 'coral'}
           variant="game"
         />
-        {interactive && <View style={styles.orbitSurface} {...orbitResponder.panHandlers} />}
+        {interactive && <View collapsable={false} style={styles.orbitSurface} {...orbitResponder.panHandlers} />}
         <View pointerEvents="none" style={styles.captionRow}>
           <Text style={styles.caption}>{attempt ? 'YOUR MOTION' : 'CLEAN TARGET'}</Text>
           <Text style={styles.caption}>{Math.round(progress * durationMs)} MS</Text>
@@ -181,10 +190,13 @@ export function MiniReplay({
 
 const styles = StyleSheet.create({
   shell: {
-    backgroundColor: gameColors.pitchRaised,
+    backgroundColor: 'rgba(8,10,14,0.2)',
     borderRadius: gameRadii.card,
     overflow: 'hidden',
+    position: 'relative',
   },
+  material: { ...StyleSheet.absoluteFillObject },
+  materialFill: { flex: 1 },
   stage: {
     height: 310,
     overflow: 'hidden',
@@ -192,6 +204,8 @@ const styles = StyleSheet.create({
   },
   orbitSurface: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+    zIndex: 4,
   },
   captionRow: {
     bottom: 14,
@@ -217,6 +231,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 14,
     top: 14,
+    zIndex: 6,
   },
   resetCameraText: {
     color: gameColors.frost,
@@ -232,6 +247,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
     position: 'absolute',
     top: 18,
+    zIndex: 6,
   },
   transport: {
     alignItems: 'center',

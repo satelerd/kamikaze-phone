@@ -4,10 +4,12 @@ import { DeviceMotion, type DeviceMotionMeasurement } from 'expo-sensors';
 import { Platform } from 'react-native';
 
 import { makeSyntheticThrowSamples, MotionDetector } from '../motion/engine';
+import { applyAxisCalibration, type AxisCalibration } from '../motion/calibration';
 import { buildManualAttempt } from '../motion/manualCapture';
 import { normalizeRotationRate } from '../motion/normalize';
 import { integrateQuaternion } from '../motion/replay';
 import { loadAttemptHistory, saveAttemptHistory } from '../storage/attemptHistory';
+import { loadMotionCalibrationProfile, saveMotionCalibrationProfile } from '../storage/motionCalibration';
 import type { DetectedAttempt, DetectorSnapshot, MotionSample, Quaternion } from '../motion/types';
 
 type SensorStatus = 'checking' | 'ready' | 'denied' | 'unavailable' | 'error';
@@ -52,6 +54,7 @@ export function useMotionLab() {
   const completedAttemptRef = useRef<string | null>(null);
   const historyRef = useRef<LivePoint[]>([]);
   const attemptsRef = useRef<DetectedAttempt[]>([]);
+  const calibrationProfileRef = useRef<AxisCalibration[] | null>(null);
 
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [sensorStatus, setSensorStatus] = useState<SensorStatus>('checking');
@@ -61,12 +64,20 @@ export function useMotionLab() {
   const [liveQuaternion, setLiveQuaternion] = useState<Quaternion>({ w: 1, x: 0, y: 0, z: 0 });
   const [manualRecording, setManualRecording] = useState(false);
   const [manualElapsedMs, setManualElapsedMs] = useState(0);
+  const [calibrationProfile, setCalibrationProfile] = useState<AxisCalibration[] | null>(null);
 
   useEffect(() => {
     loadAttemptHistory().then((storedAttempts) => {
       attemptsRef.current = storedAttempts;
       setAttempts(storedAttempts);
       setHistoryReady(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    loadMotionCalibrationProfile().then((profile) => {
+      calibrationProfileRef.current = profile;
+      setCalibrationProfile(profile);
     });
   }, []);
 
@@ -130,7 +141,12 @@ export function useMotionLab() {
       if (!subscriptionRef.current) {
         DeviceMotion.setUpdateInterval(10);
         subscriptionRef.current = DeviceMotion.addListener((measurement) => {
-          const sample = normalizeMeasurement(measurement);
+          const rawSample = normalizeMeasurement(measurement);
+          calibrationSamplesRef.current?.push(rawSample);
+          const sample = {
+            ...rawSample,
+            rotationRateDps: applyAxisCalibration(rawSample.rotationRateDps, calibrationProfileRef.current),
+          };
           const previousTimestamp = livePoseTimestampRef.current;
           if (previousTimestamp !== null) {
             const dtS = Math.min(0.05, Math.max(0, sample.timestampS - previousTimestamp));
@@ -141,7 +157,6 @@ export function useMotionLab() {
             );
           }
           livePoseTimestampRef.current = sample.timestampS;
-          calibrationSamplesRef.current?.push(sample);
           manualSamplesRef.current?.push(sample);
 
           const now = Date.now();
@@ -246,6 +261,16 @@ export function useMotionLab() {
     setManualElapsedMs(0);
   }, []);
 
+  const applyCalibrationProfile = useCallback((profile: AxisCalibration[]) => {
+    calibrationProfileRef.current = profile;
+    setCalibrationProfile(profile);
+    livePoseQuaternionRef.current = { w: 1, x: 0, y: 0, z: 0 };
+    livePoseTimestampRef.current = null;
+    setLiveQuaternion({ w: 1, x: 0, y: 0, z: 0 });
+    saveMotionCalibrationProfile(profile).catch(() => undefined);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+  }, []);
+
   return {
     snapshot,
     sensorStatus,
@@ -255,6 +280,7 @@ export function useMotionLab() {
     liveQuaternion,
     manualElapsedMs,
     manualRecording,
+    calibrationProfile,
     arm,
     disarm,
     simulate,
@@ -263,6 +289,7 @@ export function useMotionLab() {
     stopCalibrationCapture,
     stopManualCapture,
     cancelManualCapture,
+    applyCalibrationProfile,
     requestPermission: () => connect(true),
   };
 }

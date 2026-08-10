@@ -17,9 +17,10 @@ type PhoneScene3DProps = {
   camera: OrbitCamera;
   comparisonFrame?: ReplayFrame;
   frame: ReplayFrame;
+  restOrientation?: 'flat' | 'screen';
   shellColor?: string;
   tone: 'blue' | 'coral';
-  variant?: 'flight' | 'game' | 'pose';
+  variant?: 'calibration' | 'flight' | 'game' | 'pose';
 };
 
 const PHONE_BLUE = new THREE.Color(colors.cobalt);
@@ -106,6 +107,7 @@ export function PhoneScene3D({
   camera,
   comparisonFrame,
   frame,
+  restOrientation = 'flat',
   shellColor,
   tone,
   variant = 'flight',
@@ -114,6 +116,7 @@ export function PhoneScene3D({
   const frameRef = useRef(frame);
   const cameraRef = useRef(camera);
   const comparisonFrameRef = useRef(comparisonFrame);
+  const restOrientationRef = useRef(restOrientation);
   const shellColorRef = useRef(shellColor);
   const toneRef = useRef(tone);
   const variantRef = useRef(variant);
@@ -122,6 +125,7 @@ export function PhoneScene3D({
   frameRef.current = frame;
   cameraRef.current = camera;
   comparisonFrameRef.current = comparisonFrame;
+  restOrientationRef.current = restOrientation;
   shellColorRef.current = shellColor;
   toneRef.current = tone;
   variantRef.current = variant;
@@ -134,12 +138,13 @@ export function PhoneScene3D({
     if (!mountedRef.current) return;
 
     const renderer = new Renderer({
+      alpha: true,
       antialias: true,
       gl: gl as unknown as WebGLRenderingContext,
     });
     renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight);
     renderer.setPixelRatio(1);
-    renderer.setClearColor(colors.asphalt, 1);
+    renderer.setClearColor(colors.asphalt, 0.34);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     const scene = new THREE.Scene();
@@ -171,6 +176,16 @@ export function PhoneScene3D({
     scene.add(phone);
     const { group: comparisonPhone, shellMaterial: comparisonMaterial } = createPhone();
     comparisonMaterial.color.copy(PHONE_CORAL);
+    comparisonPhone.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      materials.filter(Boolean).forEach((material) => {
+        material.transparent = true;
+        material.opacity = material === comparisonMaterial ? 0.34 : 0.16;
+        material.depthWrite = false;
+      });
+    });
+    comparisonPhone.scale.multiplyScalar(1.035);
     comparisonPhone.visible = false;
     scene.add(comparisonPhone);
     if (mountedRef.current) setReady(true);
@@ -182,6 +197,7 @@ export function PhoneScene3D({
       new THREE.Vector3(1, 0, 0),
       -Math.PI / 2,
     );
+    const screenOrientation = new THREE.Quaternion();
     const measuredOrientation = new THREE.Quaternion();
     const comparisonOrientation = new THREE.Quaternion();
     const render = () => {
@@ -200,26 +216,35 @@ export function PhoneScene3D({
       const currentFrame = frameRef.current;
       const isPoseMonitor = variantRef.current === 'pose';
       const isGameStage = variantRef.current === 'game';
-      grid.visible = !isGameStage;
-      axes.visible = !isGameStage;
-      lookAt.y = isGameStage ? -0.08 : -0.72;
-      restPosition.y = isGameStage ? -0.08 : -0.82;
+      const isCalibration = variantRef.current === 'calibration';
+      grid.visible = !isGameStage && !isCalibration;
+      axes.visible = !isGameStage && !isCalibration;
+      lookAt.y = isGameStage || isCalibration ? -0.08 : -0.72;
+      restPosition.y = isGameStage || isCalibration ? -0.08 : -0.82;
       phone.position.copy(restPosition);
       const { x, y, z, w } = currentFrame.quaternion;
       measuredOrientation.set(x, y, z, w);
-      phone.quaternion.copy(baseOrientation).multiply(measuredOrientation);
+      phone.quaternion
+        .copy(restOrientationRef.current === 'screen' ? screenOrientation : baseOrientation)
+        .multiply(measuredOrientation);
       const comparison = comparisonFrameRef.current;
-      comparisonPhone.visible = isPoseMonitor && Boolean(comparison);
-      if (comparison && isPoseMonitor) {
-        phone.position.x = -0.72;
-        comparisonPhone.position.set(0.72, restPosition.y, restPosition.z);
+      comparisonPhone.visible = (isPoseMonitor || isCalibration) && Boolean(comparison);
+      if (comparison && (isPoseMonitor || isCalibration)) {
+        if (isPoseMonitor) {
+          phone.position.x = -0.72;
+          comparisonPhone.position.set(0.72, restPosition.y, restPosition.z);
+        } else {
+          comparisonPhone.position.copy(restPosition);
+        }
         comparisonOrientation.set(
           comparison.quaternion.x,
           comparison.quaternion.y,
           comparison.quaternion.z,
           comparison.quaternion.w,
         );
-        comparisonPhone.quaternion.copy(baseOrientation).multiply(comparisonOrientation);
+        comparisonPhone.quaternion
+          .copy(isCalibration && restOrientationRef.current === 'screen' ? screenOrientation : baseOrientation)
+          .multiply(comparisonOrientation);
       }
       shellMaterial.color.set(
         shellColorRef.current ?? (toneRef.current === 'blue' ? colors.cobalt : colors.coral),
@@ -259,15 +284,16 @@ export function PhoneScene3D({
 const styles = StyleSheet.create({
   shell: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.asphalt,
+    backgroundColor: 'transparent',
   },
   canvas: {
+    backgroundColor: 'transparent',
     flex: 1,
   },
   loading: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
-    backgroundColor: colors.asphalt,
+    backgroundColor: 'rgba(15,17,22,0.54)',
     justifyContent: 'center',
   },
   loadingText: {

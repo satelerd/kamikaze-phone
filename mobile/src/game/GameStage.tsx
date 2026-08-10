@@ -6,11 +6,18 @@ import { useOrbitResponder } from '../components/useOrbitResponder';
 import { multiplyQuaternion, normalizeQuaternion } from '../motion/replay';
 import type { FlightPhase, Quaternion, ReplayFrame } from '../motion/types';
 import { fonts } from '../theme';
+import { GlassSurface } from './GlassSurface';
 import { gameColors, gameRadii } from './theme';
 
 const GAME_CAMERA: OrbitCamera = {
   azimuth: -0.48,
   elevation: 0.22,
+  distance: 4.5,
+};
+
+const PLAY_POV_CAMERA: OrbitCamera = {
+  azimuth: 0,
+  elevation: 0,
   distance: 4.5,
 };
 
@@ -27,6 +34,7 @@ export function GameStage({
   height = 440,
   interactive = true,
   phase,
+  restOrientation = 'flat',
   sensorHz,
   skinColor,
   zeroable = true,
@@ -35,13 +43,15 @@ export function GameStage({
   height?: number;
   interactive?: boolean;
   phase: FlightPhase;
+  restOrientation?: 'flat' | 'screen';
   sensorHz: number;
   skinColor: string;
   zeroable?: boolean;
 }) {
+  const defaultCamera = restOrientation === 'screen' ? PLAY_POV_CAMERA : GAME_CAMERA;
   const pulse = useRef(new Animated.Value(1)).current;
   const spin = useRef(new Animated.Value(0)).current;
-  const [camera, setCamera] = useState<OrbitCamera>(GAME_CAMERA);
+  const [camera, setCamera] = useState<OrbitCamera>(defaultCamera);
   const [zeroId, setZeroId] = useState(0);
   const poseBaselineRef = useRef<Quaternion | null>(null);
   const orbitResponder = useOrbitResponder(camera, setCamera, { maximumDistance: 8.4, minimumDistance: 2.8 });
@@ -93,15 +103,24 @@ export function GameStage({
 
   return (
     <View style={[styles.stage, { height }]}>
+      <View pointerEvents="none" style={styles.stageMaterial}>
+        <GlassSurface
+          fallbackColor="rgba(112,126,172,0.08)"
+          fallbackIntensity={52}
+          glassEffectStyle="regular"
+          style={styles.stageMaterialFill}
+        />
+      </View>
       <PhoneScene3D
         camera={camera}
         frame={displayFrame}
         key={skinColor}
+        restOrientation={restOrientation}
         shellColor={skinColor}
         tone="blue"
         variant="game"
       />
-      {interactive && <View style={styles.orbitSurface} {...orbitResponder.panHandlers} />}
+      {interactive && <View collapsable={false} style={styles.orbitSurface} {...orbitResponder.panHandlers} />}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -140,7 +159,7 @@ export function GameStage({
           )}
           <Pressable
             accessibilityLabel="Reset 3D camera"
-            onPress={() => setCamera({ ...GAME_CAMERA })}
+            onPress={() => setCamera({ ...defaultCamera })}
             style={styles.stageControl}
           >
             <Text style={styles.stageControlText}>RESET CAMERA</Text>
@@ -154,14 +173,18 @@ export function GameStage({
 
 const styles = StyleSheet.create({
   stage: {
-    backgroundColor: gameColors.pitch,
+    backgroundColor: 'rgba(8,10,14,0.26)',
     borderRadius: gameRadii.stage,
     overflow: 'hidden',
     position: 'relative',
   },
   orbitSurface: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+    zIndex: 4,
   },
+  stageMaterial: { ...StyleSheet.absoluteFillObject },
+  stageMaterialFill: { flex: 1 },
   haloOuter: {
     borderRadius: 138,
     borderStyle: 'dashed',
@@ -251,6 +274,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 18,
     top: 48,
+    zIndex: 6,
   },
   stageControl: {
     backgroundColor: 'rgba(10,11,10,0.58)',
@@ -278,5 +302,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7,
     position: 'absolute',
     top: 51,
+    zIndex: 6,
   },
 });

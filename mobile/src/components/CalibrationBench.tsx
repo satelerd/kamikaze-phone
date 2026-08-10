@@ -106,6 +106,7 @@ export function CalibrationBench({ motion }: { motion: ReturnType<typeof useMoti
   const [captures, setCaptures] = useState<StoredCalibrationCapture[]>([]);
   const [historyReady, setHistoryReady] = useState(false);
   const [selectedCaptureId, setSelectedCaptureId] = useState<string | null>(null);
+  const [profileApplied, setProfileApplied] = useState(false);
   const runIdRef = useRef(0);
   const paceWidthRef = useRef(1);
   const paceOriginXRef = useRef(0);
@@ -337,6 +338,8 @@ export function CalibrationBench({ motion }: { motion: ReturnType<typeof useMoti
   };
 
   const summary = useMemo(() => summarizeCalibration(results), [results]);
+  const summaryReady = new Set(summary.map(({ rawAxis }) => rawAxis)).size === 3 &&
+    summary.every(({ confidence }) => confidence >= 0.5);
 
   if (phase === 'summary') {
     return (
@@ -357,8 +360,21 @@ export function CalibrationBench({ motion }: { motion: ReturnType<typeof useMoti
           ))}
         </View>
         <Text style={styles.summaryNote}>
-          This is a candidate, not an automatic rewrite. We only apply it after every logical axis maps to a unique raw axis with high confidence.
+          {profileApplied
+            ? 'This precision axis map is now active in Play and Practice.'
+            : 'Apply only when every logical axis maps to a unique raw axis with useful confidence.'}
         </Text>
+        <Pressable
+          disabled={!summaryReady}
+          onPress={() => {
+            motion.applyCalibrationProfile(summary);
+            setProfileApplied(true);
+          }}
+          style={[styles.primaryButton, !summaryReady && styles.stepArrowDisabled]}
+        >
+          <Text style={styles.primaryText}>{profileApplied ? 'CALIBRATION APPLIED' : 'APPLY PRECISION CALIBRATION'}</Text>
+          <Text style={styles.primaryText}>✓</Text>
+        </Pressable>
         {captures[0] && (
           <Pressable onPress={() => openCapture(captures[0])} style={styles.secondarySummaryButton}>
             <Text style={styles.secondaryText}>REVIEW CAL TAPE</Text>

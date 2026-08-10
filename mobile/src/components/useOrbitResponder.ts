@@ -85,7 +85,10 @@ export function useOrbitResponder(
     return PanResponder.create({
       onMoveShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponderCapture: () => true,
-      onStartShouldSetPanResponderCapture: () => true,
+      onStartShouldSetPanResponderCapture: (event) => {
+        beginGesture(event);
+        return true;
+      },
       onPanResponderGrant: beginGesture,
       onPanResponderMove: (event) => {
         const touches = event.nativeEvent.touches;
