@@ -46,6 +46,6 @@ The iPhone must be registered in the Apple provisioning profile for an internal 
 - App Store privacy, age-rating and export-compliance answers are complete.
 - Store screenshots and review notes accurately describe the physical gameplay and its safety guidance.
 
-## Known prototype blocker
+## Pending device validation
 
-Practice and saved-attempt replay can remain visually static in Expo Go. Re-test this first in the development client; do not promote the build to external TestFlight until the native build either confirms the fix or provides a reproducible trace.
+Practice and saved-attempt replay now share an absolute playback clock, normalized timestamps and time-based quaternion interpolation. Confirm Play, scrubbing and simultaneous camera orbit in Expo Go, then repeat that check in the first development client before promoting a build to external TestFlight.
