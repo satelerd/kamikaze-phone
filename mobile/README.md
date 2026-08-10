@@ -34,6 +34,10 @@ npm test
 npx expo export --platform ios
 ```
 
+## Native builds and TestFlight
+
+The project uses EAS profiles for a custom development client, registered-device previews and TestFlight/App Store production builds. See [docs/IOS_RELEASE.md](docs/IOS_RELEASE.md) for commands, release gates and the App Store Connect handoff.
+
 ## Current detection model
 
 - Requests 100 Hz device-motion updates.
