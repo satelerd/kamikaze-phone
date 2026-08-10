@@ -129,7 +129,21 @@ function rotationSimilarity(measured: RotationSummary, target: Vector3): { purit
   const crossTalk = inactiveAxes.reduce((sum, axis) => sum + Math.abs(measured[axis]), 0) /
     Math.max(targetMagnitude, 180);
   const purity = clamp(1 - crossTalk);
-  return { purity, score: clamp(1 - activeError * 0.72 - crossTalk * 0.28) };
+  const minimumCoverage = Math.min(...activeAxes.map((axis) => {
+    const targetAxis = target[axis];
+    const measuredAxis = measured[axis];
+    if (Math.sign(targetAxis) !== Math.sign(measuredAxis)) return 0;
+    return clamp(Math.abs(measuredAxis) / Math.abs(targetAxis));
+  }));
+  const completeness = activeAxes.length > 1
+    ? minimumCoverage < 0.7
+      ? minimumCoverage * 0.1
+      : 0.2 + minimumCoverage * 0.8
+    : 1;
+  return {
+    purity,
+    score: clamp((1 - activeError * 0.72 - crossTalk * 0.28) * completeness),
+  };
 }
 
 export function scoreAttemptAgainstTrick(

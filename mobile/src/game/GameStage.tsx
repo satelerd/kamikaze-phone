@@ -145,6 +145,13 @@ export function GameStage({
       </View>
       {interactive && (
         <View style={styles.stageControls}>
+          <Pressable
+            accessibilityLabel="Reset 3D camera"
+            onPress={() => setCamera({ ...defaultCamera })}
+            style={styles.stageControl}
+          >
+            <Text style={styles.stageControlText}>RESET CAMERA</Text>
+          </Pressable>
           {zeroable && (
             <Pressable
               accessibilityLabel="Zero phone pose"
@@ -157,13 +164,6 @@ export function GameStage({
               <Text style={styles.stageControlText}>ZERO POSE</Text>
             </Pressable>
           )}
-          <Pressable
-            accessibilityLabel="Reset 3D camera"
-            onPress={() => setCamera({ ...defaultCamera })}
-            style={styles.stageControl}
-          >
-            <Text style={styles.stageControlText}>RESET CAMERA</Text>
-          </Pressable>
         </View>
       )}
       {interactive && <Text pointerEvents="none" style={styles.gestureHint}>DRAG · PINCH</Text>}
@@ -173,7 +173,7 @@ export function GameStage({
 
 const styles = StyleSheet.create({
   stage: {
-    backgroundColor: 'rgba(8,10,14,0.26)',
+    backgroundColor: 'rgba(8,10,14,0.16)',
     borderRadius: gameRadii.stage,
     overflow: 'hidden',
     position: 'relative',

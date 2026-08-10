@@ -49,6 +49,12 @@ describe('trick catalog', () => {
     expect(findBestTrickMatch(attempt({ x: -8, y: -365, z: -349 }), catalog).definition.name).toBe('LASER FLIP');
   });
 
+  it('does not promote a noisy half shuvit to a 360 Flip', () => {
+    const catalog = buildDefaultTrickCatalog('right');
+    expect(findBestTrickMatch(attempt({ x: 15, y: 200, z: 185 }), catalog).definition.name).toBe('BACKSIDE SHUVIT');
+    expect(findBestTrickMatch(attempt({ x: -10, y: -180, z: -190 }), catalog).definition.name).toBe('FRONTSIDE SHUVIT');
+  });
+
   it('matches Daniel’s two labelled captures to the Phone Flip pair', () => {
     const catalog = buildDefaultTrickCatalog('right');
     expect(findBestTrickMatch(attempt({ x: 8, y: 507, z: -1 }), catalog).definition.name).toBe('PHONE FLIP');

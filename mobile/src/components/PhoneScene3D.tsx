@@ -144,7 +144,7 @@ export function PhoneScene3D({
     });
     renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight);
     renderer.setPixelRatio(1);
-    renderer.setClearColor(colors.asphalt, 0.34);
+    renderer.setClearColor(colors.asphalt, 0.22);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     const scene = new THREE.Scene();

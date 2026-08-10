@@ -91,6 +91,7 @@ export function useOrbitResponder(
       },
       onPanResponderGrant: beginGesture,
       onPanResponderMove: (event) => {
+        event.stopPropagation?.();
         const touches = event.nativeEvent.touches;
         if (touches.length === 0) return;
 

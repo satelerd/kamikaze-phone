@@ -89,7 +89,12 @@ export function MiniReplay({
 
   const scrubResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponderCapture: () => true,
     onStartShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponderCapture: () => {
+      setScrollLocked(true);
+      return true;
+    },
     onPanResponderGrant: (event) => {
       setScrollLocked(true);
       setPlaying(false);
@@ -97,11 +102,13 @@ export function MiniReplay({
       setProgress(clamp((event.nativeEvent.pageX - timelineOriginRef.current) / timelineWidthRef.current));
     },
     onPanResponderMove: (event) => {
+      event.stopPropagation?.();
       setProgress(clamp((event.nativeEvent.pageX - timelineOriginRef.current) / timelineWidthRef.current));
     },
     onPanResponderRelease: () => setScrollLocked(false),
     onPanResponderTerminate: () => setScrollLocked(false),
     onPanResponderTerminationRequest: () => false,
+    onShouldBlockNativeResponder: () => true,
   }), [setScrollLocked]);
 
   const togglePlayback = () => {
@@ -132,7 +139,17 @@ export function MiniReplay({
           tone={attempt ? 'blue' : 'coral'}
           variant="game"
         />
-        {interactive && <View collapsable={false} style={styles.orbitSurface} {...orbitResponder.panHandlers} />}
+        {interactive && (
+          <View
+            collapsable={false}
+            onTouchCancel={() => setScrollLocked(false)}
+            onTouchEnd={() => setScrollLocked(false)}
+            onTouchMove={(event) => event.stopPropagation()}
+            onTouchStart={() => setScrollLocked(true)}
+            style={styles.orbitSurface}
+            {...orbitResponder.panHandlers}
+          />
+        )}
         <View pointerEvents="none" style={styles.captionRow}>
           <Text style={styles.caption}>{attempt ? 'YOUR MOTION' : 'CLEAN TARGET'}</Text>
           <Text style={styles.caption}>{Math.round(progress * durationMs)} MS</Text>
@@ -160,6 +177,10 @@ export function MiniReplay({
           <View
             {...scrubResponder.panHandlers}
             onLayout={(event) => { timelineWidthRef.current = event.nativeEvent.layout.width; }}
+            onTouchCancel={() => setScrollLocked(false)}
+            onTouchEnd={() => setScrollLocked(false)}
+            onTouchMove={(event) => event.stopPropagation()}
+            onTouchStart={() => setScrollLocked(true)}
             style={styles.timelineTouch}
           >
             <View style={styles.track}>
@@ -190,7 +211,7 @@ export function MiniReplay({
 
 const styles = StyleSheet.create({
   shell: {
-    backgroundColor: 'rgba(8,10,14,0.2)',
+    backgroundColor: 'rgba(8,10,14,0.12)',
     borderRadius: gameRadii.card,
     overflow: 'hidden',
     position: 'relative',

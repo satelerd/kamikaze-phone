@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   ActivityIndicator,
+  Alert,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -34,7 +35,12 @@ import { CalibrationHub } from '../components/CalibrationHub';
 import { ScrollLockContext } from '../components/ScrollLock';
 import { useMotionLab } from '../hooks/useMotionLab';
 import { useTrickCatalog, type TrickCatalogController } from '../hooks/useTrickCatalog';
-import { findBestTrickMatch, type TrickDefinition, type TrickMatch } from '../motion/trickCatalog';
+import {
+  findBestTrickMatch,
+  scoreAttemptAgainstTrick,
+  type TrickDefinition,
+  type TrickMatch,
+} from '../motion/trickCatalog';
 import type { DetectedAttempt, FlightPhase, ReplayFrame } from '../motion/types';
 import { fonts } from '../theme';
 import {
@@ -199,8 +205,11 @@ function ResultScreen({
   comparisons,
   definition,
   match,
+  mode = 'run',
   onAgain,
+  onBack,
   onEnd,
+  scrollEnabled,
   shellColor,
   streak,
 }: {
@@ -208,25 +217,40 @@ function ResultScreen({
   comparisons: RunComparison[];
   definition: TrickDefinition;
   match: TrickMatch;
-  onAgain: () => void;
-  onEnd: () => void;
+  mode?: 'recent' | 'run';
+  onAgain?: () => void;
+  onBack?: () => void;
+  onEnd?: () => void;
+  scrollEnabled: boolean;
   shellColor: string;
-  streak: number;
+  streak?: number;
 }) {
-  const score = scoreFor(match, attempt);
-  const verdict = score >= 88 ? 'CLEAN' : score >= 68 ? 'LANDED' : 'ROUGH';
   const [replayAttemptId, setReplayAttemptId] = useState(attempt.id);
   const replayAttempt = comparisons.find((item) => item.attempt.id === replayAttemptId)?.attempt ?? attempt;
+  const replayMatch = replayAttempt.id === attempt.id
+    ? match
+    : scoreAttemptAgainstTrick(replayAttempt, definition);
+  const score = scoreFor(replayMatch, replayAttempt);
+  const verdict = score >= 88 ? 'CLEAN' : score >= 68 ? 'LANDED' : 'ROUGH';
+  const signedDegrees = (value: number) => `${value >= 0 ? '+' : '−'}${Math.round(Math.abs(value))}°`;
   return (
-    <ScrollView contentContainerStyle={styles.resultContent} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      contentContainerStyle={styles.resultContent}
+      scrollEnabled={scrollEnabled}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.resultTopline}>
-        <Text style={styles.resultVerdict}>{verdict}</Text>
-        <Text style={styles.resultStreak}>RUN ×{streak}</Text>
+        <Text style={styles.resultVerdict}>{mode === 'recent' ? 'SAVED ATTEMPT' : verdict}</Text>
+        <Text style={styles.resultStreak}>
+          {mode === 'recent'
+            ? new Date(replayAttempt.recordedAtIso).toLocaleDateString()
+            : `RUN ×${streak ?? 1}`}
+        </Text>
       </View>
       <View style={styles.resultHero}>
         <View style={styles.resultNameWrap}>
           <Text style={styles.resultName}>{definition.name}</Text>
-          <Text style={styles.resultMeta}>{(match.motionDurationMs / 1000).toFixed(2)}S · MOTION LOCKED</Text>
+          <Text style={styles.resultMeta}>{(replayMatch.motionDurationMs / 1000).toFixed(2)}S · MOTION LOCKED</Text>
         </View>
         <Text style={styles.resultScore}>{score}</Text>
       </View>
@@ -255,11 +279,11 @@ function ResultScreen({
       )}
       <View style={styles.resultStats}>
         <View>
-          <Text style={styles.statValue}>{Math.round(match.axisPurity * 100)}</Text>
+          <Text style={styles.statValue}>{Math.round(replayMatch.axisPurity * 100)}</Text>
           <Text style={styles.statLabel}>AXIS</Text>
         </View>
         <View>
-          <Text style={styles.statValue}>{Math.round(attempt.peakRotationDps)}</Text>
+          <Text style={styles.statValue}>{Math.round(replayAttempt.peakRotationDps)}</Text>
           <Text style={styles.statLabel}>PEAK °/S</Text>
         </View>
         <View>
@@ -267,7 +291,49 @@ function ResultScreen({
           <Text style={styles.statLabel}>POINTS</Text>
         </View>
       </View>
-      <GameButton label="THROW AGAIN" onPress={onAgain} />
+      <GlassSurface
+        fallbackColor="rgba(235,238,248,0.07)"
+        fallbackIntensity={48}
+        style={styles.telemetryCard}
+        tintColor="rgba(235,238,248,0.06)"
+      >
+        <View style={styles.telemetryHeader}>
+          <Text style={styles.telemetryTitle}>MOTION BREAKDOWN</Text>
+          <Text style={styles.telemetryMeta}>{replayAttempt.sampleCount} SAMPLES</Text>
+        </View>
+        <View style={styles.telemetryAxes}>
+          {(['x', 'y', 'z'] as const).map((axis) => (
+            <View key={axis} style={styles.telemetryAxis}>
+              <Text style={styles.telemetryAxisLabel}>{axis.toUpperCase()}</Text>
+              <Text style={styles.telemetryAxisValue}>{signedDegrees(replayAttempt.rotationDegrees[axis])}</Text>
+            </View>
+          ))}
+        </View>
+        <View style={styles.telemetryRows}>
+          <View style={styles.telemetryRow}>
+            <Text style={styles.telemetryRowLabel}>AIRTIME</Text>
+            <Text style={styles.telemetryRowValue}>{(replayAttempt.airtimeMs / 1000).toFixed(2)} S</Text>
+            <Text style={styles.telemetryRowLabel}>HEIGHT</Text>
+            <Text style={styles.telemetryRowValue}>{Math.round(replayAttempt.estimatedHeightM * 100)} CM</Text>
+          </View>
+          <View style={styles.telemetryRow}>
+            <Text style={styles.telemetryRowLabel}>CATCH</Text>
+            <Text style={styles.telemetryRowValue}>{replayAttempt.peakCatchG.toFixed(2)} G</Text>
+            <Text style={styles.telemetryRowLabel}>LANDING</Text>
+            <Text style={styles.telemetryRowValue}>{Math.round(replayMatch.landingScore * 100)}%</Text>
+          </View>
+          <View style={styles.telemetryRow}>
+            <Text style={styles.telemetryRowLabel}>ROTATION</Text>
+            <Text style={styles.telemetryRowValue}>{Math.round(replayMatch.rotationScore * 100)}%</Text>
+            <Text style={styles.telemetryRowLabel}>TIMING</Text>
+            <Text style={styles.telemetryRowValue}>{Math.round(replayMatch.timingScore * 100)}%</Text>
+          </View>
+        </View>
+      </GlassSurface>
+      <GameButton
+        label={mode === 'recent' ? 'BACK TO RECENT' : 'THROW AGAIN'}
+        onPress={mode === 'recent' ? onBack! : onAgain!}
+      />
       <View style={styles.resultSecondaryRow}>
         <Pressable
           onPress={() => {
@@ -279,9 +345,20 @@ function ResultScreen({
         >
           <Text style={styles.textActionLabel}>SHARE RESULT ↗</Text>
         </Pressable>
-        <Pressable onPress={onEnd} style={styles.textAction}>
-          <Text style={styles.textActionLabel}>END RUN</Text>
+        <Pressable
+          onPress={() => Alert.alert(
+            'VIDEO EXPORT',
+            'The replay data is ready, but Expo Go cannot encode this 3D scene to a video file. This will activate in the standalone app build.',
+          )}
+          style={styles.textAction}
+        >
+          <Text style={styles.textActionLabel}>EXPORT VIDEO</Text>
         </Pressable>
+        {mode === 'run' && (
+          <Pressable onPress={onEnd} style={styles.textAction}>
+            <Text style={styles.textActionLabel}>END RUN</Text>
+          </Pressable>
+        )}
       </View>
     </ScrollView>
   );
@@ -291,11 +368,13 @@ function PlayScreen({
   catalog,
   motion,
   onOpenFullCalibration,
+  scrollEnabled,
   shellColor,
 }: {
   catalog: TrickCatalogController;
   motion: MotionController;
   onOpenFullCalibration: () => void;
+  scrollEnabled: boolean;
   shellColor: string;
 }) {
   useKeepAwake('kamikaze-active-play-screen');
@@ -391,6 +470,7 @@ function PlayScreen({
           setRunActive(false);
           setShowResult(false);
         }}
+        scrollEnabled={scrollEnabled}
         shellColor={shellColor}
         streak={Math.max(1, streak)}
       />
@@ -828,36 +908,28 @@ function ProfileScreen({
 
   if (selectedEntry) {
     const { attempt, match } = selectedEntry;
-    const score = scoreFor(match, attempt);
+    const matchingHistory = motion.attempts.filter((item) =>
+      item.id !== attempt.id &&
+      findBestTrickMatch(item, catalog.definitions).definition.id === match.definition.id,
+    );
+    const comparisons: RunComparison[] = [attempt, ...matchingHistory]
+      .slice(0, 4)
+      .map((item, index) => ({
+        attempt: item,
+        label: index === 0 ? 'SAVED RUN' : `PREV ${index}`,
+        score: scoreFor(findBestTrickMatch(item, catalog.definitions), item),
+      }));
     return (
-      <ScrollView contentContainerStyle={styles.screenScrollContent} scrollEnabled={scrollEnabled} showsVerticalScrollIndicator={false}>
-        <View style={styles.attemptDetailHeader}>
-          <Pressable onPress={() => setSelectedAttemptId(null)} style={styles.attemptBack}>
-            <Text style={styles.attemptBackText}>← RECENT</Text>
-          </Pressable>
-          <Text style={styles.eyebrow}>SAVED ATTEMPT</Text>
-        </View>
-        <View style={styles.attemptDetailHero}>
-          <View style={styles.attemptDetailCopy}>
-            <Text style={styles.attemptDetailName}>{match.definition.name}</Text>
-            <Text style={styles.attemptDetailDate}>{new Date(attempt.recordedAtIso).toLocaleString()}</Text>
-          </View>
-          <Text style={styles.attemptDetailScore}>{score}</Text>
-        </View>
-        <MiniReplay attempt={attempt} definition={match.definition} shellColor={shellColor} />
-        <View style={styles.attemptMetrics}>
-          <GlassSurface fallbackColor="rgba(235,238,248,0.08)" style={styles.attemptMetric} tintColor="rgba(235,238,248,0.08)">
-            <Text style={styles.attemptMetricValue}>{(match.motionDurationMs / 1000).toFixed(2)}S</Text><Text style={styles.attemptMetricLabel}>DURATION</Text>
-          </GlassSurface>
-          <GlassSurface fallbackColor="rgba(235,238,248,0.08)" style={styles.attemptMetric} tintColor="rgba(235,238,248,0.08)">
-            <Text style={styles.attemptMetricValue}>{Math.round(match.axisPurity * 100)}</Text><Text style={styles.attemptMetricLabel}>AXIS</Text>
-          </GlassSurface>
-          <GlassSurface fallbackColor="rgba(235,238,248,0.08)" style={styles.attemptMetric} tintColor="rgba(235,238,248,0.08)">
-            <Text style={styles.attemptMetricValue}>{Math.round(attempt.peakRotationDps)}</Text><Text style={styles.attemptMetricLabel}>PEAK °/S</Text>
-          </GlassSurface>
-        </View>
-        <Text style={styles.attemptDetailHint}>Drag to orbit, pinch to zoom, or scrub the timeline to inspect the landing.</Text>
-      </ScrollView>
+      <ResultScreen
+        attempt={attempt}
+        comparisons={comparisons}
+        definition={match.definition}
+        match={match}
+        mode="recent"
+        onBack={() => setSelectedAttemptId(null)}
+        scrollEnabled={scrollEnabled}
+        shellColor={shellColor}
+      />
     );
   }
 
@@ -1116,7 +1188,15 @@ export default function GamePrototypeApp() {
             </View>
           )}
           <View style={styles.screenBody}>
-            {tab === 'play' && <PlayScreen catalog={catalog} motion={motion} onOpenFullCalibration={() => setShowDeveloper(true)} shellColor={selectedSkin.color} />}
+            {tab === 'play' && (
+              <PlayScreen
+                catalog={catalog}
+                motion={motion}
+                onOpenFullCalibration={() => setShowDeveloper(true)}
+                scrollEnabled={!scrollLocked}
+                shellColor={selectedSkin.color}
+              />
+            )}
             {tab === 'practice' && (
               <PracticeScreen catalog={catalog} motion={motion} scrollEnabled={!scrollLocked} shellColor={selectedSkin.color} />
             )}
@@ -1222,7 +1302,19 @@ const styles = StyleSheet.create({
   resultStats: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 18 },
   statValue: { color: gameColors.white, fontFamily: fonts.display, fontSize: 22, textAlign: 'center' },
   statLabel: { color: gameColors.frostMuted, fontFamily: fonts.mono, fontSize: 7, marginTop: 3, textAlign: 'center' },
-  resultSecondaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 7, paddingTop: 16 },
+  telemetryCard: { borderRadius: gameRadii.card, marginBottom: 4, overflow: 'hidden', padding: 16 },
+  telemetryHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
+  telemetryTitle: { color: gameColors.frost, fontFamily: fonts.monoBold, fontSize: 8, letterSpacing: 0.8 },
+  telemetryMeta: { color: gameColors.frostMuted, fontFamily: fonts.mono, fontSize: 7 },
+  telemetryAxes: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  telemetryAxis: { backgroundColor: 'rgba(255,255,255,0.055)', borderRadius: 15, flex: 1, paddingHorizontal: 11, paddingVertical: 12 },
+  telemetryAxisLabel: { color: gameColors.hazard, fontFamily: fonts.monoBold, fontSize: 7 },
+  telemetryAxisValue: { color: gameColors.white, fontFamily: fonts.display, fontSize: 19, marginTop: 4 },
+  telemetryRows: { marginTop: 10 },
+  telemetryRow: { alignItems: 'center', borderTopColor: 'rgba(255,255,255,0.1)', borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', minHeight: 42 },
+  telemetryRowLabel: { color: gameColors.frostMuted, flex: 1, fontFamily: fonts.mono, fontSize: 6 },
+  telemetryRowValue: { color: gameColors.frost, flex: 1, fontFamily: fonts.monoBold, fontSize: 8, textAlign: 'right' },
+  resultSecondaryRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingHorizontal: 2, paddingTop: 16 },
   textAction: { padding: 8 },
   textActionLabel: { color: gameColors.frostMuted, fontFamily: fonts.monoBold, fontSize: 8, letterSpacing: 0.6 },
   screenScrollContent: { paddingBottom: 124, paddingHorizontal: 18, paddingTop: 20 },
