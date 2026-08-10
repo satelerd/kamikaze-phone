@@ -40,17 +40,28 @@ export function MiniReplay({
   interactive?: boolean;
   shellColor: string;
 }) {
-  const frames = useMemo(
-    () => attempt ? buildReplayFrames(attempt) : buildTargetFrames(definition),
-    [attempt, definition],
-  );
+  const frames = useMemo(() => {
+    if (!attempt) return buildTargetFrames(definition);
+    const capturedFrames = buildReplayFrames(attempt);
+    if (capturedFrames.length >= 2) return capturedFrames;
+    return buildTargetFrames({
+      ...definition,
+      durationMs: Math.max(300, attempt.airtimeMs),
+      rotation: {
+        x: attempt.rotationDegrees.x,
+        y: attempt.rotationDegrees.y,
+        z: attempt.rotationDegrees.z,
+      },
+    });
+  }, [attempt, definition]);
   const durationMs = Math.max(
     1,
     attempt?.airtimeMs ?? 0,
     frames.at(-1)?.timestampMs ?? definition.durationMs,
   );
   const [progress, setProgress] = useState(0);
-  const [playing, setPlaying] = useState(true);
+  const progressRef = useRef(0);
+  const [playing, setPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<(typeof PLAYBACK_SPEEDS)[number]>(0.5);
   const [camera, setCamera] = useState<OrbitCamera>(REPLAY_CAMERA);
   const timelineWidthRef = useRef(1);
@@ -61,29 +72,34 @@ export function MiniReplay({
   const frame: ReplayFrame = frames[frameIndex] ?? frames[0];
 
   useEffect(() => {
+    progressRef.current = 0;
     setProgress(0);
-    setPlaying(true);
+    setPlaying(false);
   }, [attempt?.id, definition.id]);
 
   useEffect(() => {
     if (!playing || frames.length < 2) return;
-    let previous = Date.now();
-    const timer = setInterval(() => {
-      const now = Date.now();
-      const elapsed = now - previous;
-      previous = now;
-      setProgress((current) => {
-        const next = current + elapsed * playbackSpeed / durationMs;
-        if (next >= 1) {
-          if (!attempt) return 0;
-          setPlaying(false);
-          return 1;
-        }
-        return next;
-      });
-    }, 33);
-    return () => clearInterval(timer);
-  }, [attempt, durationMs, frames.length, playbackSpeed, playing]);
+    let animationFrame = 0;
+    let previousTimestamp: number | null = null;
+
+    const tick = (timestamp: number) => {
+      if (previousTimestamp === null) previousTimestamp = timestamp;
+      const elapsedMs = Math.max(0, timestamp - previousTimestamp);
+      previousTimestamp = timestamp;
+      const next = clamp(progressRef.current + elapsedMs * playbackSpeed / durationMs);
+      progressRef.current = next;
+      setProgress(next);
+
+      if (next >= 1) {
+        setPlaying(false);
+        return;
+      }
+      animationFrame = requestAnimationFrame(tick);
+    };
+
+    animationFrame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [durationMs, frames.length, playbackSpeed, playing]);
 
   useEffect(() => () => setScrollLocked(false), [setScrollLocked]);
 
@@ -99,11 +115,15 @@ export function MiniReplay({
       setScrollLocked(true);
       setPlaying(false);
       timelineOriginRef.current = event.nativeEvent.pageX - event.nativeEvent.locationX;
-      setProgress(clamp((event.nativeEvent.pageX - timelineOriginRef.current) / timelineWidthRef.current));
+      const next = clamp((event.nativeEvent.pageX - timelineOriginRef.current) / timelineWidthRef.current);
+      progressRef.current = next;
+      setProgress(next);
     },
     onPanResponderMove: (event) => {
       event.stopPropagation?.();
-      setProgress(clamp((event.nativeEvent.pageX - timelineOriginRef.current) / timelineWidthRef.current));
+      const next = clamp((event.nativeEvent.pageX - timelineOriginRef.current) / timelineWidthRef.current);
+      progressRef.current = next;
+      setProgress(next);
     },
     onPanResponderRelease: () => setScrollLocked(false),
     onPanResponderTerminate: () => setScrollLocked(false),
@@ -116,7 +136,10 @@ export function MiniReplay({
       setPlaying(false);
       return;
     }
-    if (progress >= 1) setProgress(0);
+    if (progressRef.current >= 1) {
+      progressRef.current = 0;
+      setProgress(0);
+    }
     setPlaying(true);
   };
 

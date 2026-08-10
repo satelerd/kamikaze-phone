@@ -257,6 +257,10 @@ function ResultScreen({
       <View style={styles.resultReplay}>
         <MiniReplay attempt={replayAttempt} definition={definition} shellColor={shellColor} />
       </View>
+      <GameButton
+        label={mode === 'recent' ? 'BACK TO RECENT' : 'THROW AGAIN'}
+        onPress={mode === 'recent' ? onBack! : onAgain!}
+      />
       {comparisons.length > 1 && (
         <View style={styles.comparisonBlock}>
           <Text style={styles.comparisonLabel}>COMPARE RUNS</Text>
@@ -330,10 +334,6 @@ function ResultScreen({
           </View>
         </View>
       </GlassSurface>
-      <GameButton
-        label={mode === 'recent' ? 'BACK TO RECENT' : 'THROW AGAIN'}
-        onPress={mode === 'recent' ? onBack! : onAgain!}
-      />
       <View style={styles.resultSecondaryRow}>
         <Pressable
           onPress={() => {

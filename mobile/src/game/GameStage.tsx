@@ -21,12 +21,12 @@ const PLAY_POV_CAMERA: OrbitCamera = {
   distance: 4.5,
 };
 
-const phaseLanguage: Record<FlightPhase, { label: string; prompt: string }> = {
-  idle: { label: 'READY', prompt: 'Start a session' },
-  armed: { label: 'THROW', prompt: 'Watching for motion' },
-  airborne: { label: 'AIR', prompt: 'Reading the trick' },
-  settling: { label: 'CATCH', prompt: 'Hold it steady' },
-  complete: { label: 'LANDED', prompt: 'Attempt captured' },
+const phaseLanguage: Record<FlightPhase, { label: string }> = {
+  idle: { label: 'READY' },
+  armed: { label: 'THROW' },
+  airborne: { label: 'AIR' },
+  settling: { label: 'CATCH' },
+  complete: { label: 'LANDED' },
 };
 
 export function GameStage({
@@ -139,8 +139,7 @@ export function GameStage({
         <Text style={[styles.stateLabel, { color: accent }]}>{copy.label}</Text>
         <Text style={styles.hz}>{sensorHz > 0 ? `${Math.round(sensorHz)} HZ` : 'SENSOR IDLE'}</Text>
       </View>
-      <View pointerEvents="none" style={styles.stageBottom}>
-        <Text style={styles.prompt}>{copy.prompt}</Text>
+      <View pointerEvents="none" style={styles.stageTelemetry}>
         <Text style={styles.telemetry}>{frame.accelG.toFixed(2)}G · {Math.round(frame.gyroDps)}°/S</Text>
       </View>
       {interactive && (
@@ -249,19 +248,10 @@ const styles = StyleSheet.create({
     fontSize: 9,
     marginLeft: 'auto',
   },
-  stageBottom: {
-    alignItems: 'flex-end',
-    bottom: 18,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    left: 20,
+  stageTelemetry: {
     position: 'absolute',
     right: 20,
-  },
-  prompt: {
-    color: gameColors.white,
-    fontFamily: fonts.bodyBold,
-    fontSize: 15,
+    top: 39,
   },
   telemetry: {
     color: gameColors.frostMuted,
@@ -269,11 +259,11 @@ const styles = StyleSheet.create({
     fontSize: 8,
   },
   stageControls: {
+    bottom: 18,
     flexDirection: 'row',
     gap: 6,
     position: 'absolute',
     right: 18,
-    top: 48,
     zIndex: 6,
   },
   stageControl: {

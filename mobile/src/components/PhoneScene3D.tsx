@@ -130,8 +130,11 @@ export function PhoneScene3D({
   toneRef.current = tone;
   variantRef.current = variant;
 
-  useEffect(() => () => {
-    mountedRef.current = false;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const handleContextCreate = useCallback((gl: ExpoWebGLRenderingContext) => {
