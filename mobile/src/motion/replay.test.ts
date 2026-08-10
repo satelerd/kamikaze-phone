@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { makeSyntheticThrowSamples, MotionDetector } from './engine';
-import { buildReplayFrames, buildTargetFrames, quaternionToEulerDegrees } from './replay';
+import {
+  buildReplayFrames,
+  buildTargetFrames,
+  normalizeReplayFrames,
+  quaternionToEulerDegrees,
+  sampleReplayFrame,
+} from './replay';
 
 describe('replay reconstruction', () => {
   it('reconstructs a near-complete X rotation from stored gyro samples', () => {
@@ -35,5 +41,27 @@ describe('replay reconstruction', () => {
 
     expect(quarterFrame.x).toBeLessThan(0);
     expect(Math.abs(quarterFrame.y)).toBeCloseTo(0, 4);
+  });
+
+  it('normalizes captured pre-roll and samples the replay by elapsed time', () => {
+    const target = buildTargetFrames('FRONT FLIP', 3).map((frame) => ({
+      ...frame,
+      timestampMs: frame.timestampMs - 120,
+    }));
+    const frames = normalizeReplayFrames(target);
+    const halfway = sampleReplayFrame(frames, frames.at(-1)!.timestampMs / 2);
+
+    expect(frames[0].timestampMs).toBe(0);
+    expect(frames.at(-1)!.progress).toBe(1);
+    expect(Math.abs(halfway.quaternion.x)).toBeCloseTo(1, 4);
+    expect(halfway.progress).toBeCloseTo(0.5, 4);
+  });
+
+  it('interpolates irregular samples instead of jumping by array index', () => {
+    const frames = normalizeReplayFrames(buildTargetFrames('PHONE FLIP', 3));
+    const firstQuarter = sampleReplayFrame(frames, frames.at(-1)!.timestampMs / 4);
+
+    expect(Math.abs(firstQuarter.quaternion.y)).toBeCloseTo(Math.SQRT1_2, 4);
+    expect(firstQuarter.progress).toBeCloseTo(0.25, 4);
   });
 });

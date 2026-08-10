@@ -4,7 +4,12 @@ import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { PhoneScene3D, type OrbitCamera } from '../components/PhoneScene3D';
 import { useScrollLock } from '../components/ScrollLock';
 import { useOrbitResponder } from '../components/useOrbitResponder';
-import { buildReplayFrames, buildTargetFrames } from '../motion/replay';
+import {
+  buildReplayFrames,
+  buildTargetFrames,
+  normalizeReplayFrames,
+  sampleReplayFrame,
+} from '../motion/replay';
 import type { TrickDefinition } from '../motion/trickCatalog';
 import type { DetectedAttempt, ReplayFrame } from '../motion/types';
 import { fonts } from '../theme';
@@ -41,26 +46,28 @@ export function MiniReplay({
   shellColor: string;
 }) {
   const frames = useMemo(() => {
-    if (!attempt) return buildTargetFrames(definition);
-    const capturedFrames = buildReplayFrames(attempt);
-    if (capturedFrames.length >= 2) return capturedFrames;
-    return buildTargetFrames({
-      ...definition,
-      durationMs: Math.max(300, attempt.airtimeMs),
-      rotation: {
-        x: attempt.rotationDegrees.x,
-        y: attempt.rotationDegrees.y,
-        z: attempt.rotationDegrees.z,
-      },
-    });
+    let sourceFrames: ReplayFrame[];
+    if (!attempt) {
+      sourceFrames = buildTargetFrames(definition);
+    } else {
+      const capturedFrames = buildReplayFrames(attempt);
+      sourceFrames = capturedFrames.length >= 2
+        ? capturedFrames
+        : buildTargetFrames({
+          ...definition,
+          durationMs: Math.max(300, attempt.airtimeMs),
+          rotation: {
+            x: attempt.rotationDegrees.x,
+            y: attempt.rotationDegrees.y,
+            z: attempt.rotationDegrees.z,
+          },
+        });
+    }
+    return normalizeReplayFrames(sourceFrames);
   }, [attempt, definition]);
-  const durationMs = Math.max(
-    1,
-    attempt?.airtimeMs ?? 0,
-    frames.at(-1)?.timestampMs ?? definition.durationMs,
-  );
-  const [progress, setProgress] = useState(0);
-  const progressRef = useRef(0);
+  const durationMs = Math.max(1, frames.at(-1)?.timestampMs ?? definition.durationMs);
+  const [playheadMs, setPlayheadMs] = useState(0);
+  const playheadRef = useRef(0);
   const [playing, setPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<(typeof PLAYBACK_SPEEDS)[number]>(0.5);
   const [camera, setCamera] = useState<OrbitCamera>(REPLAY_CAMERA);
@@ -68,37 +75,36 @@ export function MiniReplay({
   const timelineOriginRef = useRef(0);
   const setScrollLocked = useScrollLock();
   const orbitResponder = useOrbitResponder(camera, setCamera, { maximumDistance: 8.6, minimumDistance: 2.8 });
-  const frameIndex = Math.min(frames.length - 1, Math.round(progress * Math.max(0, frames.length - 1)));
-  const frame: ReplayFrame = frames[frameIndex] ?? frames[0];
+  const progress = clamp(playheadMs / durationMs);
+  const frame: ReplayFrame = useMemo(
+    () => sampleReplayFrame(frames, playheadMs),
+    [frames, playheadMs],
+  );
 
   useEffect(() => {
-    progressRef.current = 0;
-    setProgress(0);
+    playheadRef.current = 0;
+    setPlayheadMs(0);
     setPlaying(false);
   }, [attempt?.id, definition.id]);
 
   useEffect(() => {
     if (!playing || frames.length < 2) return;
-    let animationFrame = 0;
-    let previousTimestamp: number | null = null;
-
-    const tick = (timestamp: number) => {
-      if (previousTimestamp === null) previousTimestamp = timestamp;
-      const elapsedMs = Math.max(0, timestamp - previousTimestamp);
-      previousTimestamp = timestamp;
-      const next = clamp(progressRef.current + elapsedMs * playbackSpeed / durationMs);
-      progressRef.current = next;
-      setProgress(next);
-
-      if (next >= 1) {
+    const startedAtMs = Date.now();
+    const startedFromMs = playheadRef.current;
+    const tick = () => {
+      const nextMs = Math.min(
+        durationMs,
+        startedFromMs + Math.max(0, Date.now() - startedAtMs) * playbackSpeed,
+      );
+      playheadRef.current = nextMs;
+      setPlayheadMs(nextMs);
+      if (nextMs >= durationMs) {
         setPlaying(false);
-        return;
       }
-      animationFrame = requestAnimationFrame(tick);
     };
-
-    animationFrame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animationFrame);
+    tick();
+    const timer = setInterval(tick, 16);
+    return () => clearInterval(timer);
   }, [durationMs, frames.length, playbackSpeed, playing]);
 
   useEffect(() => () => setScrollLocked(false), [setScrollLocked]);
@@ -115,30 +121,30 @@ export function MiniReplay({
       setScrollLocked(true);
       setPlaying(false);
       timelineOriginRef.current = event.nativeEvent.pageX - event.nativeEvent.locationX;
-      const next = clamp((event.nativeEvent.pageX - timelineOriginRef.current) / timelineWidthRef.current);
-      progressRef.current = next;
-      setProgress(next);
+      const nextMs = clamp((event.nativeEvent.pageX - timelineOriginRef.current) / timelineWidthRef.current) * durationMs;
+      playheadRef.current = nextMs;
+      setPlayheadMs(nextMs);
     },
     onPanResponderMove: (event) => {
       event.stopPropagation?.();
-      const next = clamp((event.nativeEvent.pageX - timelineOriginRef.current) / timelineWidthRef.current);
-      progressRef.current = next;
-      setProgress(next);
+      const nextMs = clamp((event.nativeEvent.pageX - timelineOriginRef.current) / timelineWidthRef.current) * durationMs;
+      playheadRef.current = nextMs;
+      setPlayheadMs(nextMs);
     },
     onPanResponderRelease: () => setScrollLocked(false),
     onPanResponderTerminate: () => setScrollLocked(false),
     onPanResponderTerminationRequest: () => false,
     onShouldBlockNativeResponder: () => true,
-  }), [setScrollLocked]);
+  }), [durationMs, setScrollLocked]);
 
   const togglePlayback = () => {
     if (playing) {
       setPlaying(false);
       return;
     }
-    if (progressRef.current >= 1) {
-      progressRef.current = 0;
-      setProgress(0);
+    if (playheadRef.current >= durationMs - 1) {
+      playheadRef.current = 0;
+      setPlayheadMs(0);
     }
     setPlaying(true);
   };
@@ -175,7 +181,7 @@ export function MiniReplay({
         )}
         <View pointerEvents="none" style={styles.captionRow}>
           <Text style={styles.caption}>{attempt ? 'YOUR MOTION' : 'CLEAN TARGET'}</Text>
-          <Text style={styles.caption}>{Math.round(progress * durationMs)} MS</Text>
+          <Text style={styles.caption}>{Math.round(playheadMs)} MS</Text>
         </View>
         {interactive && (
           <Pressable
@@ -212,7 +218,7 @@ export function MiniReplay({
             </View>
           </View>
           <View style={styles.timeRow}>
-            <Text style={styles.time}>{(progress * durationMs / 1000).toFixed(2)}S</Text>
+            <Text style={styles.time}>{(playheadMs / 1000).toFixed(2)}S</Text>
             <Text style={styles.time}>{(durationMs / 1000).toFixed(2)}S</Text>
           </View>
         </View>
