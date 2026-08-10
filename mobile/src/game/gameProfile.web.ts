@@ -1,6 +1,7 @@
 export type GamePreferences = {
   onboardingComplete: boolean;
   selectedSkinId: string;
+  showPerformanceHud: boolean;
 };
 
 const KEY = 'kpf.game-preferences.v1';
@@ -8,6 +9,7 @@ const KEY = 'kpf.game-preferences.v1';
 export const DEFAULT_GAME_PREFERENCES: GamePreferences = {
   onboardingComplete: false,
   selectedSkinId: 'ion',
+  showPerformanceHud: false,
 };
 
 export async function loadGamePreferences(): Promise<GamePreferences> {

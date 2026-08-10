@@ -37,7 +37,6 @@ import { findBestTrickMatch, type TrickDefinition, type TrickMatch } from '../mo
 import type { DetectedAttempt, FlightPhase, ReplayFrame } from '../motion/types';
 import { fonts } from '../theme';
 import {
-  DEFAULT_GAME_PREFERENCES,
   loadGamePreferences,
   saveGamePreferences,
   type GamePreferences,
@@ -482,12 +481,45 @@ function PracticeScreen({
   }
   const [selectedId, setSelectedId] = useState('bs-shuvit');
   const [attempt, setAttempt] = useState<DetectedAttempt | null>(null);
+  const [captureMode, setCaptureMode] = useState<CaptureMode>('auto');
+  const [levelActive, setLevelActive] = useState(false);
+  const lastPracticeAttemptRef = useRef<string | null>(motion.snapshot.lastAttempt?.id ?? null);
   const selectedIndex = Math.max(0, levels.findIndex(({ id }) => id === selectedId));
   const definition = levels[selectedIndex] ?? levels[0] ?? catalog.definitions[1];
   const reps = motion.attempts.filter((item) =>
     findBestTrickMatch(item, catalog.definitions).definition.id === definition.id,
   ).length;
   const levelPassed = passedCounts[selectedIndex] > 0;
+  const liveFrame: ReplayFrame = {
+    accelG: motion.snapshot.accelG,
+    gyroDps: motion.snapshot.gyroDps,
+    progress: 0,
+    quaternion: motion.liveQuaternion,
+    timestampMs: Date.now(),
+  };
+
+  useEffect(() => {
+    const captured = motion.snapshot.lastAttempt;
+    if (
+      levelActive &&
+      captured &&
+      motion.snapshot.phase === 'complete' &&
+      captured.id !== lastPracticeAttemptRef.current
+    ) {
+      lastPracticeAttemptRef.current = captured.id;
+      setAttempt(captured);
+      setLevelActive(false);
+    }
+  }, [levelActive, motion.snapshot.lastAttempt?.id, motion.snapshot.phase]);
+
+  const startLevel = async () => {
+    setAttempt(null);
+    lastPracticeAttemptRef.current = motion.snapshot.lastAttempt?.id ?? null;
+    const started = captureMode === 'manual'
+      ? await motion.startManualCapture()
+      : await motion.arm();
+    setLevelActive(started);
+  };
 
   if (motion.manualRecording) {
     return (
@@ -495,6 +527,7 @@ function PracticeScreen({
         onPress={() => {
           const captured = motion.stopManualCapture();
           if (captured) setAttempt(captured);
+          setLevelActive(false);
         }}
         style={styles.practiceRecording}
       >
@@ -504,6 +537,39 @@ function PracticeScreen({
         <Text style={styles.practiceRecordingTime}>{(motion.manualElapsedMs / 1000).toFixed(2)}S RECORDING</Text>
         <Text style={styles.practiceRecordingStop}>THE WHOLE SCREEN STOPS THE CAPTURE</Text>
       </Pressable>
+    );
+  }
+
+  if (levelActive && captureMode === 'auto') {
+    return (
+      <View style={styles.practiceAutoActive}>
+        <View style={styles.practiceAutoHeader}>
+          <View>
+            <Text style={styles.eyebrow}>AUTO DETECTION / {definition.name}</Text>
+            <Text style={styles.practiceAutoTitle}>LAND THE{`\n`}LEVEL.</Text>
+          </View>
+          <View style={styles.autoBadge}><Text style={styles.autoBadgeText}>AUTO</Text></View>
+        </View>
+        <GameStage
+          frame={liveFrame}
+          height={430}
+          phase={motion.snapshot.phase}
+          sensorHz={motion.snapshot.actualHz}
+          skinColor={shellColor}
+        />
+        <Text style={styles.practiceAutoHint}>
+          {motion.snapshot.phase === 'armed'
+            ? 'Throw when ready. The level ends automatically after the catch.'
+            : motion.snapshot.phase === 'airborne'
+              ? 'Motion detected. Finish the rotation and catch.'
+              : 'Hold steady while Kamikaze closes the capture.'}
+        </Text>
+        <GameButton
+          label="CANCEL LEVEL"
+          onPress={() => { motion.disarm(); setLevelActive(false); }}
+          secondary
+        />
+      </View>
     );
   }
 
@@ -567,7 +633,28 @@ function PracticeScreen({
           <Text style={styles.practiceResultScore}>{scoreFor(match, attempt)}</Text>
         </View>
       )}
-      <GameButton label={levelPassed ? 'PRACTICE AGAIN' : 'START LEVEL'} onPress={() => { motion.startManualCapture(); }} />
+      <View style={styles.practiceModeRow}>
+        <View>
+          <Text style={styles.practiceModeTitle}>CAPTURE MODE</Text>
+          <Text style={styles.practiceModeHelp}>{captureMode === 'auto' ? 'Stops after the catch.' : 'You stop the recording.'}</Text>
+        </View>
+        <View style={styles.modeSwitch}>
+          {(['auto', 'manual'] as const).map((item) => (
+            <Pressable
+              key={item}
+              onPress={() => setCaptureMode(item)}
+              style={[styles.modeOption, captureMode === item && styles.modeOptionActive]}
+            >
+              <Text style={[styles.modeOptionText, captureMode === item && styles.modeOptionTextActive]}>{item.toUpperCase()}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+      {motion.sensorStatus === 'ready' ? (
+        <GameButton label={levelPassed ? 'PRACTICE AGAIN' : 'START LEVEL'} onPress={startLevel} />
+      ) : (
+        <GameButton label="ENABLE MOTION" onPress={() => { motion.requestPermission(); }} />
+      )}
     </ScrollView>
   );
 }
@@ -598,7 +685,7 @@ function LockerScreen({
       <Text style={styles.screenTitle}>BUILD YOUR{`\n`}SIGNATURE.</Text>
       <Text style={styles.screenIntro}>Land tricks, earn points and change the object that represents you in every replay.</Text>
       <View style={styles.lockerStage}>
-        <GameStage frame={identityFrame} height={380} phase="idle" sensorHz={0} skinColor={selected.color} />
+        <GameStage frame={identityFrame} height={380} phase="idle" sensorHz={0} skinColor={selected.color} zeroable={false} />
       </View>
       <View style={styles.pointsRow}>
         <Text style={styles.pointsLabel}>AVAILABLE POINTS</Text>
@@ -666,12 +753,16 @@ function ProfileScreen({
   motion,
   onOpenDeveloper,
   onReplayOnboarding,
+  preferences,
+  setPreferences,
   scrollEnabled,
 }: {
   catalog: TrickCatalogController;
   motion: MotionController;
   onOpenDeveloper: () => void;
   onReplayOnboarding: () => void;
+  preferences: GamePreferences;
+  setPreferences: (preferences: GamePreferences) => void;
   scrollEnabled: boolean;
 }) {
   const matches = motion.attempts.map((attempt) => ({
@@ -717,9 +808,9 @@ function ProfileScreen({
         <View style={styles.profileMark}><Text style={styles.profileMarkText}>K</Text></View>
       </View>
       <View style={styles.bigStats}>
-        <View style={styles.bigStat}><Text style={styles.bigStatValue}>{landed.length}</Text><Text style={styles.bigStatLabel}>TOTAL TRICKS</Text></View>
-        <View style={styles.bigStat}><Text style={styles.bigStatValue}>{bestStreak}</Text><Text style={styles.bigStatLabel}>BEST RUN</Text></View>
-        <View style={styles.bigStat}><Text style={styles.bigStatValue}>{best ? scoreFor(best.match, best.attempt) : '—'}</Text><Text style={styles.bigStatLabel}>HIGH SCORE</Text></View>
+        <GlassSurface fallbackColor="rgba(235,238,248,0.10)" style={styles.bigStat} tintColor="rgba(235,238,248,0.08)"><Text style={styles.bigStatValue}>{landed.length}</Text><Text style={styles.bigStatLabel}>TOTAL TRICKS</Text></GlassSurface>
+        <GlassSurface fallbackColor="rgba(235,238,248,0.10)" style={styles.bigStat} tintColor="rgba(235,238,248,0.08)"><Text style={styles.bigStatValue}>{bestStreak}</Text><Text style={styles.bigStatLabel}>BEST RUN</Text></GlassSurface>
+        <GlassSurface fallbackColor="rgba(235,238,248,0.10)" style={styles.bigStat} tintColor="rgba(235,238,248,0.08)"><Text style={styles.bigStatValue}>{best ? scoreFor(best.match, best.attempt) : '—'}</Text><Text style={styles.bigStatLabel}>HIGH SCORE</Text></GlassSurface>
       </View>
       <View style={styles.activityCard}>
         <View style={styles.cardHeaderRow}>
@@ -730,11 +821,11 @@ function ProfileScreen({
         <Text style={styles.activityHint}>More light means more landed tricks that day.</Text>
       </View>
       <Text style={styles.sectionTitle}>PERSONAL BESTS</Text>
-      <View style={styles.recordsCard}>
+      <GlassSurface fallbackColor="rgba(235,238,248,0.10)" style={styles.recordsCard} tintColor="rgba(235,238,248,0.08)">
         <View style={styles.recordRow}><Text style={styles.recordLabel}>FASTEST</Text><Text style={styles.recordValue}>{fastest ? `${(fastest.match.motionDurationMs / 1000).toFixed(2)}S` : '—'}</Text></View>
         <View style={styles.recordRow}><Text style={styles.recordLabel}>LONGEST</Text><Text style={styles.recordValue}>{longest ? `${(longest.match.motionDurationMs / 1000).toFixed(2)}S` : '—'}</Text></View>
         <View style={styles.recordRow}><Text style={styles.recordLabel}>MOST LANDED</Text><Text style={styles.recordValue}>{mostLanded?.name ?? '—'}</Text></View>
-      </View>
+      </GlassSurface>
       <View style={styles.cardHeaderRow}>
         <Text style={styles.sectionTitle}>RECENT</Text>
         <Text style={styles.cardMeta}>{motion.historyReady ? `${motion.attempts.length} SAVED` : 'LOADING'}</Text>
@@ -749,31 +840,52 @@ function ProfileScreen({
           <Text style={styles.recentArrow}>→</Text>
         </View>
       ))}
-      <View style={styles.settingsCard}>
+      <Text style={styles.sectionTitle}>SETTINGS</Text>
+      <GlassSurface fallbackColor="rgba(235,238,248,0.10)" style={styles.settingsCard} tintColor="rgba(235,238,248,0.08)">
+        <Pressable
+          onPress={() => setPreferences({ ...preferences, showPerformanceHud: !preferences.showPerformanceHud })}
+          style={styles.settingsRow}
+        >
+          <View>
+            <Text style={styles.settingsText}>PERFORMANCE HUD</Text>
+            <Text style={styles.settingsHint}>Live shader frame rate</Text>
+          </View>
+          <Text style={styles.settingsValue}>{preferences.showPerformanceHud ? 'ON' : 'OFF'}</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => catalog.setGripHand(catalog.gripHand === 'right' ? 'left' : 'right')}
+          style={styles.settingsRow}
+        >
+          <View>
+            <Text style={styles.settingsText}>GRIP HAND</Text>
+            <Text style={styles.settingsHint}>Changes forward / reverse direction</Text>
+          </View>
+          <Text style={styles.settingsValue}>{catalog.gripHand.toUpperCase()}</Text>
+        </Pressable>
         <Pressable onPress={onReplayOnboarding} style={styles.settingsRow}>
           <Text style={styles.settingsText}>REPLAY HOW TO PLAY</Text><Text style={styles.settingsArrow}>→</Text>
         </Pressable>
         <Pressable onPress={onOpenDeveloper} style={styles.settingsRow}>
           <Text style={styles.settingsText}>OPEN SENSOR WORKSHOP</Text><Text style={styles.settingsArrow}>→</Text>
         </Pressable>
-      </View>
+      </GlassSurface>
     </ScrollView>
   );
 }
 
 function BottomNavigation({ tab, setTab }: { tab: GameTab; setTab: (tab: GameTab) => void }) {
   const tabs: { id: GameTab; glyph: string; label: string }[] = [
-    { id: 'play', glyph: '●', label: 'PLAY' },
+    { id: 'play', glyph: '▶', label: 'PLAY' },
     { id: 'practice', glyph: '↻', label: 'PRACTICE' },
-    { id: 'locker', glyph: '◇', label: 'LOCKER' },
-    { id: 'profile', glyph: '○', label: 'ME' },
+    { id: 'locker', glyph: '▰', label: 'LOCKER' },
+    { id: 'profile', glyph: '●', label: 'ME' },
   ];
   return (
     <GlassSurface
-      fallbackColor="rgba(28,30,36,0.72)"
+      fallbackColor="rgba(230,234,248,0.12)"
       interactive
       style={styles.bottomNav}
-      tintColor="rgba(28,30,36,0.42)"
+      tintColor="rgba(230,234,248,0.1)"
     >
       {tabs.map((item) => (
         <Pressable
@@ -800,6 +912,7 @@ export default function GamePrototypeApp() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showDeveloper, setShowDeveloper] = useState(false);
   const [reduceTransparency, setReduceTransparency] = useState(false);
+  const [shaderFps, setShaderFps] = useState(0);
   const [archivoLoaded] = useArchivoFonts({ ArchivoBlack_400Regular });
   const [spaceLoaded] = useSpaceFonts({
     SpaceGrotesk_400Regular,
@@ -878,7 +991,18 @@ export default function GamePrototypeApp() {
       <StatusBar style="light" />
       <ScrollLockContext.Provider value={setScrollLocked}>
         <View style={styles.appShell}>
-          {!reduceTransparency && <KineticBackdrop atmosphere={atmosphere} />}
+          {!reduceTransparency && (
+            <KineticBackdrop
+              atmosphere={atmosphere}
+              onFps={preferences.showPerformanceHud ? setShaderFps : undefined}
+            />
+          )}
+          {preferences.showPerformanceHud && (
+            <View pointerEvents="none" style={styles.performanceHud}>
+              <Text style={styles.performanceHudLabel}>SHADER</Text>
+              <Text style={styles.performanceHudValue}>{shaderFps || '—'} FPS</Text>
+            </View>
+          )}
           <View style={styles.screenBody}>
             {tab === 'play' && <PlayScreen catalog={catalog} motion={motion} shellColor={selectedSkin.color} />}
             {tab === 'practice' && (
@@ -899,6 +1023,8 @@ export default function GamePrototypeApp() {
                 motion={motion}
                 onOpenDeveloper={() => setShowDeveloper(true)}
                 onReplayOnboarding={() => setShowOnboarding(true)}
+                preferences={preferences}
+                setPreferences={setPreferences}
                 scrollEnabled={!scrollLocked}
               />
             )}
@@ -915,7 +1041,7 @@ const styles = StyleSheet.create({
   safeArea: { backgroundColor: gameColors.pitch, flex: 1 },
   safeAreaOpaque: { backgroundColor: '#151612' },
   appShell: { flex: 1, position: 'relative' },
-  screenBody: { flex: 1, paddingBottom: 92 },
+  screenBody: { flex: 1 },
   eyebrow: { color: gameColors.ion, fontFamily: fonts.monoBold, fontSize: 9, letterSpacing: 1.4 },
   buttonPressable: { borderRadius: gameRadii.control, marginTop: 12 },
   gameButton: {
@@ -941,7 +1067,7 @@ const styles = StyleSheet.create({
   pageDots: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginBottom: 2 },
   pageDot: { backgroundColor: '#3D3E38', borderRadius: 3, height: 5, width: 18 },
   pageDotActive: { backgroundColor: gameColors.volt, width: 34 },
-  playScreen: { flex: 1, paddingHorizontal: 16, paddingTop: 6 },
+  playScreen: { flex: 1, paddingBottom: 92, paddingHorizontal: 16, paddingTop: 6 },
   playUtilityRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'flex-end', minHeight: 38, paddingBottom: 8, paddingHorizontal: 4 },
   liveRunPill: { alignItems: 'center', backgroundColor: 'rgba(35,36,31,0.66)', borderColor: 'rgba(255,255,255,0.12)', borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 7, paddingHorizontal: 11, paddingVertical: 8 },
   liveRunText: { color: gameColors.frost, fontFamily: fonts.monoBold, fontSize: 8, letterSpacing: 0.7 },
@@ -954,12 +1080,12 @@ const styles = StyleSheet.create({
   modeOptionActive: { backgroundColor: gameColors.frost },
   modeOptionText: { color: gameColors.frostMuted, fontFamily: fonts.monoBold, fontSize: 7 },
   modeOptionTextActive: { color: gameColors.pitch },
-  manualFullScreen: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  manualFullScreen: { flex: 1, paddingBottom: 92, paddingHorizontal: 16, paddingTop: 8 },
   tapAnywhere: { alignItems: 'center', flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
   tapAnywhereTitle: { color: gameColors.white, fontFamily: fonts.display, fontSize: 34, letterSpacing: -1.4 },
   tapAnywhereBody: { color: gameColors.frostMuted, fontFamily: fonts.body, fontSize: 13, lineHeight: 18, marginTop: 8, textAlign: 'center' },
   tapAnywhereAction: { color: gameColors.hazard, fontFamily: fonts.monoBold, fontSize: 9, letterSpacing: 1.1, marginTop: 18 },
-  resultContent: { paddingBottom: 30, paddingHorizontal: 18, paddingTop: 12 },
+  resultContent: { paddingBottom: 124, paddingHorizontal: 18, paddingTop: 12 },
   resultTopline: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   resultVerdict: { color: gameColors.volt, fontFamily: fonts.monoBold, fontSize: 10, letterSpacing: 1.4 },
   resultStreak: { color: gameColors.frostMuted, fontFamily: fonts.monoBold, fontSize: 9 },
@@ -982,7 +1108,7 @@ const styles = StyleSheet.create({
   resultSecondaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 7, paddingTop: 16 },
   textAction: { padding: 8 },
   textActionLabel: { color: gameColors.frostMuted, fontFamily: fonts.monoBold, fontSize: 8, letterSpacing: 0.6 },
-  screenScrollContent: { paddingBottom: 28, paddingHorizontal: 18, paddingTop: 20 },
+  screenScrollContent: { paddingBottom: 124, paddingHorizontal: 18, paddingTop: 20 },
   screenTitle: { color: gameColors.white, fontFamily: fonts.display, fontSize: 39, letterSpacing: -1.8, lineHeight: 39, marginTop: 9 },
   screenIntro: { color: gameColors.frostMuted, fontFamily: fonts.body, fontSize: 13, lineHeight: 19, marginTop: 11, maxWidth: 340 },
   levelScroller: { marginHorizontal: -18, marginTop: 18, paddingHorizontal: 18 },
@@ -1007,10 +1133,19 @@ const styles = StyleSheet.create({
   practiceResultStrip: { alignItems: 'center', backgroundColor: '#24251F', borderRadius: 18, flexDirection: 'row', justifyContent: 'space-between', marginTop: 14, padding: 13 },
   practiceResultName: { color: gameColors.frost, fontFamily: fonts.monoBold, fontSize: 8 },
   practiceResultScore: { color: gameColors.volt, fontFamily: fonts.display, fontSize: 24 },
-  practiceRecording: { flex: 1, justifyContent: 'center', paddingHorizontal: 18, paddingTop: 22 },
+  practiceModeRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 },
+  practiceModeTitle: { color: gameColors.frost, fontFamily: fonts.monoBold, fontSize: 8, letterSpacing: 0.7 },
+  practiceModeHelp: { color: gameColors.frostMuted, fontFamily: fonts.body, fontSize: 9, marginTop: 3 },
+  practiceRecording: { flex: 1, justifyContent: 'center', paddingBottom: 92, paddingHorizontal: 18, paddingTop: 22 },
   practiceRecordingTitle: { color: gameColors.white, fontFamily: fonts.display, fontSize: 42, letterSpacing: -1.8, lineHeight: 41, marginBottom: 18, marginTop: 10 },
   practiceRecordingTime: { color: gameColors.hazard, fontFamily: fonts.display, fontSize: 28, marginTop: 18, textAlign: 'center' },
   practiceRecordingStop: { color: gameColors.frostMuted, fontFamily: fonts.monoBold, fontSize: 8, letterSpacing: 0.8, marginTop: 7, textAlign: 'center' },
+  practiceAutoActive: { flex: 1, paddingBottom: 92, paddingHorizontal: 16, paddingTop: 16 },
+  practiceAutoHeader: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
+  practiceAutoTitle: { color: gameColors.white, fontFamily: fonts.display, fontSize: 35, letterSpacing: -1.4, lineHeight: 34, marginTop: 8 },
+  practiceAutoHint: { color: gameColors.frostMuted, fontFamily: fonts.body, fontSize: 12, lineHeight: 18, marginTop: 14 },
+  autoBadge: { backgroundColor: 'rgba(215,255,74,0.14)', borderColor: gameColors.volt, borderRadius: 14, borderWidth: 1, paddingHorizontal: 11, paddingVertical: 8 },
+  autoBadgeText: { color: gameColors.volt, fontFamily: fonts.monoBold, fontSize: 7, letterSpacing: 0.8 },
   lockerStage: { marginTop: 18 },
   pointsRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 16 },
   pointsLabel: { color: gameColors.frostMuted, fontFamily: fonts.monoBold, fontSize: 8, letterSpacing: 0.8 },
@@ -1028,7 +1163,7 @@ const styles = StyleSheet.create({
   profileMark: { alignItems: 'center', backgroundColor: gameColors.hazard, borderRadius: 30, height: 60, justifyContent: 'center', transform: [{ rotate: '7deg' }], width: 60 },
   profileMarkText: { color: gameColors.white, fontFamily: fonts.display, fontSize: 29 },
   bigStats: { flexDirection: 'row', gap: 8, marginTop: 20 },
-  bigStat: { backgroundColor: '#20211D', borderRadius: 20, flex: 1, paddingHorizontal: 10, paddingVertical: 15 },
+  bigStat: { borderRadius: 20, flex: 1, paddingHorizontal: 10, paddingVertical: 15 },
   bigStatValue: { color: gameColors.white, fontFamily: fonts.display, fontSize: 25 },
   bigStatLabel: { color: gameColors.frostMuted, fontFamily: fonts.mono, fontSize: 6, marginTop: 4 },
   activityCard: { backgroundColor: gameColors.bone, borderRadius: gameRadii.card, marginTop: 12, padding: 16 },
@@ -1043,7 +1178,7 @@ const styles = StyleSheet.create({
   activityCellThree: { backgroundColor: gameColors.hazard },
   activityHint: { color: '#77786F', fontFamily: fonts.body, fontSize: 9, marginTop: 12 },
   sectionTitle: { color: gameColors.white, fontFamily: fonts.bodyBold, fontSize: 13, letterSpacing: 0.3, marginTop: 22 },
-  recordsCard: { backgroundColor: '#20211D', borderRadius: gameRadii.card, marginTop: 10, paddingHorizontal: 15 },
+  recordsCard: { borderRadius: gameRadii.card, marginTop: 10, paddingHorizontal: 15 },
   recordRow: { alignItems: 'center', borderBottomColor: '#393A34', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', minHeight: 54 },
   recordLabel: { color: gameColors.frostMuted, fontFamily: fonts.monoBold, fontSize: 7 },
   recordValue: { color: gameColors.white, fontFamily: fonts.bodyBold, fontSize: 12, maxWidth: 190 },
@@ -1054,17 +1189,22 @@ const styles = StyleSheet.create({
   recentName: { color: gameColors.white, fontFamily: fonts.bodyBold, fontSize: 12 },
   recentMeta: { color: gameColors.frostMuted, fontFamily: fonts.mono, fontSize: 7, marginTop: 3 },
   recentArrow: { color: gameColors.frostMuted, fontFamily: fonts.body, fontSize: 18 },
-  settingsCard: { backgroundColor: '#20211D', borderRadius: gameRadii.card, marginTop: 22, overflow: 'hidden' },
+  settingsCard: { borderRadius: gameRadii.card, marginTop: 10, overflow: 'hidden' },
   settingsRow: { alignItems: 'center', borderBottomColor: '#393A34', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', minHeight: 54, paddingHorizontal: 15 },
   settingsText: { color: gameColors.frost, fontFamily: fonts.bodyBold, fontSize: 10 },
+  settingsHint: { color: gameColors.frostMuted, fontFamily: fonts.body, fontSize: 8, marginTop: 3 },
+  settingsValue: { color: gameColors.volt, fontFamily: fonts.monoBold, fontSize: 8, letterSpacing: 0.6 },
   settingsArrow: { color: gameColors.frostMuted, fontSize: 16 },
-  bottomNav: { alignItems: 'center', borderRadius: 34, bottom: 8, flexDirection: 'row', height: 78, left: 12, padding: 6, position: 'absolute', right: 12 },
+  bottomNav: { alignItems: 'center', borderRadius: 34, bottom: 8, elevation: 20, flexDirection: 'row', height: 78, left: 12, padding: 6, position: 'absolute', right: 12, zIndex: 20 },
   bottomTab: { alignItems: 'center', borderRadius: 27, flex: 1, height: 64, justifyContent: 'center' },
-  bottomTabActive: { backgroundColor: 'rgba(255,255,255,0.18)' },
-  bottomGlyph: { color: gameColors.frostMuted, fontFamily: fonts.body, fontSize: 21, lineHeight: 22 },
+  bottomTabActive: { backgroundColor: 'rgba(255,255,255,0.11)' },
+  bottomGlyph: { color: gameColors.frostMuted, fontFamily: fonts.body, fontSize: 25, lineHeight: 26 },
   bottomGlyphActive: { color: gameColors.volt },
   bottomLabel: { color: gameColors.frostMuted, fontFamily: fonts.monoBold, fontSize: 7, letterSpacing: 0.5, marginTop: 3 },
   bottomLabelActive: { color: gameColors.white },
+  performanceHud: { alignItems: 'flex-end', backgroundColor: 'rgba(8,9,12,0.68)', borderColor: 'rgba(215,255,74,0.35)', borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 10, paddingVertical: 7, position: 'absolute', right: 18, top: 10, zIndex: 30 },
+  performanceHudLabel: { color: gameColors.frostMuted, fontFamily: fonts.monoBold, fontSize: 6, letterSpacing: 0.7 },
+  performanceHudValue: { color: gameColors.volt, fontFamily: fonts.monoBold, fontSize: 9, marginTop: 2 },
   developerContent: { paddingBottom: 40, paddingHorizontal: 20, paddingTop: 10 },
   developerHeader: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between' },
   developerTitle: { color: gameColors.white, fontFamily: fonts.display, fontSize: 28, marginTop: 5 },

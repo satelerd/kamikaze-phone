@@ -13,7 +13,9 @@ type SpatialGesture = {
 };
 
 type OrbitLimits = {
+  maximumElevation?: number;
   maximumDistance?: number;
+  minimumElevation?: number;
   minimumDistance?: number;
 };
 
@@ -54,7 +56,9 @@ export function useOrbitResponder(
   camera: OrbitCamera,
   onChange: (camera: OrbitCamera) => void,
   {
+    maximumElevation = 1.42,
     maximumDistance = 11.5,
+    minimumElevation = -1.08,
     minimumDistance = 3.6,
   }: OrbitLimits = {},
 ) {
@@ -81,6 +85,7 @@ export function useOrbitResponder(
     return PanResponder.create({
       onMoveShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponderCapture: () => true,
+      onStartShouldSetPanResponderCapture: () => true,
       onPanResponderGrant: beginGesture,
       onPanResponderMove: (event) => {
         const touches = event.nativeEvent.touches;
@@ -99,8 +104,8 @@ export function useOrbitResponder(
           azimuth: start.camera.azimuth - (current.centerX - start.centerX) * 0.01,
           elevation: clamp(
             start.camera.elevation + (current.centerY - start.centerY) * 0.0065,
-            -0.18,
-            1.12,
+            minimumElevation,
+            maximumElevation,
           ),
           distance: start.camera.distance,
         };
@@ -122,5 +127,5 @@ export function useOrbitResponder(
       onShouldBlockNativeResponder: () => true,
       onStartShouldSetPanResponder: () => true,
     });
-  }, [maximumDistance, minimumDistance, setScrollLocked]);
+  }, [maximumDistance, maximumElevation, minimumDistance, minimumElevation, setScrollLocked]);
 }

@@ -50,12 +50,12 @@ export function MiniReplay({
   );
   const [progress, setProgress] = useState(0);
   const [playing, setPlaying] = useState(true);
-  const [playbackSpeed, setPlaybackSpeed] = useState<(typeof PLAYBACK_SPEEDS)[number]>(1);
+  const [playbackSpeed, setPlaybackSpeed] = useState<(typeof PLAYBACK_SPEEDS)[number]>(0.5);
   const [camera, setCamera] = useState<OrbitCamera>(REPLAY_CAMERA);
   const timelineWidthRef = useRef(1);
   const timelineOriginRef = useRef(0);
   const setScrollLocked = useScrollLock();
-  const orbitResponder = useOrbitResponder(camera, setCamera, { maximumDistance: 7.2, minimumDistance: 3.4 });
+  const orbitResponder = useOrbitResponder(camera, setCamera, { maximumDistance: 8.6, minimumDistance: 2.8 });
   const frameIndex = Math.min(frames.length - 1, Math.round(progress * Math.max(0, frames.length - 1)));
   const frame: ReplayFrame = frames[frameIndex] ?? frames[0];
 
@@ -74,6 +74,7 @@ export function MiniReplay({
       setProgress((current) => {
         const next = current + elapsed * playbackSpeed / durationMs;
         if (next >= 1) {
+          if (!attempt) return 0;
           setPlaying(false);
           return 1;
         }
@@ -81,7 +82,7 @@ export function MiniReplay({
       });
     }, 33);
     return () => clearInterval(timer);
-  }, [durationMs, frames.length, playbackSpeed, playing]);
+  }, [attempt, durationMs, frames.length, playbackSpeed, playing]);
 
   useEffect(() => () => setScrollLocked(false), [setScrollLocked]);
 
@@ -133,7 +134,7 @@ export function MiniReplay({
             onPress={() => setCamera({ ...REPLAY_CAMERA })}
             style={styles.resetCamera}
           >
-            <Text style={styles.resetCameraText}>RESET VIEW</Text>
+            <Text style={styles.resetCameraText}>RESET CAMERA</Text>
           </Pressable>
         )}
         {interactive && <Text pointerEvents="none" style={styles.gestureHint}>DRAG · PINCH</Text>}

@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PhoneScene3D, type OrbitCamera } from '../components/PhoneScene3D';
 import { useOrbitResponder } from '../components/useOrbitResponder';
-import type { FlightPhase, ReplayFrame } from '../motion/types';
+import { multiplyQuaternion, normalizeQuaternion } from '../motion/replay';
+import type { FlightPhase, Quaternion, ReplayFrame } from '../motion/types';
 import { fonts } from '../theme';
 import { gameColors, gameRadii } from './theme';
 
@@ -28,6 +29,7 @@ export function GameStage({
   phase,
   sensorHz,
   skinColor,
+  zeroable = true,
 }: {
   frame: ReplayFrame;
   height?: number;
@@ -35,11 +37,23 @@ export function GameStage({
   phase: FlightPhase;
   sensorHz: number;
   skinColor: string;
+  zeroable?: boolean;
 }) {
   const pulse = useRef(new Animated.Value(1)).current;
   const spin = useRef(new Animated.Value(0)).current;
   const [camera, setCamera] = useState<OrbitCamera>(GAME_CAMERA);
-  const orbitResponder = useOrbitResponder(camera, setCamera, { maximumDistance: 7, minimumDistance: 3.4 });
+  const [zeroId, setZeroId] = useState(0);
+  const poseBaselineRef = useRef<Quaternion | null>(null);
+  const orbitResponder = useOrbitResponder(camera, setCamera, { maximumDistance: 8.4, minimumDistance: 2.8 });
+  const displayFrame = useMemo<ReplayFrame>(() => {
+    const baseline = poseBaselineRef.current;
+    if (!baseline) return frame;
+    const inverseBaseline = { w: baseline.w, x: -baseline.x, y: -baseline.y, z: -baseline.z };
+    return {
+      ...frame,
+      quaternion: normalizeQuaternion(multiplyQuaternion(inverseBaseline, frame.quaternion)),
+    };
+  }, [frame, zeroId]);
 
   useEffect(() => {
     pulse.stopAnimation();
@@ -81,7 +95,7 @@ export function GameStage({
     <View style={[styles.stage, { height }]}>
       <PhoneScene3D
         camera={camera}
-        frame={frame}
+        frame={displayFrame}
         key={skinColor}
         shellColor={skinColor}
         tone="blue"
@@ -111,13 +125,27 @@ export function GameStage({
         <Text style={styles.telemetry}>{frame.accelG.toFixed(2)}G · {Math.round(frame.gyroDps)}°/S</Text>
       </View>
       {interactive && (
-        <Pressable
-          accessibilityLabel="Reset 3D camera"
-          onPress={() => setCamera({ ...GAME_CAMERA })}
-          style={styles.resetCamera}
-        >
-          <Text style={styles.resetCameraText}>RESET VIEW</Text>
-        </Pressable>
+        <View style={styles.stageControls}>
+          {zeroable && (
+            <Pressable
+              accessibilityLabel="Zero phone pose"
+              onPress={() => {
+                poseBaselineRef.current = { ...frame.quaternion };
+                setZeroId((value) => value + 1);
+              }}
+              style={[styles.stageControl, styles.zeroPose]}
+            >
+              <Text style={styles.stageControlText}>ZERO POSE</Text>
+            </Pressable>
+          )}
+          <Pressable
+            accessibilityLabel="Reset 3D camera"
+            onPress={() => setCamera({ ...GAME_CAMERA })}
+            style={styles.stageControl}
+          >
+            <Text style={styles.stageControlText}>RESET CAMERA</Text>
+          </Pressable>
+        </View>
       )}
       {interactive && <Text pointerEvents="none" style={styles.gestureHint}>DRAG · PINCH</Text>}
     </View>
@@ -217,18 +245,26 @@ const styles = StyleSheet.create({
     fontFamily: fonts.mono,
     fontSize: 8,
   },
-  resetCamera: {
+  stageControls: {
+    flexDirection: 'row',
+    gap: 6,
+    position: 'absolute',
+    right: 18,
+    top: 48,
+  },
+  stageControl: {
     backgroundColor: 'rgba(10,11,10,0.58)',
     borderColor: 'rgba(255,255,255,0.18)',
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 10,
     paddingVertical: 7,
-    position: 'absolute',
-    right: 18,
-    top: 48,
   },
-  resetCameraText: {
+  zeroPose: {
+    backgroundColor: 'rgba(91,115,255,0.28)',
+    borderColor: 'rgba(122,143,255,0.52)',
+  },
+  stageControlText: {
     color: gameColors.frost,
     fontFamily: fonts.monoBold,
     fontSize: 7,
