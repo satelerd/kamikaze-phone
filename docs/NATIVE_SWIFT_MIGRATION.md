@@ -2,7 +2,11 @@
 
 Status: implementation-ready plan. The native rewrite has not started.
 
+Product stage: the frozen Expo build is the **alpha**; the first native Swift build is the **beta**. “Beta” describes the product milestone. Technically, this is still a native reimplementation—not an automatic source-to-source refactor.
+
 The Expo game prototype is frozen at Git tag `expo-game-v0.3.0`. It remains the behavioral and visual reference while the official iOS app is built beside it.
+
+Execution order, ownership, approval gates and agent prompts live in [`NATIVE_BETA_EXECUTION.md`](./NATIVE_BETA_EXECUTION.md).
 
 ## Decision
 
