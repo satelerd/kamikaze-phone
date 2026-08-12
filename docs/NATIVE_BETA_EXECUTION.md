@@ -45,6 +45,13 @@ This record authorizes Phase 0 and the initial native skeleton. It does not auth
 - Expo now has an explicit local-data export action. The next evidence gate is exporting Daniel's current attempts and calibrations, then curating the additional shuvit/front/back fixtures.
 - The Personal Team is intentionally absent from version control. Simulator work requires no signing; physical-device installation will be configured locally in Xcode.
 
+## Device-motion checkpoint — 2026-08-12
+
+- `KamikazeMotionApple` now owns the Core Motion boundary and emits sendable, unit-explicit frames without leaking `CMDeviceMotion` across concurrency domains.
+- Play requests 100 Hz device motion, reports the measured rate and gyroscope magnitude, establishes an initial screen-facing baseline and supports an explicit Zero Pose.
+- The live phone is now a RealityKit scene with orbit, pinch and camera reset. Simulator correctly reports motion unavailable; physical-device coordinate/sign validation is the next acceptance gate.
+- Automatic segmentation, classification, recorded replay and persistence are still intentionally absent from the native app. They are the next implementation slice after Daniel validates live axes on the iPhone.
+
 ## Agent strategy
 
 The primary agent is the integrator. It owns architecture decisions, shared contracts, sequencing, review and the final branch. Subagents receive small, bounded tasks with explicit files and acceptance criteria.

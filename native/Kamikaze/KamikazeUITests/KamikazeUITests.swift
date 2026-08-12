@@ -35,6 +35,8 @@ final class KamikazeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["ZERO. THROW.\nLAND."].waitForExistence(timeout: 2))
         app.buttons["ENTER KAMIKAZE"].tap()
         XCTAssertTrue(app.staticTexts["READY TO FLIP?"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.otherElements["Live 3D phone pose"].exists)
+        XCTAssertTrue(app.buttons["ZERO POSE"].exists)
         XCTAssertTrue(app.tabBars.buttons["PRACTICE"].exists)
     }
 }

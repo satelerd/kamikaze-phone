@@ -1,6 +1,20 @@
 import Foundation
 
 public enum QuaternionMath {
+    public static func inverse(_ quaternion: Quaternion) -> Quaternion {
+        let normalized = normalized(quaternion)
+        return Quaternion(
+            w: normalized.w,
+            x: -normalized.x,
+            y: -normalized.y,
+            z: -normalized.z
+        )
+    }
+
+    public static func relative(from origin: Quaternion, to current: Quaternion) -> Quaternion {
+        normalized(multiplied(inverse(origin), current))
+    }
+
     public static func normalized(_ quaternion: Quaternion) -> Quaternion {
         let norm = sqrt(
             quaternion.w * quaternion.w +

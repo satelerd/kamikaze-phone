@@ -1,6 +1,6 @@
 # Kamikaze native beta
 
-This directory contains the native SwiftUI beta built beside the frozen Expo alpha. It currently includes the app shell, iOS 26 Liquid Glass boundary, local motion-core package and deterministic tests. Real Core Motion capture, RealityKit replay and persistence are the next vertical slice.
+This directory contains the native SwiftUI beta built beside the frozen Expo alpha. It currently includes the app shell, iOS 26 Liquid Glass boundary, pure motion core, a Core Motion device adapter and a live RealityKit phone stage. Attempt segmentation, recorded replay and persistence are the next vertical slice.
 
 ## Requirements
 
@@ -63,4 +63,5 @@ In the Expo alpha, open Me > Settings > Export Alpha Data, save/share the genera
 - Expo: 33 deterministic tests pass and TypeScript checks pass.
 - Swift package: both real Phone Flip fixtures decode and produce monotonic replay frames.
 - Native app: command-line build and all app/UI tests pass on the iOS 26.5 Simulator.
-- Not yet implemented natively: Core Motion streaming, automatic detection, the real 3D phone/replay engine and saved-attempt persistence.
+- Implemented for device validation: native Core Motion streaming at a requested 100 Hz, measured-rate diagnostics, live RealityKit orientation, camera orbit/pinch/reset and a distinct Zero Pose baseline.
+- Not yet implemented natively: automatic attempt segmentation/classification, recorded replay transport and saved-attempt persistence.

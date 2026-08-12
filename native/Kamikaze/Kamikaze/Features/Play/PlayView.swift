@@ -3,7 +3,7 @@ import SwiftUI
 
 struct PlayView: View {
     @State private var armed = false
-    private let initialPose = Quaternion.identity
+    @State private var motion = LiveMotionModel()
 
     var body: some View {
         ZStack {
@@ -12,7 +12,9 @@ struct PlayView: View {
                 HStack {
                     SectionKicker(text: armed ? "SESSION / ARMED" : "PLAY / READY")
                     Spacer()
-                    Button("ZERO POSE", systemImage: "scope") { }
+                    Button("ZERO POSE", systemImage: "scope") {
+                        motion.zeroPose()
+                    }
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
                         .adaptiveGlassButton()
                 }
@@ -23,15 +25,18 @@ struct PlayView: View {
                     Circle()
                         .fill((armed ? KamikazeTheme.hazard : KamikazeTheme.ion).opacity(0.15))
                         .overlay(Circle().stroke(.white.opacity(0.12)))
-                    RoundedRectangle(cornerRadius: 26)
-                        .fill(.black.gradient)
-                        .overlay(RoundedRectangle(cornerRadius: 26).stroke(.white.opacity(0.28)))
-                        .frame(width: 132, height: 270)
-                        .rotation3DEffect(.degrees(armed ? -16 : 8), axis: (x: 1, y: 1, z: 0))
-                        .shadow(color: (armed ? KamikazeTheme.hazard : KamikazeTheme.ion).opacity(0.55), radius: 38)
-                        .accessibilityLabel("Live phone pose")
+                    LivePhoneScene(
+                        attitude: motion.relativeAttitude,
+                        accent: armed ? KamikazeTheme.hazard : KamikazeTheme.ion
+                    )
                 }
                 .frame(maxHeight: 430)
+
+                HStack(spacing: 18) {
+                    sensorMetric(title: "MOTION", value: motionLabel)
+                    sensorMetric(title: "RATE", value: motion.measuredHz > 0 ? "\(Int(motion.measuredHz.rounded())) HZ" : "— HZ")
+                    sensorMetric(title: "GYRO", value: "\(Int(motion.rotationRate.magnitude * 180 / .pi))°/S")
+                }
 
                 VStack(spacing: 6) {
                     Text(armed ? "THROW WHEN READY" : "READY TO FLIP?")
@@ -55,6 +60,29 @@ struct PlayView: View {
             .padding(.bottom, 18)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .accessibilityValue(initialPose.w == 1 ? "zero pose" : "pose active")
+        .task { motion.start() }
+        .onDisappear { motion.stop() }
+        .accessibilityValue(motion.status == .running ? "motion active" : motionLabel)
+    }
+
+    private var motionLabel: String {
+        switch motion.status {
+        case .idle: "IDLE"
+        case .running: "LIVE"
+        case .unavailable: "SIMULATOR"
+        case .failed: "ERROR"
+        }
+    }
+
+    private func sensorMetric(title: String, value: String) -> some View {
+        VStack(spacing: 3) {
+            Text(title)
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                .foregroundStyle(KamikazeTheme.muted)
+            Text(value)
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundStyle(KamikazeTheme.frost)
+        }
+        .frame(maxWidth: .infinity)
     }
 }

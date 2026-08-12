@@ -4,6 +4,17 @@ import Testing
 
 @Suite("Expo v2 motion parity")
 struct ReplayBuilderTests {
+    @Test("relative quaternion removes the zero-pose baseline")
+    func relativeQuaternionRemovesBaseline() {
+        let halfTurn = Quaternion(w: 0, x: 0, y: 1, z: 0)
+        let relative = QuaternionMath.relative(from: halfTurn, to: halfTurn)
+
+        #expect(abs(relative.w - 1) < 0.000_001)
+        #expect(abs(relative.x) < 0.000_001)
+        #expect(abs(relative.y) < 0.000_001)
+        #expect(abs(relative.z) < 0.000_001)
+    }
+
     @Test("decodes both labelled iPhone fixtures and reconstructs replay")
     func labelledFixtures() throws {
         for item in [
