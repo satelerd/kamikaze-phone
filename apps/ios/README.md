@@ -1,6 +1,6 @@
 # Kamikaze native beta
 
-This directory contains the native SwiftUI beta built beside the frozen Expo alpha. It currently includes the app shell, iOS 26 Liquid Glass boundary, pure motion core, a Core Motion device adapter and a live RealityKit phone stage. Attempt segmentation, recorded replay and persistence are the next vertical slice.
+This directory contains the native SwiftUI beta built beside the frozen Expo alpha. It currently includes the app shell, iOS 26 Liquid Glass boundary, pure motion core, a Core Motion device adapter, a live RealityKit phone stage and an experimental automatic detector validated on the reference iPhone. Recorded replay and persistence are the next vertical slice; segmentation/classification still require the schema-v3 separation and physical fixture expansion described in the master plan.
 
 ## Requirements
 
@@ -61,7 +61,10 @@ In the Expo alpha, open Me > Settings > Export Alpha Data, save/share the genera
 ## Current acceptance state
 
 - Expo: 33 deterministic tests pass and TypeScript checks pass.
-- Swift package: both real Phone Flip fixtures decode and produce monotonic replay frames.
-- Native app: command-line build and all app/UI tests pass on the iOS 26.5 Simulator.
-- Implemented for device validation: native Core Motion streaming at a requested 100 Hz, measured-rate diagnostics, live RealityKit orientation, camera orbit/pinch/reset and a distinct Zero Pose baseline.
-- Not yet implemented natively: automatic attempt segmentation/classification, recorded replay transport and saved-attempt persistence.
+- Swift package: seven tests pass, including both real Phone Flip fixture decodes plus synthetic low-trick, reset and timeout behavior.
+- Native app: command-line build passes on the iOS 26.5 Simulator and as a signed device build.
+- Physically validated: native Core Motion at a requested 100 Hz, measured-rate diagnostics, live RealityKit orientation, camera orbit/pinch/reset, Zero Pose and automatic closure of a real attempt.
+- Experimental: rule-based trick classification and schema-2 attempt construction. This is not yet a physical accuracy claim.
+- Not yet implemented natively: recorded replay transport, saved-attempt persistence, Result/Recent and complete Practice/Locker/Profile/Workshop behavior.
+
+See [`../../docs/NATIVE_BETA_KNOWN_ISSUES.md`](../../docs/NATIVE_BETA_KNOWN_ISSUES.md) before tuning the detector or using its output as a persistent product contract.

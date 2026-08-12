@@ -12,6 +12,7 @@ The repository uses folders for distinct implementations and Git tags for immuta
 | Motion laboratory | `testing-v0.2.0` | `mobile/` | Expo sensors, detector math, calibration, trick catalog and interactive replay workshop. |
 | Playable Expo alpha | `expo-game-v0.3.0` | `mobile/` | Onboarding, Play, Practice, Locker, Profile and the complete game-experience alpha. |
 | Native iOS beta | `codex/native-beta` | `apps/ios/` on the current branch | SwiftUI, RealityKit and Core Motion rewrite in progress. |
+| Native device detector checkpoint | `native-beta-device-detector-v0.1.0` | `apps/ios/` | First signed iPhone build with validated live pose, native visual system and experimental automatic capture closure. Not a classifier-accuracy milestone. |
 
 The old path shown for a tag is intentional: checking out a historical snapshot recreates the repository exactly as it existed then.
 
