@@ -11,7 +11,7 @@ type LabelledCapture = {
 };
 
 const fixtureDirectory = decodeURIComponent(
-  new URL('../../../fixtures/motion/v2/labelled/', import.meta.url).pathname,
+  new URL('../../../../fixtures/motion/v2/labelled/', import.meta.url).pathname,
 );
 
 const cases = [

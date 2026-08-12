@@ -14,7 +14,7 @@ The beta is not a line-by-line conversion. It should reproduce the product behav
 
 ## Approval gate
 
-Before creating `native/`, confirm:
+Before creating `apps/ios/`, confirm:
 
 1. minimum iOS version;
 2. bundle identifier and signing team;
@@ -39,7 +39,7 @@ This record authorizes Phase 0 and the initial native skeleton. It does not auth
 ## Implementation checkpoint — 2026-08-12
 
 - Xcode 26.6, Swift 6.3.3 and the iOS 26.5 Simulator runtime are installed and working.
-- The versioned project lives at `native/Kamikaze/Kamikaze.xcodeproj`; its shared scheme builds and runs from the command line.
+- The versioned project lives at `apps/ios/Kamikaze/Kamikaze.xcodeproj`; its shared scheme builds and runs from the command line.
 - The app currently provides the native SwiftUI shell for Onboarding, Play, Practice, Locker, Profile and Workshop. It is a structural preview, not working native sensor gameplay yet.
 - `KamikazeMotionCore` is a pure local Swift package. Its first replay/quaternion contracts pass against two labelled iPhone 15 Plus, right-hand Phone Flip fixtures.
 - Expo now has an explicit local-data export action. The next evidence gate is exporting Daniel's current attempts and calibrations, then curating the additional shuvit/front/back fixtures.
@@ -81,7 +81,7 @@ These are roles, not four permanently running agents. Spawn only the role needed
 
 ### 1. Motion parity
 
-Owns the cross-language data contract, exported fixtures, quaternion math, segmentation and classifier parity. Initially read-heavy; later writes only inside `native/Packages/KamikazeMotionCore`, its tests and approved fixture tooling.
+Owns the cross-language data contract, exported fixtures, quaternion math, segmentation and classifier parity. Initially read-heavy; later writes only inside `apps/ios/Packages/KamikazeMotionCore`, its tests and approved fixture tooling.
 
 ### 2. Native shell
 
@@ -146,7 +146,7 @@ Each prompt must be amended with the exact branch, current phase and decisions a
 ```text
 You own a bounded motion-parity task for Kamikaze: Phone Flip.
 
-Read docs/NATIVE_SWIFT_MIGRATION.md, docs/NATIVE_BETA_EXECUTION.md and the relevant files under mobile/src/motion. Treat tag expo-game-v0.3.0 as the behavioral baseline. Do not modify UI, Xcode project settings, signing, persistence or unrelated Expo code.
+Read docs/NATIVE_SWIFT_MIGRATION.md, docs/NATIVE_BETA_EXECUTION.md and the relevant files under apps/expo/src/motion. Treat tag expo-game-v0.3.0 as the behavioral baseline. Do not modify UI, Xcode project settings, signing, persistence or unrelated Expo code.
 
 Task: [one exact contract, fixture export, algorithm or test group].
 Allowed paths: [explicit paths].

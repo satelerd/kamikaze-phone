@@ -14,7 +14,7 @@ The app prioritizes iOS 26 APIs and uses deliberate Material fallbacks on iOS 18
 ## Test the motion core
 
 ```sh
-swift test --package-path native/Packages/KamikazeMotionCore
+swift test --package-path apps/ios/Packages/KamikazeMotionCore
 ```
 
 ## Build and test the app
@@ -23,7 +23,7 @@ List available destinations first:
 
 ```sh
 xcodebuild \
-  -project native/Kamikaze/Kamikaze.xcodeproj \
+  -project apps/ios/Kamikaze/Kamikaze.xcodeproj \
   -scheme Kamikaze \
   -showdestinations
 ```
@@ -32,7 +32,7 @@ Then substitute one available Simulator ID:
 
 ```sh
 xcodebuild \
-  -project native/Kamikaze/Kamikaze.xcodeproj \
+  -project apps/ios/Kamikaze/Kamikaze.xcodeproj \
   -scheme Kamikaze \
   -configuration Debug \
   -destination 'platform=iOS Simulator,id=<SIMULATOR-UUID>' \
@@ -44,7 +44,7 @@ The current reference destination is an iPhone 17 Pro Simulator. The physical re
 
 ## Run on Daniel's iPhone with a free Personal Team
 
-1. Open `native/Kamikaze/Kamikaze.xcodeproj` in Xcode.
+1. Open `apps/ios/Kamikaze/Kamikaze.xcodeproj` in Xcode.
 2. Add Daniel's Apple ID in Xcode Settings > Accounts if it is not already present.
 3. Select the Kamikaze app target, then Signing & Capabilities.
 4. Enable automatic signing and select Daniel's Personal Team.
@@ -52,7 +52,7 @@ The current reference destination is an iPhone 17 Pro Simulator. The physical re
 
 The development bundle identifier is `tech.sateler.kamikazephone.dev`, leaving `tech.sateler.kamikazephone` available for a future paid team. Free Personal Team provisioning expires after seven days and cannot distribute through TestFlight.
 
-Never commit a Team ID, certificate or provisioning profile. If command-line signing configuration is needed, copy `native/Kamikaze/Config/Signing.local.xcconfig.example` to `Signing.local.xcconfig` and keep the real file local.
+Never commit a Team ID, certificate or provisioning profile. If command-line signing configuration is needed, copy `apps/ios/Kamikaze/Config/Signing.local.xcconfig.example` to `Signing.local.xcconfig` and keep the real file local.
 
 ## Export evidence from the Expo alpha
 

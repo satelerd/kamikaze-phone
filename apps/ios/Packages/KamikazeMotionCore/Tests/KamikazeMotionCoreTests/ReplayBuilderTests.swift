@@ -61,6 +61,7 @@ struct ReplayBuilderTests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
+            .deletingLastPathComponent()
         let fixtureURL = repositoryRoot
             .appendingPathComponent("fixtures/motion/v2/labelled")
             .appendingPathComponent(name)

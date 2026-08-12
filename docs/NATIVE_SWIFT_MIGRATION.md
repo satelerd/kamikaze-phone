@@ -48,8 +48,8 @@ Keep the reference and native applications in the same repository until parity i
 
 ```text
 kamikaze-phone/
-  mobile/                         # frozen Expo reference and data exporter
-  native/
+  apps/expo/                     # frozen Expo reference and data exporter
+  apps/ios/
     Kamikaze/
       Kamikaze.xcodeproj
       Config/
@@ -325,7 +325,7 @@ Exit: every important behavior has data, a test or an explicit product decision.
 
 ### Phase 1 — native skeleton
 
-- Create `native/Kamikaze/Kamikaze.xcodeproj` with SwiftUI lifecycle, iPhone portrait and iOS 18 target.
+- Create `apps/ios/Kamikaze/Kamikaze.xcodeproj` with SwiftUI lifecycle, iPhone portrait and iOS 18 target.
 - Add app, Swift Testing and XCTest UI targets.
 - Add the two local Swift packages and dependency protocols.
 - Implement navigation, theme tokens, glass fallback and fixture mode.
