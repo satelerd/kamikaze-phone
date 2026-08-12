@@ -1,6 +1,6 @@
 # Kamikaze: Phone Flip — native beta execution plan
 
-Status: ready for review. No native application code has been created.
+Status: approved for implementation on 2026-08-12. Native application work starts on branch `codex/native-beta`.
 
 This document turns the migration architecture into an executable workflow. Work begins only after Daniel approves the product decisions and the first implementation phase.
 
@@ -14,7 +14,7 @@ The beta is not a line-by-line conversion. It should reproduce the product behav
 
 ## Approval gate
 
-Before creating `native/`, confirm:
+Before creating `apps/ios/`, confirm:
 
 1. minimum iOS version;
 2. bundle identifier and signing team;
@@ -24,6 +24,33 @@ Before creating `native/`, confirm:
 6. which available Codex models may substitute for Luna until Luna is exposed to subagent spawning.
 
 After those answers, start with Phase 0 only. Do not silently expand the beta into Practice progression, accounts, social features, widgets or the Locker economy.
+
+## Approved decision record — 2026-08-12
+
+- **Platform:** prioritize the iOS 26 experience and native Liquid Glass. Keep an intentional compatibility fallback for earlier supported versions; start with iOS 18 as the deployment target and revisit it before TestFlight.
+- **Signing:** use Daniel's Apple account and Personal Team during local development. Paid-team/TestFlight distribution remains a later release decision.
+- **Expo data:** import a curated, labelled set of real attempts and calibration captures as golden fixtures. Do not make full-history migration a Phase 0 dependency.
+- **Beta scope:** retain everything already present in the alpha—Onboarding, Play, Result/Replay/Recent, Practice, Locker, Profile, Workshop/calibration and settings—but implement it in vertical slices. Core Play reliability remains the first quality gate; the other areas stay in scope rather than being permanently deferred.
+- **Reference hardware:** iPhone 15 Plus, right-handed grip. Runtime code must not assume that model's dimensions, refresh rate or sensor delivery. Support modern iPhones that meet the chosen iOS target, record actual sample timing and degrade diagnostics honestly when sensor delivery differs.
+- **Agents:** current Sol session is the integrator. Terra subagents may handle bounded audits and implementation tasks. No Luna claim or silent substitution while Luna is unavailable to this session's subagent tool.
+
+This record authorizes Phase 0 and the initial native skeleton. It does not authorize App Store submission, paid enrollment, destructive migration of Expo data or global Codex configuration changes.
+
+## Implementation checkpoint — 2026-08-12
+
+- Xcode 26.6, Swift 6.3.3 and the iOS 26.5 Simulator runtime are installed and working.
+- The versioned project lives at `apps/ios/Kamikaze/Kamikaze.xcodeproj`; its shared scheme builds and runs from the command line.
+- The app currently provides the native SwiftUI shell for Onboarding, Play, Practice, Locker, Profile and Workshop. It is a structural preview, not working native sensor gameplay yet.
+- `KamikazeMotionCore` is a pure local Swift package. Its first replay/quaternion contracts pass against two labelled iPhone 15 Plus, right-hand Phone Flip fixtures.
+- Expo now has an explicit local-data export action. The next evidence gate is exporting Daniel's current attempts and calibrations, then curating the additional shuvit/front/back fixtures.
+- The Personal Team is intentionally absent from version control. Simulator work requires no signing; physical-device installation will be configured locally in Xcode.
+
+## Device-motion checkpoint — 2026-08-12
+
+- `KamikazeMotionApple` now owns the Core Motion boundary and emits sendable, unit-explicit frames without leaking `CMDeviceMotion` across concurrency domains.
+- Play requests 100 Hz device motion, reports the measured rate and gyroscope magnitude, establishes an initial screen-facing baseline and supports an explicit Zero Pose.
+- The live phone is now a RealityKit scene with orbit, pinch and camera reset. Simulator correctly reports motion unavailable; physical-device coordinate/sign validation is the next acceptance gate.
+- Automatic segmentation, classification, recorded replay and persistence are still intentionally absent from the native app. They are the next implementation slice after Daniel validates live axes on the iPhone.
 
 ## Agent strategy
 
@@ -54,7 +81,7 @@ These are roles, not four permanently running agents. Spawn only the role needed
 
 ### 1. Motion parity
 
-Owns the cross-language data contract, exported fixtures, quaternion math, segmentation and classifier parity. Initially read-heavy; later writes only inside `native/Packages/KamikazeMotionCore`, its tests and approved fixture tooling.
+Owns the cross-language data contract, exported fixtures, quaternion math, segmentation and classifier parity. Initially read-heavy; later writes only inside `apps/ios/Packages/KamikazeMotionCore`, its tests and approved fixture tooling.
 
 ### 2. Native shell
 
@@ -108,7 +135,7 @@ Exit: one-trick play is at least as understandable and reliable as the alpha.
 
 ### Gate E — beta expansion
 
-Only after the vertical slice passes: Practice progression, richer profile/history, Locker, sharing/video export, lines, widgets and social features.
+Only after the vertical slice passes: complete the in-scope Practice progression, richer Profile/history, Locker and Workshop parity. Sharing/video export, lines, widgets, accounts and social features remain later expansion work.
 
 ## Prompts for future subagents
 
@@ -119,7 +146,7 @@ Each prompt must be amended with the exact branch, current phase and decisions a
 ```text
 You own a bounded motion-parity task for Kamikaze: Phone Flip.
 
-Read docs/NATIVE_SWIFT_MIGRATION.md, docs/NATIVE_BETA_EXECUTION.md and the relevant files under mobile/src/motion. Treat tag expo-game-v0.3.0 as the behavioral baseline. Do not modify UI, Xcode project settings, signing, persistence or unrelated Expo code.
+Read docs/NATIVE_SWIFT_MIGRATION.md, docs/NATIVE_BETA_EXECUTION.md and the relevant files under apps/expo/src/motion. Treat tag expo-game-v0.3.0 as the behavioral baseline. Do not modify UI, Xcode project settings, signing, persistence or unrelated Expo code.
 
 Task: [one exact contract, fixture export, algorithm or test group].
 Allowed paths: [explicit paths].

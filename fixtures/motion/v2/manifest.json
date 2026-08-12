@@ -1,0 +1,24 @@
+{
+  "fixtureManifestVersion": 1,
+  "reference": {
+    "device": "iPhone 15 Plus",
+    "gripHand": "right",
+    "metadataConfidence": "user-confirmed-outside-payload"
+  },
+  "fixtures": [
+    {
+      "expectedTrick": "PHONE FLIP",
+      "file": "labelled/iphone15plus-right-phone-flip-001.json",
+      "kind": "real-labelled-attempt",
+      "sampleCount": 202,
+      "sha256": "9645219974ae7f74872f8a72d8241dfb94c01238f32fba8a95feeaa5d3dd26ff"
+    },
+    {
+      "expectedTrick": "REVERSE PHONE FLIP",
+      "file": "labelled/iphone15plus-right-reverse-phone-flip-001.json",
+      "kind": "real-labelled-attempt",
+      "sampleCount": 217,
+      "sha256": "a5bd90e12e3261b12ae315d66b2f6ee96ea749b967f64eb4d627092c6aac6a84"
+    }
+  ]
+}

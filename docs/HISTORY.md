@@ -1,0 +1,37 @@
+# Project history
+
+The repository uses folders for distinct implementations and Git tags for immutable milestones of the same implementation. This preserves the real history without maintaining several diverging copies of identical source files.
+
+## Milestones
+
+| Era | Git reference | Location at that point | Description |
+| --- | --- | --- | --- |
+| Original web exploration | `web-prototype-v0.1.0` | repository root | First Next.js sensor/game experiments. Its latest runnable form is also preserved at `archive/web-prototype/` on the current branch. |
+| Motion laboratory | `testing-v0.2.0` | `mobile/` | Expo sensors, detector math, calibration, trick catalog and interactive replay workshop. |
+| Playable Expo alpha | `expo-game-v0.3.0` | `mobile/` | Onboarding, Play, Practice, Locker, Profile and the complete game-experience alpha. |
+| Native iOS beta | `codex/native-beta` | `apps/ios/` on the current branch | SwiftUI, RealityKit and Core Motion rewrite in progress. |
+
+The old path shown for a tag is intentional: checking out a historical snapshot recreates the repository exactly as it existed then.
+
+## Inspect an old version without disturbing current work
+
+Git worktrees are the safest way to run two eras simultaneously:
+
+```sh
+git worktree add ../kamikaze-motion-lab testing-v0.2.0
+git worktree add ../kamikaze-expo-alpha expo-game-v0.3.0
+```
+
+Remove a worktree after use with `git worktree remove <path>`. Do not commit directly on a detached tag; create a branch if the experiment will continue.
+
+## Other exploratory branches
+
+These branches are retained for provenance but are not current product baselines:
+
+- `codex/mobile-motion-prototype`: development line leading to the motion-lab tag.
+- `codex/game-experience-prototype`: development line leading to the Expo game alpha and native plan.
+- `codex/crear-juego-inspirado-en-kamikaze-phone`: early game-mode exploration.
+- `69m7sm-codex/crear-juego-inspirado-en-kamikaze-phone`: early UI/debug variation.
+- `cursor/desarrollar-mec-nicas-y-ui-del-juego-c31b`: separate early sensor-game implementation.
+
+Before reviving one, compare its behavior with the reviewed fixtures and current detector contracts. These branches may contain useful ideas, but they are not assumed to be compatible with either active app.
