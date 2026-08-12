@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PhoneScene3D, type OrbitCamera } from '../components/PhoneScene3D';
@@ -70,6 +70,8 @@ export function MiniReplay({
   const playheadRef = useRef(0);
   const [playing, setPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<(typeof PLAYBACK_SPEEDS)[number]>(0.5);
+  const playbackSpeedRef = useRef<(typeof PLAYBACK_SPEEDS)[number]>(playbackSpeed);
+  const playbackTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [camera, setCamera] = useState<OrbitCamera>(REPLAY_CAMERA);
   const timelineWidthRef = useRef(1);
   const timelineOriginRef = useRef(0);
@@ -80,34 +82,58 @@ export function MiniReplay({
     () => sampleReplayFrame(frames, playheadMs),
     [frames, playheadMs],
   );
+  playbackSpeedRef.current = playbackSpeed;
 
-  useEffect(() => {
-    playheadRef.current = 0;
-    setPlayheadMs(0);
+  const clearPlaybackTimer = useCallback(() => {
+    if (playbackTimerRef.current === null) return;
+    clearInterval(playbackTimerRef.current);
+    playbackTimerRef.current = null;
+  }, []);
+
+  const stopPlayback = useCallback(() => {
+    clearPlaybackTimer();
     setPlaying(false);
-  }, [attempt?.id, definition.id]);
+  }, [clearPlaybackTimer]);
 
-  useEffect(() => {
-    if (!playing || frames.length < 2) return;
-    const startedAtMs = Date.now();
-    const startedFromMs = playheadRef.current;
-    const tick = () => {
+  const startPlayback = useCallback(() => {
+    if (frames.length < 2) return;
+    clearPlaybackTimer();
+    if (playheadRef.current >= durationMs - 1) {
+      playheadRef.current = 0;
+      setPlayheadMs(0);
+    }
+
+    let previousTickMs = Date.now();
+    setPlaying(true);
+    playbackTimerRef.current = setInterval(() => {
+      const nowMs = Date.now();
+      const elapsedMs = Math.min(100, Math.max(0, nowMs - previousTickMs));
+      previousTickMs = nowMs;
       const nextMs = Math.min(
         durationMs,
-        startedFromMs + Math.max(0, Date.now() - startedAtMs) * playbackSpeed,
+        playheadRef.current + elapsedMs * playbackSpeedRef.current,
       );
       playheadRef.current = nextMs;
       setPlayheadMs(nextMs);
+
       if (nextMs >= durationMs) {
+        clearPlaybackTimer();
         setPlaying(false);
       }
-    };
-    tick();
-    const timer = setInterval(tick, 16);
-    return () => clearInterval(timer);
-  }, [durationMs, frames.length, playbackSpeed, playing]);
+    }, 33);
+  }, [clearPlaybackTimer, durationMs, frames.length]);
 
-  useEffect(() => () => setScrollLocked(false), [setScrollLocked]);
+  useEffect(() => {
+    clearPlaybackTimer();
+    playheadRef.current = 0;
+    setPlayheadMs(0);
+    setPlaying(false);
+  }, [attempt?.id, clearPlaybackTimer, definition.id]);
+
+  useEffect(() => () => {
+    clearPlaybackTimer();
+    setScrollLocked(false);
+  }, [clearPlaybackTimer, setScrollLocked]);
 
   const scrubResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: () => true,
@@ -119,7 +145,7 @@ export function MiniReplay({
     },
     onPanResponderGrant: (event) => {
       setScrollLocked(true);
-      setPlaying(false);
+      stopPlayback();
       timelineOriginRef.current = event.nativeEvent.pageX - event.nativeEvent.locationX;
       const nextMs = clamp((event.nativeEvent.pageX - timelineOriginRef.current) / timelineWidthRef.current) * durationMs;
       playheadRef.current = nextMs;
@@ -135,18 +161,11 @@ export function MiniReplay({
     onPanResponderTerminate: () => setScrollLocked(false),
     onPanResponderTerminationRequest: () => false,
     onShouldBlockNativeResponder: () => true,
-  }), [durationMs, setScrollLocked]);
+  }), [durationMs, setScrollLocked, stopPlayback]);
 
   const togglePlayback = () => {
-    if (playing) {
-      setPlaying(false);
-      return;
-    }
-    if (playheadRef.current >= durationMs - 1) {
-      playheadRef.current = 0;
-      setPlayheadMs(0);
-    }
-    setPlaying(true);
+    if (playbackTimerRef.current !== null) stopPlayback();
+    else startPlayback();
   };
 
   return (

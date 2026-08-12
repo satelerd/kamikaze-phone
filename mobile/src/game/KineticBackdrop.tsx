@@ -164,6 +164,7 @@ export function KineticBackdrop({
         gl.uniform3f(primary, ...palette.primary);
         gl.uniform3f(secondary, ...palette.secondary);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
+        gl.flush();
         gl.endFrameEXP();
         renderedFrames += 1;
       }

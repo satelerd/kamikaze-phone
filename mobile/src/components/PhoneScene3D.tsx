@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { AppState, StyleSheet, Text, View } from 'react-native';
 import { ExpoWebGLRenderingContext, GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
 import * as THREE from 'three';
@@ -121,6 +121,8 @@ export function PhoneScene3D({
   const toneRef = useRef(tone);
   const variantRef = useRef(variant);
   const mountedRef = useRef(true);
+  const drawRef = useRef<(() => void) | null>(null);
+  const disposeRef = useRef<(() => void) | null>(null);
 
   frameRef.current = frame;
   cameraRef.current = camera;
@@ -134,7 +136,24 @@ export function PhoneScene3D({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      drawRef.current = null;
+      disposeRef.current?.();
+      disposeRef.current = null;
     };
+  }, []);
+
+  // The scene has no autonomous animation: every visual change comes from one
+  // of these props. Drawing on demand avoids competing requestAnimationFrame
+  // loops when the shader background and a replay GLView coexist on iOS.
+  useEffect(() => {
+    drawRef.current?.();
+  }, [camera, comparisonFrame, frame, restOrientation, shellColor, tone, variant]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') drawRef.current?.();
+    });
+    return () => subscription.remove();
   }, []);
 
   const handleContextCreate = useCallback((gl: ExpoWebGLRenderingContext) => {
@@ -193,7 +212,6 @@ export function PhoneScene3D({
     scene.add(comparisonPhone);
     if (mountedRef.current) setReady(true);
 
-    let animationFrame = 0;
     const lookAt = new THREE.Vector3(0, -0.72, 0);
     const restPosition = new THREE.Vector3(0, -0.82, 0);
     const baseOrientation = new THREE.Quaternion().setFromAxisAngle(
@@ -203,18 +221,8 @@ export function PhoneScene3D({
     const screenOrientation = new THREE.Quaternion();
     const measuredOrientation = new THREE.Quaternion();
     const comparisonOrientation = new THREE.Quaternion();
-    const render = () => {
-      if (!mountedRef.current) {
-        cancelAnimationFrame(animationFrame);
-        scene.traverse((object) => {
-          const mesh = object as THREE.Mesh;
-          mesh.geometry?.dispose?.();
-          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-          materials.filter(Boolean).forEach((material) => material.dispose());
-        });
-        renderer.dispose();
-        return;
-      }
+    const draw = () => {
+      if (!mountedRef.current) return;
 
       const currentFrame = frameRef.current;
       const isPoseMonitor = variantRef.current === 'pose';
@@ -266,10 +274,20 @@ export function PhoneScene3D({
       viewCamera.lookAt(lookAt);
 
       renderer.render(scene, viewCamera);
+      gl.flush();
       gl.endFrameEXP();
-      animationFrame = requestAnimationFrame(render);
     };
-    render();
+    drawRef.current = draw;
+    disposeRef.current = () => {
+      scene.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        mesh.geometry?.dispose?.();
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        materials.filter(Boolean).forEach((material) => material.dispose());
+      });
+      renderer.dispose();
+    };
+    draw();
   }, []);
 
   return (
