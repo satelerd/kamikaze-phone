@@ -18,11 +18,13 @@ struct LockerView: View {
                     Text("BUILD YOUR\nSIGNATURE.")
                         .font(.system(size: 40, weight: .black, design: .rounded))
                         .tracking(-1.8)
-                    RoundedRectangle(cornerRadius: 24)
-                        .fill((skins.first(where: { $0.0 == selectedSkin })?.1 ?? KamikazeTheme.ion).gradient)
-                        .frame(width: 126, height: 260)
-                        .rotation3DEffect(.degrees(-20), axis: (x: 1, y: 1, z: 0))
-                        .frame(maxWidth: .infinity, minHeight: 330)
+                    GlassSurface(level: .subtle, cornerRadius: 36) {
+                        RoundedRectangle(cornerRadius: 24)
+                            .fill((skins.first(where: { $0.0 == selectedSkin })?.1 ?? KamikazeTheme.ion).gradient)
+                            .frame(width: 126, height: 260)
+                            .rotation3DEffect(.degrees(-20), axis: (x: 1, y: 1, z: 0))
+                            .frame(maxWidth: .infinity, minHeight: 330)
+                    }
                     Text("0 POINTS AVAILABLE")
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
                         .foregroundStyle(KamikazeTheme.volt)
@@ -31,18 +33,19 @@ struct LockerView: View {
                             Button {
                                 if cost == 0 { selectedSkin = name }
                             } label: {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    RoundedRectangle(cornerRadius: 15).fill(color).frame(height: 82)
-                                    Text(name).font(.system(size: 13, weight: .bold, design: .rounded))
-                                    Text(cost == 0 ? (selectedSkin == name ? "EQUIPPED" : "AVAILABLE") : "\(cost) PTS")
-                                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                                        .foregroundStyle(KamikazeTheme.muted)
+                                GlassSurface(interactive: true, level: selectedSkin == name ? .elevated : .regular, cornerRadius: 22) {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        RoundedRectangle(cornerRadius: 15).fill(color).frame(height: 82)
+                                        Text(name).font(.system(size: 13, weight: .bold, design: .rounded))
+                                        Text(cost == 0 ? (selectedSkin == name ? "EQUIPPED" : "AVAILABLE") : "\(cost) PTS")
+                                            .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                            .foregroundStyle(KamikazeTheme.muted)
+                                    }
+                                    .padding(14)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
-                                .padding(14)
-                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
                             .buttonStyle(.plain)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 22))
                         }
                     }
                 }

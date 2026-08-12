@@ -4,6 +4,8 @@ Status: approved for implementation on 2026-08-12. Native application work start
 
 This document turns the migration architecture into an executable workflow. Work begins only after Daniel approves the product decisions and the first implementation phase.
 
+The complete product-development roadmap and reusable subagent briefs now live in [`DEVELOPMENT_MASTER_PLAN.md`](./DEVELOPMENT_MASTER_PLAN.md) and [`AGENT_EXECUTION_PLAYBOOK.md`](./AGENT_EXECUTION_PLAYBOOK.md).
+
 ## Product stages
 
 - **Prototype:** the original sensor laboratory and interaction experiments.
@@ -43,14 +45,31 @@ This record authorizes Phase 0 and the initial native skeleton. It does not auth
 - The app currently provides the native SwiftUI shell for Onboarding, Play, Practice, Locker, Profile and Workshop. It is a structural preview, not working native sensor gameplay yet.
 - `KamikazeMotionCore` is a pure local Swift package. Its first replay/quaternion contracts pass against two labelled iPhone 15 Plus, right-hand Phone Flip fixtures.
 - Expo now has an explicit local-data export action. The next evidence gate is exporting Daniel's current attempts and calibrations, then curating the additional shuvit/front/back fixtures.
-- The Personal Team is intentionally absent from version control. Simulator work requires no signing; physical-device installation will be configured locally in Xcode.
+- Personal Team signing remains intentionally absent from version control. It is configured only in the ignored local signing file, and the development build has been installed on Daniel's iPhone.
 
 ## Device-motion checkpoint — 2026-08-12
 
 - `KamikazeMotionApple` now owns the Core Motion boundary and emits sendable, unit-explicit frames without leaking `CMDeviceMotion` across concurrency domains.
 - Play requests 100 Hz device motion, reports the measured rate and gyroscope magnitude, establishes an initial screen-facing baseline and supports an explicit Zero Pose.
 - The live phone is now a RealityKit scene with orbit, pinch and camera reset. Simulator correctly reports motion unavailable; physical-device coordinate/sign validation is the next acceptance gate.
-- Automatic segmentation, classification, recorded replay and persistence are still intentionally absent from the native app. They are the next implementation slice after Daniel validates live axes on the iPhone.
+- An experimental automatic detector now exists and has been physically smoke-tested. It is still a transitional combined segmenter/classifier; recorded replay and persistence remain absent.
+
+## Visual-system checkpoint — 2026-08-12
+
+- Player feedback asks for Liquid Glass to read as a defining material rather than an occasional effect: primary actions, cards, selectable tiles and the phone stage should all use the shared native glass boundary.
+- The background direction is a slow, abstract kinetic light field that gives the glass something meaningful to refract. The native implementation uses animated SwiftUI `MeshGradient` and `Canvas`, not WebGL, and respects Reduce Motion and Reduce Transparency.
+- The visual identity remains pitch black, Ion blue, Hazard coral, Volt acid and Frost white. Motion is concentrated in the background and play-state transitions so the interface does not become noisy.
+- Visual polish does not move the core gate: physical-device validation, truthful capture, segmentation, trick detection, replay and persistence remain ahead of Practice/Locker/Profile feature completeness.
+
+## Physical Play checkpoint — 2026-08-12
+
+- The app is signed with Daniel's Personal Team, installed on the reference iPhone 15 Plus and trusted locally.
+- Core Motion and the live RealityKit phone pose were validated physically; the visualizer follows the device correctly.
+- Detector commit `179e124` adds an initial automatic detector with freefall and gyro-burst triggers, pre-roll, settling and a bounded timeout. Daniel confirmed the updated flow closes real attempts more reliably.
+- Synthetic native tests cover a low Phone Flip, a low shuvit and the no-hang timeout. This is behavioral evidence, not a physical-accuracy claim.
+- The detector and visual foundation were separated into commits `179e124` and `e0862b6`. Section 0 records their tests, physical smoke test, known issues and annotated checkpoint tag.
+- Native persistence, Result/Recent, recorded replay, calibration and complete Practice/Locker/Profile behavior remain the next product spine.
+- Daniel completed the checkpoint smoke test across normal, malformed, fast and high attempts. Front/Back rotations were plausible, malformed attempts generally fell below 70% confidence and a Frontside Shuvit exposed the missing directional label. The qualitative session is recorded under `docs/device-sessions/`; raw attempts were unavailable because persistence does not exist yet.
 
 ## Agent strategy
 
