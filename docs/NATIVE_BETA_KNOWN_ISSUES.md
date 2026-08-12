@@ -46,3 +46,5 @@ Use a case and a clear, soft area.
 9. Leave an active motion unsteady; verify the safety timeout closes it instead of hanging indefinitely.
 
 Record failures with the visible phase, expected trick, actual label, case/no-case and approximate speed/height. Do not overwrite an old fixture when correcting a label.
+
+The completed baseline session is recorded at [`device-sessions/2026-08-12-iphone15plus-right-baseline.md`](./device-sessions/2026-08-12-iphone15plus-right-baseline.md).

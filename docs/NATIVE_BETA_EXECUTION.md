@@ -69,6 +69,7 @@ This record authorizes Phase 0 and the initial native skeleton. It does not auth
 - Synthetic native tests cover a low Phone Flip, a low shuvit and the no-hang timeout. This is behavioral evidence, not a physical-accuracy claim.
 - The detector and visual foundation were separated into commits `179e124` and `e0862b6`. Section 0 records their tests, physical smoke test, known issues and annotated checkpoint tag.
 - Native persistence, Result/Recent, recorded replay, calibration and complete Practice/Locker/Profile behavior remain the next product spine.
+- Daniel completed the checkpoint smoke test across normal, malformed, fast and high attempts. Front/Back rotations were plausible, malformed attempts generally fell below 70% confidence and a Frontside Shuvit exposed the missing directional label. The qualitative session is recorded under `docs/device-sessions/`; raw attempts were unavailable because persistence does not exist yet.
 
 ## Agent strategy
 
