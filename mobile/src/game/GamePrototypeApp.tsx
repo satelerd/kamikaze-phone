@@ -54,6 +54,7 @@ import { KineticBackdrop } from './KineticBackdrop';
 import { MiniReplay } from './MiniReplay';
 import { QuickCalibration } from './QuickCalibration';
 import { gameColors, gameRadii } from './theme';
+import { shareExportBundle } from '../export/shareExportBundle';
 
 type GameTab = 'play' | 'practice' | 'locker' | 'profile';
 type MotionController = ReturnType<typeof useMotionLab>;
@@ -877,6 +878,7 @@ function ProfileScreen({
 }) {
   const [recentExpanded, setRecentExpanded] = useState(false);
   const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
+  const [exportingData, setExportingData] = useState(false);
   const matches = motion.attempts.map((attempt) => ({
     attempt,
     match: findBestTrickMatch(attempt, catalog.definitions),
@@ -1013,6 +1015,29 @@ function ProfileScreen({
         </Pressable>
         <Pressable onPress={onOpenDeveloper} style={styles.settingsRow}>
           <Text style={styles.settingsText}>OPEN SENSOR WORKSHOP</Text><Text style={styles.settingsArrow}>→</Text>
+        </Pressable>
+        <Pressable
+          disabled={exportingData}
+          onPress={() => {
+            setExportingData(true);
+            shareExportBundle()
+              .then((bundle) => Alert.alert(
+                'EXPORT READY',
+                `${bundle.attempts.length} attempts, ${bundle.calibrationCaptures.length} axis captures and ${bundle.trickCalibrations.length} labelled tricks were included.`,
+              ))
+              .catch((error: unknown) => Alert.alert(
+                'EXPORT FAILED',
+                error instanceof Error ? error.message : 'The export could not be created.',
+              ))
+              .finally(() => setExportingData(false));
+          }}
+          style={styles.settingsRow}
+        >
+          <View>
+            <Text style={styles.settingsText}>EXPORT ALPHA DATA</Text>
+            <Text style={styles.settingsHint}>Attempts, calibration and labelled tricks</Text>
+          </View>
+          <Text style={styles.settingsValue}>{exportingData ? 'WORKING' : 'JSON ↗'}</Text>
         </Pressable>
       </GlassSurface>
     </ScrollView>
