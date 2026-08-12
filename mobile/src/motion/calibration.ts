@@ -35,6 +35,18 @@ export type AxisCalibration = {
   sign: 1 | -1;
 };
 
+export function applyAxisCalibration(
+  raw: Vector3,
+  profile: AxisCalibration[] | null,
+): Vector3 {
+  if (!profile || profile.length !== 3) return { ...raw };
+  const corrected: Vector3 = { x: 0, y: 0, z: 0 };
+  profile.forEach(({ gain, logicalAxis, rawAxis, sign }) => {
+    corrected[logicalAxis] = raw[rawAxis] * sign * gain;
+  });
+  return corrected;
+}
+
 export const CALIBRATION_STEPS: CalibrationStep[] = (['x', 'y', 'z'] as MotionAxis[])
   .flatMap((axis) => ([
     { axis, degrees: 90, direction: 1, tempo: 'slow' },

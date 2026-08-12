@@ -95,6 +95,97 @@ export function quaternionFromEulerDegrees(euler: Vector3): Quaternion {
   });
 }
 
+function interpolateQuaternion(
+  from: Quaternion,
+  to: Quaternion,
+  progress: number,
+): Quaternion {
+  const amount = clamp(progress, 0, 1);
+  let target = to;
+  let dot = from.w * to.w + from.x * to.x + from.y * to.y + from.z * to.z;
+
+  // q and -q describe the same orientation. Following the shortest arc avoids
+  // a visible full-spin glitch when a recorded quaternion crosses that seam.
+  if (dot < 0) {
+    dot = -dot;
+    target = { w: -to.w, x: -to.x, y: -to.y, z: -to.z };
+  }
+
+  if (dot > 0.9995) {
+    return normalizeQuaternion({
+      w: from.w + (target.w - from.w) * amount,
+      x: from.x + (target.x - from.x) * amount,
+      y: from.y + (target.y - from.y) * amount,
+      z: from.z + (target.z - from.z) * amount,
+    });
+  }
+
+  const angle = Math.acos(clamp(dot, -1, 1));
+  const denominator = Math.sin(angle);
+  const fromWeight = Math.sin((1 - amount) * angle) / denominator;
+  const toWeight = Math.sin(amount * angle) / denominator;
+  return normalizeQuaternion({
+    w: from.w * fromWeight + target.w * toWeight,
+    x: from.x * fromWeight + target.x * toWeight,
+    y: from.y * fromWeight + target.y * toWeight,
+    z: from.z * fromWeight + target.z * toWeight,
+  });
+}
+
+/**
+ * Makes every replay start at t=0 and keeps timestamps monotonic. Captured
+ * automatic throws may include a small negative pre-roll, which previously
+ * made the timeline and the sample index disagree.
+ */
+export function normalizeReplayFrames(frames: ReplayFrame[]): ReplayFrame[] {
+  if (frames.length === 0) return [];
+  const originMs = Number.isFinite(frames[0].timestampMs) ? frames[0].timestampMs : 0;
+  let previousMs = 0;
+  const normalized = frames.map((frame, index) => {
+    const candidateMs = Number.isFinite(frame.timestampMs)
+      ? Math.max(0, frame.timestampMs - originMs)
+      : previousMs;
+    const timestampMs = index === 0 ? 0 : Math.max(previousMs, candidateMs);
+    previousMs = timestampMs;
+    return { ...frame, timestampMs };
+  });
+  const durationMs = Math.max(normalized.at(-1)?.timestampMs ?? 0, 1);
+  return normalized.map((frame) => ({
+    ...frame,
+    progress: clamp(frame.timestampMs / durationMs, 0, 1),
+  }));
+}
+
+/** Samples a replay by time instead of array index, interpolating orientation. */
+export function sampleReplayFrame(frames: ReplayFrame[], playheadMs: number): ReplayFrame {
+  if (frames.length === 0) {
+    return { timestampMs: 0, progress: 0, quaternion: identityQuaternion(), accelG: 1, gyroDps: 0 };
+  }
+  if (frames.length === 1 || playheadMs <= frames[0].timestampMs) return frames[0];
+  const last = frames.at(-1)!;
+  if (playheadMs >= last.timestampMs) return last;
+
+  let low = 0;
+  let high = frames.length - 1;
+  while (low + 1 < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (frames[middle].timestampMs <= playheadMs) low = middle;
+    else high = middle;
+  }
+
+  const from = frames[low];
+  const to = frames[high];
+  const intervalMs = Math.max(1, to.timestampMs - from.timestampMs);
+  const amount = clamp((playheadMs - from.timestampMs) / intervalMs, 0, 1);
+  return {
+    timestampMs: playheadMs,
+    progress: from.progress + (to.progress - from.progress) * amount,
+    quaternion: interpolateQuaternion(from.quaternion, to.quaternion, amount),
+    accelG: from.accelG + (to.accelG - from.accelG) * amount,
+    gyroDps: from.gyroDps + (to.gyroDps - from.gyroDps) * amount,
+  };
+}
+
 export function buildReplayFrames(attempt: DetectedAttempt): ReplayFrame[] {
   const preRollS = attempt.captureMode === 'manual' ? 0.12 : 0;
   const postRollS = 0.22;

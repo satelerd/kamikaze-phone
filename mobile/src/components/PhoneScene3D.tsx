@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { AppState, StyleSheet, Text, View } from 'react-native';
 import { ExpoWebGLRenderingContext, GLView } from 'expo-gl';
 import { Renderer } from 'expo-three';
 import * as THREE from 'three';
@@ -17,8 +17,10 @@ type PhoneScene3DProps = {
   camera: OrbitCamera;
   comparisonFrame?: ReplayFrame;
   frame: ReplayFrame;
+  restOrientation?: 'flat' | 'screen';
+  shellColor?: string;
   tone: 'blue' | 'coral';
-  variant?: 'flight' | 'pose';
+  variant?: 'calibration' | 'flight' | 'game' | 'pose';
 };
 
 const PHONE_BLUE = new THREE.Color(colors.cobalt);
@@ -105,6 +107,8 @@ export function PhoneScene3D({
   camera,
   comparisonFrame,
   frame,
+  restOrientation = 'flat',
+  shellColor,
   tone,
   variant = 'flight',
 }: PhoneScene3DProps) {
@@ -112,30 +116,57 @@ export function PhoneScene3D({
   const frameRef = useRef(frame);
   const cameraRef = useRef(camera);
   const comparisonFrameRef = useRef(comparisonFrame);
+  const restOrientationRef = useRef(restOrientation);
+  const shellColorRef = useRef(shellColor);
   const toneRef = useRef(tone);
   const variantRef = useRef(variant);
   const mountedRef = useRef(true);
+  const drawRef = useRef<(() => void) | null>(null);
+  const disposeRef = useRef<(() => void) | null>(null);
 
   frameRef.current = frame;
   cameraRef.current = camera;
   comparisonFrameRef.current = comparisonFrame;
+  restOrientationRef.current = restOrientation;
+  shellColorRef.current = shellColor;
   toneRef.current = tone;
   variantRef.current = variant;
 
-  useEffect(() => () => {
-    mountedRef.current = false;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      drawRef.current = null;
+      disposeRef.current?.();
+      disposeRef.current = null;
+    };
+  }, []);
+
+  // The scene has no autonomous animation: every visual change comes from one
+  // of these props. Drawing on demand avoids competing requestAnimationFrame
+  // loops when the shader background and a replay GLView coexist on iOS.
+  useEffect(() => {
+    drawRef.current?.();
+  }, [camera, comparisonFrame, frame, restOrientation, shellColor, tone, variant]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') drawRef.current?.();
+    });
+    return () => subscription.remove();
   }, []);
 
   const handleContextCreate = useCallback((gl: ExpoWebGLRenderingContext) => {
     if (!mountedRef.current) return;
 
     const renderer = new Renderer({
+      alpha: true,
       antialias: true,
       gl: gl as unknown as WebGLRenderingContext,
     });
     renderer.setSize(gl.drawingBufferWidth, gl.drawingBufferHeight);
     renderer.setPixelRatio(1);
-    renderer.setClearColor(colors.asphalt, 1);
+    renderer.setClearColor(colors.asphalt, 0.22);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     const scene = new THREE.Scene();
@@ -167,53 +198,71 @@ export function PhoneScene3D({
     scene.add(phone);
     const { group: comparisonPhone, shellMaterial: comparisonMaterial } = createPhone();
     comparisonMaterial.color.copy(PHONE_CORAL);
+    comparisonPhone.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      materials.filter(Boolean).forEach((material) => {
+        material.transparent = true;
+        material.opacity = material === comparisonMaterial ? 0.34 : 0.16;
+        material.depthWrite = false;
+      });
+    });
+    comparisonPhone.scale.multiplyScalar(1.035);
     comparisonPhone.visible = false;
     scene.add(comparisonPhone);
     if (mountedRef.current) setReady(true);
 
-    let animationFrame = 0;
     const lookAt = new THREE.Vector3(0, -0.72, 0);
     const restPosition = new THREE.Vector3(0, -0.82, 0);
     const baseOrientation = new THREE.Quaternion().setFromAxisAngle(
       new THREE.Vector3(1, 0, 0),
       -Math.PI / 2,
     );
+    const screenOrientation = new THREE.Quaternion();
     const measuredOrientation = new THREE.Quaternion();
     const comparisonOrientation = new THREE.Quaternion();
-    const render = () => {
-      if (!mountedRef.current) {
-        cancelAnimationFrame(animationFrame);
-        scene.traverse((object) => {
-          const mesh = object as THREE.Mesh;
-          mesh.geometry?.dispose?.();
-          const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-          materials.filter(Boolean).forEach((material) => material.dispose());
-        });
-        renderer.dispose();
-        return;
-      }
+    const draw = () => {
+      if (!mountedRef.current) return;
 
       const currentFrame = frameRef.current;
       const isPoseMonitor = variantRef.current === 'pose';
+      const isGameStage = variantRef.current === 'game';
+      const isCalibration = variantRef.current === 'calibration';
+      grid.visible = !isGameStage && !isCalibration;
+      axes.visible = !isGameStage && !isCalibration;
+      lookAt.y = isGameStage || isCalibration ? -0.08 : -0.72;
+      restPosition.y = isGameStage || isCalibration ? -0.08 : -0.82;
       phone.position.copy(restPosition);
       const { x, y, z, w } = currentFrame.quaternion;
       measuredOrientation.set(x, y, z, w);
-      phone.quaternion.copy(baseOrientation).multiply(measuredOrientation);
+      phone.quaternion
+        .copy(restOrientationRef.current === 'screen' ? screenOrientation : baseOrientation)
+        .multiply(measuredOrientation);
       const comparison = comparisonFrameRef.current;
-      comparisonPhone.visible = isPoseMonitor && Boolean(comparison);
-      if (comparison && isPoseMonitor) {
-        phone.position.x = -0.72;
-        comparisonPhone.position.set(0.72, restPosition.y, restPosition.z);
+      comparisonPhone.visible = (isPoseMonitor || isCalibration) && Boolean(comparison);
+      if (comparison && (isPoseMonitor || isCalibration)) {
+        if (isPoseMonitor) {
+          phone.position.x = -0.72;
+          comparisonPhone.position.set(0.72, restPosition.y, restPosition.z);
+        } else {
+          comparisonPhone.position.copy(restPosition);
+        }
         comparisonOrientation.set(
           comparison.quaternion.x,
           comparison.quaternion.y,
           comparison.quaternion.z,
           comparison.quaternion.w,
         );
-        comparisonPhone.quaternion.copy(baseOrientation).multiply(comparisonOrientation);
+        comparisonPhone.quaternion
+          .copy(isCalibration && restOrientationRef.current === 'screen' ? screenOrientation : baseOrientation)
+          .multiply(comparisonOrientation);
       }
-      shellMaterial.color.copy(toneRef.current === 'blue' ? PHONE_BLUE : PHONE_CORAL);
-      rimLight.color.set(toneRef.current === 'blue' ? colors.cobalt : colors.coral);
+      shellMaterial.color.set(
+        shellColorRef.current ?? (toneRef.current === 'blue' ? colors.cobalt : colors.coral),
+      );
+      rimLight.color.set(
+        shellColorRef.current ?? (toneRef.current === 'blue' ? colors.cobalt : colors.coral),
+      );
 
       const orbit = cameraRef.current;
       const horizontalDistance = orbit.distance * Math.cos(orbit.elevation);
@@ -225,10 +274,20 @@ export function PhoneScene3D({
       viewCamera.lookAt(lookAt);
 
       renderer.render(scene, viewCamera);
+      gl.flush();
       gl.endFrameEXP();
-      animationFrame = requestAnimationFrame(render);
     };
-    render();
+    drawRef.current = draw;
+    disposeRef.current = () => {
+      scene.traverse((object) => {
+        const mesh = object as THREE.Mesh;
+        mesh.geometry?.dispose?.();
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        materials.filter(Boolean).forEach((material) => material.dispose());
+      });
+      renderer.dispose();
+    };
+    draw();
   }, []);
 
   return (
@@ -246,15 +305,16 @@ export function PhoneScene3D({
 const styles = StyleSheet.create({
   shell: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.asphalt,
+    backgroundColor: 'transparent',
   },
   canvas: {
+    backgroundColor: 'transparent',
     flex: 1,
   },
   loading: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
-    backgroundColor: colors.asphalt,
+    backgroundColor: 'rgba(15,17,22,0.54)',
     justifyContent: 'center',
   },
   loadingText: {

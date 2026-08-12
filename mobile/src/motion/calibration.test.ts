@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyAxisCalibration,
   analyzeCalibrationCapture,
   buildCalibrationReplayFrames,
   type CalibrationStep,
@@ -29,6 +30,17 @@ const step: CalibrationStep = {
 };
 
 describe('calibration analysis', () => {
+  it('applies a persisted axis remap, sign and gain', () => {
+    expect(applyAxisCalibration(
+      { x: 10, y: 20, z: 30 },
+      [
+        { confidence: 1, gain: 2, logicalAxis: 'x', rawAxis: 'z', sign: -1 },
+        { confidence: 1, gain: 1, logicalAxis: 'y', rawAxis: 'x', sign: 1 },
+        { confidence: 1, gain: 0.5, logicalAxis: 'z', rawAxis: 'y', sign: 1 },
+      ],
+    )).toEqual({ x: -60, y: 10, z: 10 });
+  });
+
   it('passes a clean expected-axis rotation', () => {
     const result = analyzeCalibrationCapture(samplesFor({ x: 90, y: 2, z: 1 }), step);
 
