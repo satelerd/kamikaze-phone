@@ -26,11 +26,14 @@ struct OnboardingView: View {
                     ForEach(pages) { item in
                         VStack(alignment: .leading, spacing: 24) {
                             Spacer()
-                            Image(systemName: item.symbol)
-                                .font(.system(size: 76, weight: .light))
-                                .foregroundStyle(item.accent)
-                                .frame(maxWidth: .infinity)
-                                .padding(.bottom, 30)
+                            GlassSurface(level: .subtle, cornerRadius: 52) {
+                                Image(systemName: item.symbol)
+                                    .font(.system(size: 62, weight: .light))
+                                    .foregroundStyle(item.accent)
+                                    .frame(width: 136, height: 136)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.bottom, 30)
                             Text(item.title)
                                 .font(.system(size: 43, weight: .black, design: .rounded))
                                 .tracking(-2)
@@ -47,12 +50,14 @@ struct OnboardingView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
 
-                Button(page == pages.count - 1 ? "ENTER KAMIKAZE" : "CONTINUE") {
+                Button {
                     if page == pages.count - 1 { onComplete() }
                     else { withAnimation(.snappy) { page += 1 } }
+                } label: {
+                    Text(page == pages.count - 1 ? "ENTER KAMIKAZE" : "CONTINUE")
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 66)
                 }
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .frame(maxWidth: .infinity, minHeight: 66)
                 .adaptiveGlassButton(prominent: true, tint: pages[page].accent)
                 .padding(22)
             }
