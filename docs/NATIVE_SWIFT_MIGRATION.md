@@ -1,6 +1,6 @@
 # Kamikaze: Phone Flip — native iOS migration plan
 
-Status: implementation-ready plan. The native rewrite has not started.
+Status: implementation in progress on branch `codex/native-beta`. The first native shell and motion-core compatibility layer build and test successfully.
 
 Product stage: the frozen Expo build is the **alpha**; the first native Swift build is the **beta**. “Beta” describes the product milestone. Technically, this is still a native reimplementation—not an automatic source-to-source refactor.
 
@@ -21,9 +21,9 @@ The migration is a controlled rewrite around four stable contracts:
 
 The recommended initial deployment target is iOS 18, compiled with Xcode 26. Native Liquid Glass is enabled on iOS 26 and newer; older supported systems receive a deliberate Material-based fallback. Revisit the deployment target before the first public TestFlight if supporting iOS 18 no longer matters.
 
-## Product boundary for the first native version
+## Product boundary for the native beta
 
-The first native version is not feature-complete. It proves one excellent vertical slice:
+The first quality gate proves one excellent vertical slice:
 
 ```text
 ONBOARDING -> READY -> ARMED -> THROW -> CATCH -> RESULT -> REPLAY -> AGAIN
@@ -40,7 +40,7 @@ It includes:
 - local attempt history and a detailed Result/Recent screen;
 - developer-only access to express and full calibration.
 
-It deliberately defers the polished Practice progression, social publishing, accounts, cloud sync, the locker economy, widgets, lines and machine learning. Those features use the same foundations after Play is trustworthy.
+The beta scope also retains the alpha's Practice progression, Locker, Profile and developer Workshop, but those areas are implemented after the core vertical slice is trustworthy and must reuse its motion, replay and persistence foundations. Social publishing, accounts, cloud sync, a production economy, widgets, lines, video export and machine learning remain later expansion work.
 
 ## Repository layout
 
@@ -50,8 +50,10 @@ Keep the reference and native applications in the same repository until parity i
 kamikaze-phone/
   mobile/                         # frozen Expo reference and data exporter
   native/
-    Kamikaze.xcodeproj
-    KamikazeApp/
+    Kamikaze/
+      Kamikaze.xcodeproj
+      Config/
+      Kamikaze/
       App/
       DesignSystem/
       Features/
@@ -69,8 +71,8 @@ kamikaze-phone/
     Packages/
       KamikazeMotionCore/         # pure Swift, no SwiftUI/Core Motion imports
       KamikazeMotionApple/        # Core Motion adapter
-    KamikazeTests/
-    KamikazeUITests/
+      KamikazeTests/
+      KamikazeUITests/
   fixtures/
     motion/v2/                    # shared, labelled JSON captures
   docs/
@@ -323,7 +325,7 @@ Exit: every important behavior has data, a test or an explicit product decision.
 
 ### Phase 1 — native skeleton
 
-- Create `native/Kamikaze.xcodeproj` with SwiftUI lifecycle, iPhone portrait and iOS 18 target.
+- Create `native/Kamikaze/Kamikaze.xcodeproj` with SwiftUI lifecycle, iPhone portrait and iOS 18 target.
 - Add app, Swift Testing and XCTest UI targets.
 - Add the two local Swift packages and dependency protocols.
 - Implement navigation, theme tokens, glass fallback and fixture mode.
@@ -355,10 +357,13 @@ Exit: this build is at least as understandable and playable as Expo for the core
 
 Exit: improvements are measured by precision/recall per trick, not anecdotes alone.
 
-### Phase 5 — product expansion
+### Phase 5 — beta scope completion
 
-- Practice progression and target/measured comparison;
-- full Profile/history, Locker and progression;
+- complete Practice progression and target/measured comparison;
+- complete Profile/history, Locker and developer Workshop parity;
+
+### Phase 6 — later expansion
+
 - replay video export with AVFoundation;
 - WidgetKit stats/deep-link control and optional Live Activity;
 - TestFlight, privacy material and App Store assets.

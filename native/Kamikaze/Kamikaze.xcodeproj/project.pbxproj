@@ -1,0 +1,631 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		D8CCAF06302CD1E400B39F30 /* KamikazeMotionCore in Frameworks */ = {isa = PBXBuildFile; productRef = D8CCAF05302CD1E400B39F30 /* KamikazeMotionCore */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		D8CCAED1302CD1E400B39F30 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D8CCAEBB302CD1E300B39F30 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D8CCAEC2302CD1E300B39F30;
+			remoteInfo = Kamikaze;
+		};
+		D8CCAEDB302CD1E400B39F30 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D8CCAEBB302CD1E300B39F30 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D8CCAEC2302CD1E300B39F30;
+			remoteInfo = Kamikaze;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		D8CCAF02302CD1E400B39F30 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
+		D8CCAF03302CD1E400B39F30 /* Signing.local.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.local.xcconfig.example; sourceTree = "<group>"; };
+		D8CCAEC3302CD1E300B39F30 /* Kamikaze.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kamikaze.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D8CCAED0302CD1E400B39F30 /* KamikazeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KamikazeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D8CCAEDA302CD1E400B39F30 /* KamikazeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KamikazeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		D8CCAEC5302CD1E300B39F30 /* Kamikaze */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Kamikaze;
+			sourceTree = "<group>";
+		};
+		D8CCAED3302CD1E400B39F30 /* KamikazeTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = KamikazeTests;
+			sourceTree = "<group>";
+		};
+		D8CCAEDD302CD1E400B39F30 /* KamikazeUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = KamikazeUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		D8CCAEC0302CD1E300B39F30 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D8CCAF06302CD1E400B39F30 /* KamikazeMotionCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D8CCAECD302CD1E400B39F30 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D8CCAED7302CD1E400B39F30 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		D8CCAEBA302CD1E300B39F30 = {
+			isa = PBXGroup;
+			children = (
+				D8CCAF01302CD1E400B39F30 /* Config */,
+				D8CCAEC5302CD1E300B39F30 /* Kamikaze */,
+				D8CCAED3302CD1E400B39F30 /* KamikazeTests */,
+				D8CCAEDD302CD1E400B39F30 /* KamikazeUITests */,
+				D8CCAEC4302CD1E300B39F30 /* Products */,
+			);
+			 sourceTree = "<group>";
+		};
+		D8CCAF01302CD1E400B39F30 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				D8CCAF02302CD1E400B39F30 /* Base.xcconfig */,
+				D8CCAF03302CD1E400B39F30 /* Signing.local.xcconfig.example */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		D8CCAEC4302CD1E300B39F30 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D8CCAEC3302CD1E300B39F30 /* Kamikaze.app */,
+				D8CCAED0302CD1E400B39F30 /* KamikazeTests.xctest */,
+				D8CCAEDA302CD1E400B39F30 /* KamikazeUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		D8CCAEC2302CD1E300B39F30 /* Kamikaze */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D8CCAEE4302CD1E400B39F30 /* Build configuration list for PBXNativeTarget "Kamikaze" */;
+			buildPhases = (
+				D8CCAEBF302CD1E300B39F30 /* Sources */,
+				D8CCAEC0302CD1E300B39F30 /* Frameworks */,
+				D8CCAEC1302CD1E300B39F30 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D8CCAEC5302CD1E300B39F30 /* Kamikaze */,
+			);
+			name = Kamikaze;
+			packageProductDependencies = (
+				D8CCAF05302CD1E400B39F30 /* KamikazeMotionCore */,
+			);
+			productName = Kamikaze;
+			productReference = D8CCAEC3302CD1E300B39F30 /* Kamikaze.app */;
+			productType = "com.apple.product-type.application";
+		};
+		D8CCAECF302CD1E400B39F30 /* KamikazeTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D8CCAEE7302CD1E400B39F30 /* Build configuration list for PBXNativeTarget "KamikazeTests" */;
+			buildPhases = (
+				D8CCAECC302CD1E400B39F30 /* Sources */,
+				D8CCAECD302CD1E400B39F30 /* Frameworks */,
+				D8CCAECE302CD1E400B39F30 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D8CCAED2302CD1E400B39F30 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				D8CCAED3302CD1E400B39F30 /* KamikazeTests */,
+			);
+			name = KamikazeTests;
+			packageProductDependencies = (
+			);
+			productName = KamikazeTests;
+			productReference = D8CCAED0302CD1E400B39F30 /* KamikazeTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		D8CCAED9302CD1E400B39F30 /* KamikazeUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D8CCAEEA302CD1E400B39F30 /* Build configuration list for PBXNativeTarget "KamikazeUITests" */;
+			buildPhases = (
+				D8CCAED6302CD1E400B39F30 /* Sources */,
+				D8CCAED7302CD1E400B39F30 /* Frameworks */,
+				D8CCAED8302CD1E400B39F30 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D8CCAEDC302CD1E400B39F30 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				D8CCAEDD302CD1E400B39F30 /* KamikazeUITests */,
+			);
+			name = KamikazeUITests;
+			packageProductDependencies = (
+			);
+			productName = KamikazeUITests;
+			productReference = D8CCAEDA302CD1E400B39F30 /* KamikazeUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		D8CCAEBB302CD1E300B39F30 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					D8CCAEC2302CD1E300B39F30 = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					D8CCAECF302CD1E400B39F30 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = D8CCAEC2302CD1E300B39F30;
+					};
+					D8CCAED9302CD1E400B39F30 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = D8CCAEC2302CD1E300B39F30;
+					};
+				};
+			};
+			buildConfigurationList = D8CCAEBE302CD1E300B39F30 /* Build configuration list for PBXProject "Kamikaze" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = D8CCAEBA302CD1E300B39F30;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = D8CCAEC4302CD1E300B39F30 /* Products */;
+			packageReferences = (
+				D8CCAF04302CD1E400B39F30 /* XCLocalSwiftPackageReference "KamikazeMotionCore" */,
+			);
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D8CCAEC2302CD1E300B39F30 /* Kamikaze */,
+				D8CCAECF302CD1E400B39F30 /* KamikazeTests */,
+				D8CCAED9302CD1E400B39F30 /* KamikazeUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D8CCAEC1302CD1E300B39F30 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D8CCAECE302CD1E400B39F30 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D8CCAED8302CD1E400B39F30 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		D8CCAEBF302CD1E300B39F30 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D8CCAECC302CD1E400B39F30 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D8CCAED6302CD1E400B39F30 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		D8CCAED2302CD1E400B39F30 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D8CCAEC2302CD1E300B39F30 /* Kamikaze */;
+			targetProxy = D8CCAED1302CD1E400B39F30 /* PBXContainerItemProxy */;
+		};
+		D8CCAEDC302CD1E400B39F30 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D8CCAEC2302CD1E300B39F30 /* Kamikaze */;
+			targetProxy = D8CCAEDB302CD1E400B39F30 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		D8CCAEE2302CD1E400B39F30 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = D8CCAF02302CD1E400B39F30 /* Base.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		D8CCAEE3302CD1E400B39F30 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = D8CCAF02302CD1E400B39F30 /* Base.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		D8CCAEE5302CD1E400B39F30 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = D8CCAF02302CD1E400B39F30 /* Base.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Kamikaze uses motion data to detect phone tricks, airtime and catches.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.sateler.kamikazephone.dev;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		D8CCAEE6302CD1E400B39F30 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = D8CCAF02302CD1E400B39F30 /* Base.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Kamikaze uses motion data to detect phone tricks, airtime and catches.";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.sateler.kamikazephone.dev;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		D8CCAEE8302CD1E400B39F30 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = D8CCAF02302CD1E400B39F30 /* Base.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.sateler.KamikazeTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Kamikaze.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Kamikaze";
+			};
+			name = Debug;
+		};
+		D8CCAEE9302CD1E400B39F30 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = D8CCAF02302CD1E400B39F30 /* Base.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.sateler.KamikazeTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Kamikaze.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Kamikaze";
+			};
+			name = Release;
+		};
+		D8CCAEEB302CD1E400B39F30 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = D8CCAF02302CD1E400B39F30 /* Base.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.sateler.KamikazeUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Kamikaze;
+			};
+			name = Debug;
+		};
+		D8CCAEEC302CD1E400B39F30 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = D8CCAF02302CD1E400B39F30 /* Base.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = tech.sateler.KamikazeUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Kamikaze;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		D8CCAEBE302CD1E300B39F30 /* Build configuration list for PBXProject "Kamikaze" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D8CCAEE2302CD1E400B39F30 /* Debug */,
+				D8CCAEE3302CD1E400B39F30 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D8CCAEE4302CD1E400B39F30 /* Build configuration list for PBXNativeTarget "Kamikaze" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D8CCAEE5302CD1E400B39F30 /* Debug */,
+				D8CCAEE6302CD1E400B39F30 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D8CCAEE7302CD1E400B39F30 /* Build configuration list for PBXNativeTarget "KamikazeTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D8CCAEE8302CD1E400B39F30 /* Debug */,
+				D8CCAEE9302CD1E400B39F30 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D8CCAEEA302CD1E400B39F30 /* Build configuration list for PBXNativeTarget "KamikazeUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D8CCAEEB302CD1E400B39F30 /* Debug */,
+				D8CCAEEC302CD1E400B39F30 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		D8CCAF04302CD1E400B39F30 /* XCLocalSwiftPackageReference "KamikazeMotionCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../Packages/KamikazeMotionCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		D8CCAF05302CD1E400B39F30 /* KamikazeMotionCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D8CCAF04302CD1E400B39F30 /* XCLocalSwiftPackageReference "KamikazeMotionCore" */;
+			productName = KamikazeMotionCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = D8CCAEBB302CD1E300B39F30 /* Project object */;
+}

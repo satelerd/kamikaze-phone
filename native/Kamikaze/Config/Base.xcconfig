@@ -1,0 +1,11 @@
+IPHONEOS_DEPLOYMENT_TARGET = 18.0
+SWIFT_VERSION = 6.0
+SWIFT_STRICT_CONCURRENCY = complete
+TARGETED_DEVICE_FAMILY = 1
+SUPPORTED_PLATFORMS = iphoneos iphonesimulator
+PRODUCT_BUNDLE_IDENTIFIER = tech.sateler.kamikazephone.dev
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+
+// Personal Team details remain local and must never be committed.
+#include? "Signing.local.xcconfig"

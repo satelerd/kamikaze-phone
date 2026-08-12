@@ -34,3 +34,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Apple / Swift
+**/.build/
+**/DerivedData/
+**/*.xcuserstate
+**/xcuserdata/
+native/Kamikaze/Config/Signing.local.xcconfig
