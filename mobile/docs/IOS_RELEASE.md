@@ -1,4 +1,6 @@
-# iOS release path
+# Expo iOS release path (prototype only)
+
+> Superseded for the official product. The Expo app is frozen at `expo-game-v0.3.0` and remains available for sensor testing and behavioral comparison. See [`../../docs/NATIVE_SWIFT_MIGRATION.md`](../../docs/NATIVE_SWIFT_MIGRATION.md) for the native SwiftUI plan.
 
 Kamikaze stays in Expo/React Native for its first release. EAS produces the signed native iOS binary; Swift modules are reserved for isolated features such as ReplayKit video export or WidgetKit.
 
