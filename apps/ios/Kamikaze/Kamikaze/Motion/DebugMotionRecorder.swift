@@ -728,6 +728,34 @@ nonisolated enum DebugMotionCaptureStore {
         return export
     }
 
+    nonisolated static func validateDataset(_ data: Data) throws -> DebugMotionDatasetExportV1 {
+        let dataset: DebugMotionDatasetExportV1
+        do {
+            dataset = try JSONDecoder().decode(DebugMotionDatasetExportV1.self, from: data)
+        } catch {
+            throw ValidationError.malformedExport
+        }
+        guard dataset.format == "kamikaze.labelled-motion-dataset.v1" else {
+            throw ValidationError.unsupportedFormat
+        }
+        guard !dataset.captures.isEmpty else { throw ValidationError.emptyDataset }
+
+        var attemptIDs = Set<String>()
+        for capture in dataset.captures {
+            switch capture.label.outcome {
+            case .landed, .missed, .noAttempt:
+                break
+            case .unclear, .calibration:
+                throw ValidationError.unclassifiedDatasetCapture
+            }
+            guard attemptIDs.insert(capture.capture.attempt.id).inserted else {
+                throw ValidationError.duplicateAttemptID
+            }
+            _ = try validateExport(try encodedJSON(capture))
+        }
+        return dataset
+    }
+
     nonisolated static func exportClassifiedDataset(
         from sourceDirectory: URL? = nil
     ) throws -> DebugSavedDatasetExport? {
@@ -745,7 +773,14 @@ nonisolated enum DebugMotionCaptureStore {
             case .unclear, .calibration:
                 return nil
             }
-        }.sorted { $0.capture.attempt.recordedAtISO8601 < $1.capture.attempt.recordedAtISO8601 }
+        }.sorted {
+            let lhs = $0.capture.attempt
+            let rhs = $1.capture.attempt
+            if lhs.recordedAtISO8601 == rhs.recordedAtISO8601 {
+                return lhs.id < rhs.id
+            }
+            return lhs.recordedAtISO8601 < rhs.recordedAtISO8601
+        }
 
         guard !captures.isEmpty else { return nil }
         let dataset = DebugMotionDatasetExportV1(captures: captures)
@@ -777,6 +812,9 @@ nonisolated enum DebugMotionCaptureStore {
         case invalidBoundaries
         case invalidBoundarySemantics
         case unreplayableEvidence
+        case emptyDataset
+        case unclassifiedDatasetCapture
+        case duplicateAttemptID
     }
 
     nonisolated static func encodedJSON<T: Encodable>(_ value: T) throws -> Data {

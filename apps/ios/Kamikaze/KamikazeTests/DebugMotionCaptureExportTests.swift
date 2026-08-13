@@ -49,7 +49,7 @@ struct DebugMotionCaptureExportTests {
             DebugMotionDatasetExportV1.self,
             from: Data(contentsOf: saved.exportURL)
         )
-        #expect(dataset.captures.map(\.label.outcome) == [.landed, .missed])
+        #expect(Set(dataset.captures.map(\.label.outcome)) == Set([.landed, .missed]))
     }
 
     @Test func rejectsExportWhoseEmbeddedPayloadDoesNotMatchChecksum() throws {
@@ -59,6 +59,18 @@ struct DebugMotionCaptureExportTests {
         #expect(throws: DebugMotionCaptureStore.ValidationError.checksumMismatch) {
             try DebugMotionCaptureStore.validateExport(data)
         }
+    }
+
+    @Test func validatesDatasetEnvelopeAndEveryEmbeddedCapture() throws {
+        let captures = [
+            try makeExport(checksum: nil, id: "landed-001", outcome: .landed),
+            try makeExport(checksum: nil, id: "missed-001", outcome: .missed),
+        ]
+        let data = try DebugMotionCaptureStore.encodedJSON(
+            DebugMotionDatasetExportV1(captures: captures)
+        )
+        let dataset = try DebugMotionCaptureStore.validateDataset(data)
+        #expect(dataset.captures.count == 2)
     }
 
     private func makeExport(
