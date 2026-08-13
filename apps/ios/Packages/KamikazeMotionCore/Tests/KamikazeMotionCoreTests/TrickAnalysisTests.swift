@@ -142,12 +142,31 @@ struct TrickMatcherTests {
         #expect(result.candidates.isEmpty)
         #expect(result.featureIssues == [.invalidBoundaries])
     }
+
+    @Test("sample gaps can never produce a recognized result")
+    func gappedEvidenceNeedsReview() {
+        let attempt = makeAttempt(
+            rotationDegrees: Vector3(x: 0, y: 360, z: 0),
+            durationS: 0.78,
+            qualityAtMiddle: [.timestampGapBefore, .sequenceGapBefore]
+        )
+        let result = TrickMatcher().match(
+            attempt: attempt,
+            catalog: .provisional(gripHand: .right)
+        )
+
+        #expect(result.candidates.first?.definition.id == .phoneFlip)
+        #expect(result.status == .review)
+        #expect(result.featureIssues.contains(.timestampGap))
+        #expect(result.featureIssues.contains(.sequenceGap))
+    }
 }
 
 private func makeAttempt(
     rotationDegrees: Vector3,
     durationS: Double = 0.62,
-    catchAccelerationG: Double = 1
+    catchAccelerationG: Double = 1,
+    qualityAtMiddle: MotionSampleQualityFlags = []
 ) -> SegmentedAttemptV3 {
     let stepCount = 100
     let deltaTimeS = durationS / Double(stepCount)
@@ -173,7 +192,8 @@ private func makeAttempt(
             rotationRateRadS: rateRadS,
             userAccelerationG: Vector3(x: 0, y: 0, z: -0.7),
             gravityG: Vector3(x: 0, y: 0, z: 1),
-            fusedAttitude: attitude
+            fusedAttitude: attitude,
+            qualityFlags: index == stepCount / 2 ? qualityAtMiddle : []
         ))
     }
 

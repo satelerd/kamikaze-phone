@@ -247,11 +247,16 @@ public struct TrickMatcher: Sendable {
         let top = Array(candidates.prefix(3))
         let bestFit = top.first?.presentationFit ?? 0
         let margin = bestFit - (top.dropFirst().first?.presentationFit ?? 0)
+        let evidenceNeedsReview = extraction.issues.contains(.timestampGap)
+            || extraction.issues.contains(.sequenceGap)
+            || extraction.issues.contains(.timedOutSegmentation)
+            || extraction.issues.contains(.partialFusedAttitude)
+            || extraction.issues.contains(.fusedAttitudeUnavailable)
         let status: TrickRecognitionStatus
         if bestFit >= policy.recognizedPresentationFit,
            margin >= policy.recognizedMinimumMargin,
            top.first?.axesAreSeparable != false,
-           !attempt.timedOut {
+           !evidenceNeedsReview {
             status = .recognized
         } else if bestFit >= policy.reviewPresentationFit {
             status = .review
