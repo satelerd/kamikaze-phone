@@ -7,13 +7,55 @@ public enum TrickCatalogVersion {
 public enum BuiltInTrickID: String, Codable, CaseIterable, Equatable, Sendable {
     case phoneFlip = "phone-flip"
     case reversePhoneFlip = "reverse-phone-flip"
-    case frontFlip = "front-flip"
-    case backFlip = "back-flip"
+    case flip = "flip"
+    case reverseFlip = "reverse-flip"
     case backsideShuvit = "backside-shuvit"
     case frontsideShuvit = "frontside-shuvit"
     case straightAir = "straight-air"
     case threeSixtyFlip = "360-flip"
     case laserFlip = "laser-flip"
+
+    public var displayName: String {
+        switch self {
+        case .phoneFlip: "PHONE FLIP"
+        case .reversePhoneFlip: "REVERSE PHONE FLIP"
+        case .flip: "FLIP"
+        case .reverseFlip: "REVERSE FLIP"
+        case .backsideShuvit: "BACKSIDE SHUVIT"
+        case .frontsideShuvit: "FRONTSIDE SHUVIT"
+        case .straightAir: "STRAIGHT AIR"
+        case .threeSixtyFlip: "360 FLIP"
+        case .laserFlip: "LASER FLIP"
+        }
+    }
+
+    /// Player-facing choices supported by the physical v0.2 catalog.
+    public static let correctableCases: [Self] = [
+        .flip, .reverseFlip, .phoneFlip, .reversePhoneFlip,
+        .backsideShuvit, .frontsideShuvit, .straightAir,
+    ]
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+        switch value {
+        case "front-flip": self = .flip
+        case "back-flip": self = .reverseFlip
+        default:
+            guard let decoded = Self(rawValue: value) else {
+                throw DecodingError.dataCorruptedError(
+                    in: container,
+                    debugDescription: "Unknown built-in trick identifier: \(value)"
+                )
+            }
+            self = decoded
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 public enum TrickFamily: String, Codable, Equatable, Sendable {
@@ -95,7 +137,7 @@ public struct TrickCatalog: Codable, Equatable, Sendable {
                 referenceDurationMs: 920
             ),
             TrickDefinition(
-                id: .frontFlip,
+                id: .flip,
                 displayName: "FLIP",
                 family: .flip,
                 targetRotationDegrees: Vector3(x: 0, y: y(370), z: 0),
@@ -103,7 +145,7 @@ public struct TrickCatalog: Codable, Equatable, Sendable {
                 referenceDurationMs: 970
             ),
             TrickDefinition(
-                id: .backFlip,
+                id: .reverseFlip,
                 displayName: "REVERSE FLIP",
                 family: .flip,
                 targetRotationDegrees: Vector3(x: 0, y: y(-360), z: 0),

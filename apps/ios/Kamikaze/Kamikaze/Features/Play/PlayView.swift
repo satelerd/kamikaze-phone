@@ -66,7 +66,12 @@ struct PlayView: View {
             get: { run.result },
             set: { if $0 == nil { run.dismissResult() } }
         )) { result in
-            ResultReplayView(result: result, onAgain: run.dismissResultAndRearm, onClose: run.dismissResult)
+            ResultReplayView(
+                result: result,
+                onAgain: run.dismissResultAndRearm,
+                onClose: run.dismissResult,
+                onReview: run.applyHumanReview
+            )
         }
     }
 

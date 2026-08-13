@@ -15,12 +15,59 @@ enum NativeRunPhase: Equatable {
     case failed(String)
 }
 
+nonisolated enum AttemptInterpretationSource: String, Equatable, Sendable {
+    case detector
+    case human
+}
+
+nonisolated struct AttemptIdentityAssessment: Equatable, Sendable {
+    let trickID: BuiltInTrickID?
+    let fit: Double?
+    let recognitionStatus: TrickRecognitionStatus
+    let source: AttemptInterpretationSource
+}
+
+nonisolated enum AttemptExecutionAssessment: Equatable, Sendable {
+    case unverified
+    case human(HumanAttemptOutcome)
+}
+
+nonisolated struct AttemptGameScore: Equatable, Sendable {
+    let value: Int
+    let version: String
+}
+
+nonisolated struct NativeRunEvaluation: Equatable, Sendable {
+    let identity: AttemptIdentityAssessment
+    let execution: AttemptExecutionAssessment
+    /// Intentionally nil until execution scoring is calibrated independently
+    /// from the detector's identity fit.
+    let score: AttemptGameScore?
+}
+
 struct NativeRunResult: Identifiable, Sendable {
     let capture: MotionCaptureV3
     let match: TrickMatchResult
+    let humanReview: HumanAttemptReview?
+
+    init(
+        capture: MotionCaptureV3,
+        match: TrickMatchResult,
+        humanReview: HumanAttemptReview? = nil
+    ) {
+        self.capture = capture
+        self.match = match
+        self.humanReview = humanReview
+    }
 
     var id: String { capture.attempt.id }
     var displayName: String {
+        if let reviewedTrick = humanReview?.trickID {
+            return reviewedTrick.displayName
+        }
+        if humanReview?.outcome == .noAttempt {
+            return "NO ATTEMPT"
+        }
         switch match.status {
         case .recognized:
             return match.candidates.first?.definition.displayName ?? "REVIEW THROW"
@@ -31,11 +78,47 @@ struct NativeRunResult: Identifiable, Sendable {
         }
     }
     var proposedName: String? {
-        guard match.status == .review else { return nil }
+        guard humanReview == nil, match.status == .review else { return nil }
         return match.candidates.first?.definition.displayName
     }
     var fit: Int { Int(((match.candidates.first?.presentationFit ?? 0) * 100).rounded()) }
+    var displayedFitValue: Double? {
+        let candidate: TrickMatchCandidate?
+        if let reviewedTrick = humanReview?.trickID {
+            candidate = match.candidates.first { $0.definition.id == reviewedTrick }
+        } else {
+            candidate = match.candidates.first
+        }
+        return candidate?.presentationFit
+    }
+    var displayedFit: Int? { displayedFitValue.map { Int(($0 * 100).rounded()) } }
     var durationMs: Int { Int((match.features?.motionDurationMs ?? 0).rounded()) }
+    var evaluation: NativeRunEvaluation {
+        NativeRunEvaluation(
+            identity: AttemptIdentityAssessment(
+                trickID: humanReview?.trickID ?? match.candidates.first?.definition.id,
+                fit: displayedFitValue,
+                recognitionStatus: match.status,
+                source: humanReview == nil ? .detector : .human
+            ),
+            execution: humanReview.map { .human($0.outcome) } ?? .unverified,
+            score: nil
+        )
+    }
+    var identityLabel: String {
+        evaluation.identity.source == .human ? "HUMAN CONFIRMED" : match.status.rawValue.uppercased()
+    }
+    var executionLabel: String {
+        switch evaluation.execution {
+        case .unverified: "UNVERIFIED"
+        case let .human(outcome): outcome.displayName
+        }
+    }
+    var hasConfirmedLanding: Bool { humanReview?.outcome == .landed }
+
+    func replacingHumanReview(_ review: HumanAttemptReview) -> Self {
+        Self(capture: capture, match: match, humanReview: review)
+    }
 }
 
 /// UI bridge for the native vertical slice. Sensor samples are passed straight
@@ -166,6 +249,23 @@ final class NativeRunModel {
     func dismissResult() {
         result = nil
         phase = .ready
+    }
+
+    func applyHumanReview(_ review: HumanAttemptReview) async -> NativeRunResult? {
+        guard let current = result else { return nil }
+        let updated = current.replacingHumanReview(review)
+        do {
+            try await analysisRepository.save(AttemptAnalysisRecord(
+                attemptID: current.id,
+                result: current.match,
+                humanReview: review
+            ))
+            guard result?.id == current.id else { return nil }
+            result = updated
+            return updated
+        } catch {
+            return nil
+        }
     }
 
     private func receive(_ event: RunProcessingEvent) async {

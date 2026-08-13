@@ -16,7 +16,7 @@ struct ProfileView: View {
                         .font(.system(size: 54, weight: .black, design: .rounded))
                         .tracking(-2)
                     HStack(spacing: 10) {
-                        stat("\(model.landedCount)", "LANDED")
+                        stat("\(model.recognizedCount)", "RECOGNIZED")
                         stat("\(model.bestRun)", "BEST RUN")
                         stat(model.highFit.map(String.init) ?? "—", "HIGH FIT")
                     }
@@ -49,6 +49,14 @@ struct ProfileView: View {
                         }
                         .padding(18)
                     }
+                    if let feedbackExportURL = model.feedbackExportURL {
+                        ShareLink(item: feedbackExportURL) {
+                            Label("EXPORT PLAYER FEEDBACK", systemImage: "square.and.arrow.up")
+                                .font(.system(size: 13, weight: .black, design: .rounded))
+                                .frame(maxWidth: .infinity, minHeight: 54)
+                        }
+                        .adaptiveGlassButton(tint: KamikazeTheme.volt)
+                    }
                     Text("SETTINGS").font(.system(size: 14, weight: .bold, design: .rounded))
                     GlassSurface {
                         VStack(spacing: 0) {
@@ -74,7 +82,15 @@ struct ProfileView: View {
                 result: attempt,
                 primaryTitle: "BACK TO RECENT",
                 onAgain: { selectedAttempt = nil },
-                onClose: { selectedAttempt = nil }
+                onClose: { selectedAttempt = nil },
+                onReview: { review in
+                    guard let updated = await model.applyHumanReview(
+                        attemptID: attempt.id,
+                        review: review
+                    ) else { return nil }
+                    selectedAttempt = updated
+                    return updated
+                }
             )
         }
     }
@@ -102,7 +118,7 @@ struct ProfileView: View {
 
     private func recentRow(_ attempt: NativeRunResult) -> some View {
         HStack(spacing: 14) {
-            Text("\(attempt.fit)")
+            Text(attempt.displayedFit.map(String.init) ?? "—")
                 .font(.system(size: 22, weight: .black, design: .rounded))
                 .foregroundStyle(attempt.match.status == .recognized ? KamikazeTheme.volt : KamikazeTheme.hazard)
                 .frame(width: 52, height: 52)
@@ -110,7 +126,7 @@ struct ProfileView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(attempt.displayName)
                     .font(.system(size: 14, weight: .black, design: .rounded))
-                Text("\(attempt.durationMs) MS  ·  \(attempt.match.status.rawValue.uppercased())")
+                Text("\(attempt.durationMs) MS  ·  \(attempt.humanReview?.outcome.displayName ?? attempt.match.status.rawValue.uppercased())")
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(KamikazeTheme.muted)
             }

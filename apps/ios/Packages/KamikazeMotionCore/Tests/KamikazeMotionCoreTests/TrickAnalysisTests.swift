@@ -121,7 +121,7 @@ struct TrickMatcherTests {
             catalog: .provisional(gripHand: .right)
         )
 
-        #expect(result.candidates.first?.definition.id == .frontFlip)
+        #expect(result.candidates.first?.definition.id == .flip)
         #expect(result.status == .recognized)
     }
 
@@ -161,7 +161,7 @@ struct TrickMatcherTests {
             catalog: .provisional(gripHand: .right)
         )
 
-        #expect(result.candidates.first?.definition.id == .frontFlip)
+        #expect(result.candidates.first?.definition.id == .flip)
         #expect(result.status == .review)
         #expect(result.featureIssues.contains(.timestampGap))
         #expect(result.featureIssues.contains(.sequenceGap))
@@ -182,6 +182,9 @@ struct TrickMatcherTests {
             candidates[index].removeValue(forKey: "pathProfileFit")
             var definition = try #require(candidates[index]["definition"] as? [String: Any])
             definition.removeValue(forKey: "targetAngularPathShare")
+            if definition["id"] as? String == "flip" {
+                definition["id"] = "front-flip"
+            }
             candidates[index]["definition"] = definition
         }
         root["candidates"] = candidates
@@ -191,6 +194,7 @@ struct TrickMatcherTests {
         #expect(decoded.candidates.count == result.candidates.count)
         #expect(decoded.candidates.first?.pathProfileFit == nil)
         #expect(decoded.candidates.first?.definition.targetAngularPathShare == nil)
+        #expect(decoded.candidates.first?.definition.id == .flip)
     }
 }
 

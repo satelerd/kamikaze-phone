@@ -15,20 +15,74 @@ nonisolated enum AttemptStorageLocation {
 
 /// Versioned interpretation stored separately from immutable sensor evidence.
 /// Future matchers can add another revision without rewriting the raw capture.
-nonisolated struct AttemptAnalysisRecord: Codable, Equatable, Sendable {
+nonisolated enum HumanAttemptOutcome: String, Codable, CaseIterable, Equatable, Sendable {
+    case landed
+    case missed
+    case unclear
+    case noAttempt
+
+    var displayName: String {
+        switch self {
+        case .landed: "LANDED"
+        case .missed: "MISSED"
+        case .unclear: "UNCLEAR"
+        case .noAttempt: "NO ATTEMPT"
+        }
+    }
+}
+
+/// Player-provided ground truth. This is deliberately stored beside, never
+/// inside, the machine result so re-analysis cannot erase human evidence.
+nonisolated struct HumanAttemptReview: Codable, Equatable, Sendable {
     static let schemaVersion = 1
+
+    let schemaVersion: Int
+    let reviewedAtISO8601: String
+    let trickID: BuiltInTrickID?
+    let outcome: HumanAttemptOutcome
+    let notes: String
+
+    init(
+        trickID: BuiltInTrickID?,
+        outcome: HumanAttemptOutcome,
+        notes: String = "",
+        reviewedAt: Date = Date()
+    ) {
+        self.schemaVersion = Self.schemaVersion
+        self.reviewedAtISO8601 = ISO8601DateFormatter().string(from: reviewedAt)
+        self.trickID = outcome == .noAttempt ? nil : trickID
+        self.outcome = outcome
+        self.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var isValid: Bool {
+        schemaVersion == Self.schemaVersion
+            && (outcome == .noAttempt ? trickID == nil : trickID != nil)
+    }
+}
+
+nonisolated struct AttemptAnalysisRecord: Codable, Equatable, Sendable {
+    static let schemaVersion = 2
 
     let schemaVersion: Int
     let attemptID: String
     let analyzedAtISO8601: String
     let result: TrickMatchResult
+    let humanReview: HumanAttemptReview?
 
-    init(attemptID: String, result: TrickMatchResult, analyzedAt: Date = Date()) {
+    init(
+        attemptID: String,
+        result: TrickMatchResult,
+        humanReview: HumanAttemptReview? = nil,
+        analyzedAt: Date = Date()
+    ) {
         self.schemaVersion = Self.schemaVersion
         self.attemptID = attemptID
         self.analyzedAtISO8601 = ISO8601DateFormatter().string(from: analyzedAt)
         self.result = result
+        self.humanReview = humanReview
     }
+
 }
 
 protocol AttemptAnalysisRepository: Sendable {
@@ -45,10 +99,20 @@ actor FileAttemptAnalysisRepository: AttemptAnalysisRepository {
 
     func save(_ record: AttemptAnalysisRecord) throws {
         guard record.schemaVersion == AttemptAnalysisRecord.schemaVersion,
+              record.humanReview?.isValid != false,
               isSafeID(record.attemptID) else {
             throw AttemptPersistenceError.invalidCapture("Invalid analysis record.")
         }
-        let data = try CapturePersistenceCodec.encode(record)
+        // A matcher refresh with no review must never overwrite human evidence.
+        let existingReview = try load(attemptID: record.attemptID)?.humanReview
+        let merged = existingReview != nil && record.humanReview == nil
+            ? AttemptAnalysisRecord(
+                attemptID: record.attemptID,
+                result: record.result,
+                humanReview: existingReview
+            )
+            : record
+        let data = try CapturePersistenceCodec.encode(merged)
         try AtomicFileWriter.write(data, to: url(for: record.attemptID))
     }
 
@@ -60,7 +124,8 @@ actor FileAttemptAnalysisRepository: AttemptAnalysisRepository {
         guard FileManager.default.fileExists(atPath: target.path) else { return nil }
         let data = try Data(contentsOf: target)
         let record = try CapturePersistenceCodec.decode(AttemptAnalysisRecord.self, from: data)
-        guard record.schemaVersion == AttemptAnalysisRecord.schemaVersion,
+        guard (1 ... AttemptAnalysisRecord.schemaVersion).contains(record.schemaVersion),
+              record.humanReview?.isValid != false,
               record.attemptID == attemptID else {
             throw AttemptPersistenceError.invalidCapture("Analysis record does not match its attempt.")
         }
