@@ -126,13 +126,11 @@ struct WorkshopView: View {
     var body: some View {
         List {
             Section("CALIBRATION") {
-#if DEBUG
                 NavigationLink {
                     DebugMotionCaptureView()
                 } label: {
-                    Label("Capture / export raw v3", systemImage: "record.circle")
+                    Label("Trick Lab", systemImage: "waveform.badge.magnifyingglass")
                 }
-#endif
                 Label("Express calibration", systemImage: "bolt.fill")
                 Label("Full axis bench", systemImage: "axis.3d")
                 Label("Trick studio", systemImage: "waveform.path")

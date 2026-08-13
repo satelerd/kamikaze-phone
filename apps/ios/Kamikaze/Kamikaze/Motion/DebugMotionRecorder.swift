@@ -17,6 +17,7 @@ final class DebugMotionRecorder {
         case monitoring
         case recording
         case postRoll
+        case reviewing
         case saving
         case saved
         case unavailable
@@ -52,6 +53,7 @@ final class DebugMotionRecorder {
     private(set) var timestampGapCount = 0
     private(set) var lastSaved: DebugSavedMotionCapture?
     private(set) var automaticObservation: DebugAutomaticObservation?
+    private(set) var reviewDraft: DebugMotionCaptureDraft?
 
     var isRecording: Bool {
         if case .recording = state { return true }
@@ -70,7 +72,8 @@ final class DebugMotionRecorder {
         case .monitoring: "SENSOR READY"
         case .recording: "RECORDING"
         case .postRoll: "CAPTURING POST-ROLL"
-        case .saving: "SAVING"
+        case .reviewing: "REVIEW LABEL"
+        case .saving: "VERIFYING + SAVING"
         case .saved: "SAVED"
         case .unavailable: "MOTION UNAVAILABLE"
         case .failed: "RECORDER ERROR"
@@ -110,6 +113,7 @@ final class DebugMotionRecorder {
         streamTask = nil
         source.stop()
         pending = nil
+        reviewDraft = nil
         preRoll = []
         previousTimestampS = nil
         latestTimestampS = nil
@@ -127,6 +131,8 @@ final class DebugMotionRecorder {
         }
 
         let id = UUID().uuidString.lowercased()
+        reviewDraft = nil
+        lastSaved = nil
         detector = MotionDetector()
         _ = detector.arm()
         let capturedPreRoll = preRoll
@@ -158,6 +164,37 @@ final class DebugMotionRecorder {
         _ = detector.disarm()
         automaticObservation = nil
         state = .failed("Capture interrupted by app lifecycle. Record it again.")
+    }
+
+    func saveReviewedCapture(label: DebugMotionCaptureLabel) {
+        guard let draft = reviewDraft, !isSaving else { return }
+        state = .saving
+        let normalized = label.normalized
+        Task.detached(priority: .utility) {
+            do {
+                let saved = try DebugMotionCaptureStore.save(
+                    capture: draft.capture,
+                    label: normalized,
+                    automaticObservation: draft.automaticObservation
+                )
+                await MainActor.run {
+                    self.lastSaved = saved
+                    self.reviewDraft = nil
+                    self.state = .saved
+                }
+            } catch {
+                await MainActor.run {
+                    self.state = .failed(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    func discardReview() {
+        guard reviewDraft != nil else { return }
+        reviewDraft = nil
+        automaticObservation = nil
+        state = .monitoring
     }
 
     private func ingest(_ sample: MotionSampleV3) {
@@ -223,7 +260,6 @@ final class DebugMotionRecorder {
         }
 
         self.pending = nil
-        state = .saving
         let capture: MotionCaptureV3
         do {
             capture = try makeCapture(
@@ -239,26 +275,12 @@ final class DebugMotionRecorder {
             state = .failed(error.localizedDescription)
             return
         }
-        let label = pending.label
-        let automaticObservation = pending.automaticObservation
-
-        Task.detached(priority: .utility) {
-            do {
-                let saved = try DebugMotionCaptureStore.save(
-                    capture: capture,
-                    label: label,
-                    automaticObservation: automaticObservation
-                )
-                await MainActor.run {
-                    self.lastSaved = saved
-                    self.state = .saved
-                }
-            } catch {
-                await MainActor.run {
-                    self.state = .failed(error.localizedDescription)
-                }
-            }
-        }
+        reviewDraft = DebugMotionCaptureDraft(
+            capture: capture,
+            proposedLabel: pending.label,
+            automaticObservation: pending.automaticObservation
+        )
+        state = .reviewing
     }
 
     private func makeCapture(
@@ -411,6 +433,13 @@ nonisolated struct DebugMotionCaptureLabel: Codable, Equatable, Sendable {
             rhythmNotes: rhythmNotes.trimmingCharacters(in: .whitespacesAndNewlines)
         )
     }
+}
+
+nonisolated struct DebugMotionCaptureDraft: Identifiable, Equatable, Sendable {
+    var id: String { capture.attempt.id }
+    let capture: MotionCaptureV3
+    let proposedLabel: DebugMotionCaptureLabel
+    let automaticObservation: DebugAutomaticObservation?
 }
 
 nonisolated enum DebugTrickID: String, Codable, CaseIterable, Sendable {
