@@ -3,6 +3,45 @@ import Foundation
 public enum ReplayBuilder {
     private static let earthGravity = 9.80665
 
+    /// Builds truthful native replay poses directly from Core Motion's fused
+    /// attitude. Rotation-rate integration remains analysis evidence; it is not
+    /// used to fabricate orientation or vertical translation here.
+    public static func buildFrames(
+        payload: MotionSamplePayloadV3,
+        boundaries: AttemptBoundariesV3
+    ) -> [ReplayFrame] {
+        let samples = payload.samples.filter {
+            $0.timestampS >= boundaries.captureStartS
+                && $0.timestampS <= boundaries.captureEndS
+                && $0.fusedAttitude != nil
+        }
+        guard let first = samples.first, let originAttitude = first.fusedAttitude else {
+            return []
+        }
+
+        let motionDurationS = max(0, boundaries.motionEndS - boundaries.motionStartS)
+        var previousQuaternion = Quaternion.identity
+        return samples.map { sample in
+            let attitude = sample.fusedAttitude ?? originAttitude
+            var relative = QuaternionMath.relative(from: originAttitude, to: attitude)
+            if quaternionDot(previousQuaternion, relative) < 0 {
+                relative = Quaternion(w: -relative.w, x: -relative.x, y: -relative.y, z: -relative.z)
+            }
+            previousQuaternion = relative
+
+            let progress = motionDurationS > 0
+                ? min(1, max(0, (sample.timestampS - boundaries.motionStartS) / motionDurationS))
+                : 0
+            return ReplayFrame(
+                timestampMs: (sample.timestampS - boundaries.captureStartS) * 1_000,
+                progress: progress,
+                quaternion: relative,
+                accelG: sample.accelerationIncludingGravityG?.magnitude ?? 0,
+                gyroDps: sample.rotationRateRadS.magnitude * 180 / .pi
+            )
+        }
+    }
+
     public static func buildFrames(for attempt: ExpoAttemptV2) -> [ReplayFrame] {
         let preRollS = attempt.captureMode == .manual ? 0.12 : 0
         let postRollS = 0.22
@@ -96,5 +135,9 @@ public enum ReplayBuilder {
             accelG: from.accelG + (to.accelG - from.accelG) * amount,
             gyroDps: from.gyroDps + (to.gyroDps - from.gyroDps) * amount
         )
+    }
+
+    private static func quaternionDot(_ left: Quaternion, _ right: Quaternion) -> Double {
+        left.w * right.w + left.x * right.x + left.y * right.y + left.z * right.z
     }
 }
