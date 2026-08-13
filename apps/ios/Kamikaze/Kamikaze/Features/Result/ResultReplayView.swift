@@ -3,12 +3,19 @@ import SwiftUI
 
 struct ResultReplayView: View {
     let result: NativeRunResult
+    let primaryTitle: String
     let onAgain: () -> Void
     let onClose: () -> Void
     @State private var replay: ReplayController
 
-    init(result: NativeRunResult, onAgain: @escaping () -> Void, onClose: @escaping () -> Void) {
+    init(
+        result: NativeRunResult,
+        primaryTitle: String = "THROW AGAIN",
+        onAgain: @escaping () -> Void,
+        onClose: @escaping () -> Void
+    ) {
         self.result = result
+        self.primaryTitle = primaryTitle
         self.onAgain = onAgain
         self.onClose = onClose
         _replay = State(initialValue: ReplayController(
@@ -52,6 +59,11 @@ struct ResultReplayView: View {
 
                     ReplayPhoneView(controller: replay, accent: accent)
 
+                    Button(primaryTitle) { onAgain() }
+                        .font(.system(size: 17, weight: .black, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 70)
+                        .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.ion)
+
                     GlassSurface(level: .subtle, cornerRadius: 20) {
                         HStack {
                             stat("DURATION", "\(result.durationMs) MS")
@@ -61,10 +73,6 @@ struct ResultReplayView: View {
                         .padding(16)
                     }
 
-                    Button("THROW AGAIN") { onAgain() }
-                        .font(.system(size: 17, weight: .black, design: .rounded))
-                        .frame(maxWidth: .infinity, minHeight: 70)
-                        .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.ion)
                 }
                 .padding(20)
                 .padding(.bottom, 40)

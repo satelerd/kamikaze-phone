@@ -18,7 +18,7 @@ public enum MotionFeatureIssue: String, Codable, Equatable, Sendable {
     case catchBoundaryUnavailable
 }
 
-public struct MotionFeatureExtraction: Equatable, Sendable {
+public struct MotionFeatureExtraction: Codable, Equatable, Sendable {
     public let features: MotionFeatures?
     public let issues: [MotionFeatureIssue]
 
@@ -32,7 +32,7 @@ public struct MotionFeatureExtraction: Equatable, Sendable {
 
 /// Unit-explicit, deterministic measurements derived from a segmented attempt.
 /// These values are evidence for matching; none is a calibrated probability.
-public struct MotionFeatures: Equatable, Sendable {
+public struct MotionFeatures: Codable, Equatable, Sendable {
     public let analysisVersion: String
     public let motionDurationMs: Double
     public let signedRotationDegrees: Vector3

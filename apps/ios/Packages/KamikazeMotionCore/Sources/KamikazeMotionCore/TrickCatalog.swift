@@ -146,7 +146,7 @@ public enum TrickRecognitionStatus: String, Codable, Equatable, Sendable {
     case invalid
 }
 
-public struct TrickMatchCandidate: Equatable, Sendable {
+public struct TrickMatchCandidate: Codable, Equatable, Sendable {
     public let definition: TrickDefinition
     /// A transparent rules fit in [0, 1]. It is not a probability or calibrated confidence.
     public let presentationFit: Double
@@ -175,7 +175,7 @@ public struct TrickMatchCandidate: Equatable, Sendable {
     }
 }
 
-public struct TrickMatchResult: Equatable, Sendable {
+public struct TrickMatchResult: Codable, Equatable, Sendable {
     public let status: TrickRecognitionStatus
     public let policyVersion: String
     public let catalogVersion: String

@@ -50,6 +50,7 @@ final class NativeRunModel {
     private var activeStreamID: UUID?
     private var activeRunID: String?
     private let repository: FileAttemptRepository
+    private let analysisRepository: FileAttemptAnalysisRepository
     private var lastPaintUptime = 0.0
 
     private(set) var phase: NativeRunPhase = .ready
@@ -72,13 +73,9 @@ final class NativeRunModel {
     }
 
     init() {
-        let root = (try? FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )) ?? FileManager.default.temporaryDirectory
-        repository = FileAttemptRepository(rootDirectory: root.appending(path: "Kamikaze/Attempts"))
+        let root = AttemptStorageLocation.applicationRoot()
+        repository = FileAttemptRepository(rootDirectory: root)
+        analysisRepository = FileAttemptAnalysisRepository(rootDirectory: root)
     }
 
     func start() {
@@ -197,8 +194,18 @@ final class NativeRunModel {
         streamTask = nil
         // Store after result publication: a slow filesystem must never delay
         // the catch/result moment. The raw payload is immutable and complete.
-        Task { [repository] in
-            try? await repository.save(completed.capture)
+        Task { [repository, analysisRepository] in
+            do {
+                try await repository.save(completed.capture)
+                try await analysisRepository.save(AttemptAnalysisRecord(
+                    attemptID: completed.capture.attempt.id,
+                    result: completed.match
+                ))
+            } catch {
+                // The result remains available in memory. Profile exposes any
+                // persistence failure when it refreshes instead of delaying
+                // the catch moment here.
+            }
         }
     }
 
