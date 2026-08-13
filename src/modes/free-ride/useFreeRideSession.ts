@@ -31,20 +31,12 @@ export interface SessionStats {
 
 const EMPTY_STATS: SessionStats = { throws: 0, streak: 0, best: 0, biggestAir: 0 };
 
-/**
- * Guarded hook into the achievements engine (owned by another module).
- * The dynamic specifier keeps the build green whether or not
- * src/lib/achievements.ts exists yet; absence must never break a session.
- */
 async function checkAchievements(result: TrickResult): Promise<void> {
   try {
-    const name = 'achievements';
-    const mod = (await import(`../../lib/${name}`)) as {
-      checkTrickAchievements?: (r: TrickResult) => unknown;
-    };
-    mod.checkTrickAchievements?.(result);
+    const mod = await import('@/lib/achievements');
+    mod.checkTrickAchievements(result);
   } catch {
-    // module not present (yet); scripted sessions carry on
+    // achievements must never break a session
   }
 }
 

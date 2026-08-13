@@ -82,6 +82,9 @@ export default function TrickLab() {
       const result = classifyThrow(t.rec, 'trick-lab');
       recordTrick(result);
       FXEngine.handle({ type: 'trick', result });
+      import('@/lib/achievements')
+        .then((m) => m.checkTrickAchievements(result))
+        .catch(() => {});
       const flightMs = Math.max(1, t.rec.landT - t.rec.launchT);
 
       if (t.simulated) {
