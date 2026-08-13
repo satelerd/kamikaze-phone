@@ -62,8 +62,21 @@ export function rotateVec(q: Quat, v: [number, number, number]): [number, number
 export interface PhaseConfig {
   /** |a_total| below this = freefall (m/s²). Real sensors are noisy: ~3 works. */
   freefallThreshold: number;
+  /**
+   * Spinning flight never reads |a| ≈ 0: the IMU sits off the rotation axis
+   * and measures centripetal acceleration (real captures in fixtures/motion/v2
+   * show 3-9 m/s² at ~1000 deg/s). Flight is therefore also recognized as
+   * |a| below this bound while rotation stays above spinRateThreshold.
+   */
+  spinAccelThreshold: number;
+  spinRateThreshold: number;
+  /** ms the entry condition must hold before committing to 'airborne' */
+  entryDebounceMs: number;
   /** |a_total| above this = impact (m/s²) */
   impactThreshold: number;
+  /** soft catch (bed/towel): rotation collapses while gravity returns */
+  softCatchRate: number;
+  softCatchMs: number;
   /** minimum ms in freefall to count as a throw (filters hand jiggle) */
   minAirtimeMs: number;
   /** ms of calm after impact to consider the phone held */
@@ -73,7 +86,12 @@ export interface PhaseConfig {
 
 export const DEFAULT_PHASE_CONFIG: PhaseConfig = {
   freefallThreshold: 3.0,
+  spinAccelThreshold: 12.0,
+  spinRateThreshold: 350,
+  entryDebounceMs: 100,
   impactThreshold: 25.0,
+  softCatchRate: 150,
+  softCatchMs: 200,
   minAirtimeMs: 150,
   settleWindowMs: 400,
   settleThreshold: 12.0,
@@ -118,30 +136,60 @@ export class ThrowTracker {
     this.cfg = cfg;
   }
 
+  /** true while the sample looks like free flight (classic or spinning) */
+  private inFlight(aTotal: number, rate: number): boolean {
+    return (
+      aTotal < this.cfg.freefallThreshold ||
+      (aTotal < this.cfg.spinAccelThreshold && rate > this.cfg.spinRateThreshold)
+    );
+  }
+
+  private entryCandidateT: number | null = null;
+  private softCatchT: number | null = null;
+
   feed(s: IMUSample): void {
     const aTotal = Math.hypot(s.ax, s.ay, s.az);
+    const rate = Math.hypot(s.rx, s.ry, s.rz);
     this.history.push(s);
     if (this.history.length > 600) this.history.splice(0, this.history.length - 600);
 
     switch (this.phase) {
       case 'idle':
       case 'held': {
-        if (aTotal < this.cfg.freefallThreshold) {
-          this.phase = 'airborne';
-          this.launchT = s.t;
-          this.flight = [s];
-          this.landing = [];
-          this.accumRotDeg = 0;
-          this.flipsEmitted = 0;
-          this.impactPeak = 0;
-          this.onEvent({ type: 'launch' });
+        if (this.inFlight(aTotal, rate)) {
+          if (this.entryCandidateT === null) this.entryCandidateT = s.t;
+          // Debounce: a fast wrist swing can look airborne for a few samples.
+          // Commit only after entryDebounceMs, backdating launch to the start.
+          if (s.t - this.entryCandidateT >= this.cfg.entryDebounceMs) {
+            this.phase = 'airborne';
+            this.launchT = this.entryCandidateT;
+            this.flight = this.history.filter((h) => h.t >= this.launchT);
+            this.landing = [];
+            // Seed the FX flip counter with the debounced (backfilled) samples
+            // so per-flip ticks stay in phase with the true rotation total.
+            this.accumRotDeg = 0;
+            for (let i = 1; i < this.flight.length; i++) {
+              const dt = (this.flight[i].t - this.flight[i - 1].t) / 1000;
+              if (dt > 0 && dt < 0.1) {
+                this.accumRotDeg +=
+                  Math.hypot(this.flight[i].rx, this.flight[i].ry, this.flight[i].rz) * dt;
+              }
+            }
+            this.flipsEmitted = 0;
+            this.impactPeak = 0;
+            this.softCatchT = null;
+            this.entryCandidateT = null;
+            this.onEvent({ type: 'launch' });
+          }
+        } else {
+          this.entryCandidateT = null;
         }
         break;
       }
       case 'airborne': {
         this.flight.push(s);
         const dt = this.flight.length > 1 ? (s.t - this.flight[this.flight.length - 2].t) / 1000 : 0;
-        this.accumRotDeg += Math.hypot(s.rx, s.ry, s.rz) * dt;
+        this.accumRotDeg += rate * dt;
         // 330°/flip: real sensors undercount slightly (first/last flight sample
         // carries no dt), and FX ticks should fire as the flip completes.
         const flips = Math.floor(this.accumRotDeg / 330);
@@ -154,14 +202,32 @@ export class ThrowTracker {
           this.impactT = s.t;
           this.impactPeak = aTotal;
           this.landing = [s];
+          this.softCatchT = null;
+          break;
+        }
+        // Soft catch (bed, towel, gentle hands): no hard spike, but rotation
+        // collapses while gravity-scale acceleration returns and holds.
+        const softNow = rate < this.cfg.softCatchRate && aTotal > 6 && aTotal < this.cfg.impactThreshold;
+        if (softNow) {
+          if (this.softCatchT === null) this.softCatchT = s.t;
+          if (s.t - this.softCatchT >= this.cfg.softCatchMs) {
+            this.phase = 'impact';
+            this.impactT = this.softCatchT;
+            this.impactPeak = aTotal;
+            this.landing = this.flight.filter((f) => f.t >= this.softCatchT!);
+            this.flight = this.flight.filter((f) => f.t < this.softCatchT!);
+            this.softCatchT = null;
+          }
+        } else {
+          this.softCatchT = null;
         }
         break;
       }
       case 'impact': {
         this.landing.push(s);
         this.impactPeak = Math.max(this.impactPeak, aTotal);
-        // Back to freefall = it bounced / got popped up again mid-record.
-        if (aTotal < this.cfg.freefallThreshold && s.t - this.impactT > 80) {
+        // Back to free flight = it bounced / got popped up again mid-record.
+        if (this.inFlight(aTotal, rate) && s.t - this.impactT > 80) {
           this.phase = 'airborne';
           this.flight.push(...this.landing);
           this.landing = [];
@@ -169,10 +235,11 @@ export class ThrowTracker {
         }
         if (s.t - this.impactT >= this.cfg.settleWindowMs) {
           const airtimeMs = this.impactT - this.launchT;
+          // Median over the last 200ms: robust to a player re-gripping the
+          // phone after a clean hand catch (seen in real fixture captures).
           const recent = this.landing.filter((l) => l.t > s.t - 200);
-          const calm =
-            recent.length > 0 &&
-            recent.every((l) => Math.hypot(l.ax, l.ay, l.az) < this.cfg.settleThreshold);
+          const mags = recent.map((l) => Math.hypot(l.ax, l.ay, l.az)).sort((a, b) => a - b);
+          const calm = mags.length > 0 && mags[Math.floor(mags.length / 2)] < this.cfg.settleThreshold;
           this.phase = 'held';
           if (airtimeMs >= this.cfg.minAirtimeMs) {
             const windup = this.history.filter((h) => h.t >= this.launchT - 500 && h.t < this.launchT);
@@ -200,6 +267,8 @@ export class ThrowTracker {
     this.flight = [];
     this.landing = [];
     this.history = [];
+    this.entryCandidateT = null;
+    this.softCatchT = null;
   }
 }
 

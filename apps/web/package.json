@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "verify:physics": "tsx scripts/verify-physics.ts",
-    "audio:generate": "node scripts/generate-audio.mjs"
+    "audio:generate": "node scripts/generate-audio.mjs",
+    "verify:fixtures": "tsx scripts/verify-fixtures.ts"
   },
   "dependencies": {
     "@elevenlabs/react": "^1.12.0",
