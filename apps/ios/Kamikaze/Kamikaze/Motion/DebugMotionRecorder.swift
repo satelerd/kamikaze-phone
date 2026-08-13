@@ -567,6 +567,10 @@ nonisolated enum DebugMotionCaptureStore {
             capture: capture
         )
         let exportData = try encodedJSON(export)
+        // The exact bytes exposed by ShareLink must pass the same importer the
+        // dataset tooling uses. A capture is never presented as saved if its
+        // embedded evidence cannot verify and replay by itself.
+        _ = try validateExport(exportData)
         let exportURL = directory.appending(path: "\(capture.attempt.id).kamikaze-motion-v3.json")
         try exportData.write(to: exportURL, options: .atomic)
 
@@ -627,6 +631,11 @@ nonisolated enum DebugMotionCaptureStore {
         guard export.boundarySemantics == "manual-ui-markers-v1" else {
             throw ValidationError.invalidBoundarySemantics
         }
+        let replay = ReplayBuilder.buildFrames(payload: payload, boundaries: bounds)
+        guard replay.count == payload.samples.count,
+              zip(replay, replay.dropFirst()).allSatisfy({ $0.timestampMs < $1.timestampMs }) else {
+            throw ValidationError.unreplayableEvidence
+        }
         return export
     }
 
@@ -642,6 +651,7 @@ nonisolated enum DebugMotionCaptureStore {
         case incompleteNativeEvidence
         case invalidBoundaries
         case invalidBoundarySemantics
+        case unreplayableEvidence
     }
 
     nonisolated static func encodedJSON<T: Encodable>(_ value: T) throws -> Data {

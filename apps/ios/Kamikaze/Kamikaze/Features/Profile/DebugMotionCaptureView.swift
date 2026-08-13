@@ -88,7 +88,7 @@ struct DebugMotionCaptureView: View {
                     if let saved = recorder.lastSaved {
                         GlassSurface(level: .regular, cornerRadius: 24) {
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("CAPTURE SAVED")
+                                Text("CAPTURE VERIFIED + SAVED")
                                     .font(.system(size: 11, weight: .bold, design: .monospaced))
                                     .foregroundStyle(KamikazeTheme.volt)
                                 Text("\(saved.sampleCount) RAW SAMPLES · V3 JSON")
