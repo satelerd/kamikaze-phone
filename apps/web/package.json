@@ -1,0 +1,37 @@
+{
+  "name": "kamikaze-phone",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "verify:physics": "tsx scripts/verify-physics.ts",
+    "audio:generate": "node scripts/generate-audio.mjs"
+  },
+  "dependencies": {
+    "@elevenlabs/react": "^1.12.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/three": "^0.185.4",
+    "chart.js": "^4.4.4",
+    "next": "14.2.7",
+    "peerjs": "^1.5.5",
+    "qrcode": "^1.5.4",
+    "react": "^18",
+    "react-chartjs-2": "^5.2.0",
+    "react-dom": "^18",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.7",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "tsx": "^4.23.12",
+    "typescript": "^5"
+  }
+}
