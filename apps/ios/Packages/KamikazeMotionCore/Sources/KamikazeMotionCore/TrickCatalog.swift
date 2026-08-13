@@ -88,14 +88,14 @@ public struct TrickCatalog: Codable, Equatable, Sendable {
             ),
             TrickDefinition(
                 id: .frontFlip,
-                displayName: "FRONT FLIP",
+                displayName: "FLIP",
                 family: .flip,
                 targetRotationDegrees: Vector3(x: 360, y: 0, z: 0),
                 referenceDurationMs: 620
             ),
             TrickDefinition(
                 id: .backFlip,
-                displayName: "BACK FLIP",
+                displayName: "REVERSE FLIP",
                 family: .flip,
                 targetRotationDegrees: Vector3(x: -360, y: 0, z: 0),
                 referenceDurationMs: 620

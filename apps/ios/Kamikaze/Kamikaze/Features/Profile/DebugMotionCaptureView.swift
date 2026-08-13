@@ -2,11 +2,41 @@ import KamikazeMotionCore
 import SwiftUI
 
 struct DebugMotionCaptureView: View {
+    private enum LabMode: String, CaseIterable {
+        case guided = "GUIDED"
+        case free = "FREE"
+    }
+
+    private struct GuidedStep: Identifiable {
+        let id: Int
+        let trick: DebugTrickID
+        let condition: DebugMotionCaptureCondition
+        let prompt: String
+    }
+
     @Environment(\.scenePhase) private var scenePhase
     @State private var recorder = DebugMotionRecorder()
     @State private var expectedTrickID = DebugTrickID.phoneFlip
     @State private var gripHand = GripHand.right
     @State private var caseState = DebugPhoneCaseState.unknown
+    @State private var labMode = LabMode.guided
+    @State private var guidedIndex = 0
+
+    private let guidedSteps: [GuidedStep] = {
+        let tricks: [DebugTrickID] = [
+            .flip, .reverseFlip, .phoneFlip, .reversePhoneFlip,
+            .backsideShuvit, .frontsideShuvit,
+        ]
+        let variations: [(DebugMotionCaptureCondition, String)] = [
+            (.standard, "LAND IT AT YOUR NATURAL HEIGHT AND SPEED"),
+            (.highFreefall, "LAND A CLEAR, HIGHER THROW"),
+            (.fastLow, "LAND IT FAST AND LOW"),
+            (.negativeControl, "INTENTIONALLY MISS OR UNDER-ROTATE IT"),
+        ]
+        return tricks.flatMap { trick in variations.map { (trick, $0.0, $0.1) } }
+            .enumerated()
+            .map { GuidedStep(id: $0.offset, trick: $0.element.0, condition: $0.element.1, prompt: $0.element.2) }
+    }()
 
     var body: some View {
         ZStack {
@@ -20,6 +50,7 @@ struct DebugMotionCaptureView: View {
 
                     sensorStatus
                     measurementGuide
+                    modeSelector
                     intentionEditor
 
                     Button {
@@ -49,6 +80,10 @@ struct DebugMotionCaptureView: View {
                         savedCard(saved)
                     }
 
+                    if let dataset = recorder.labelledDatasetExport {
+                        datasetCard(dataset)
+                    }
+
                     if case let .failed(message) = recorder.state {
                         Text(message)
                             .font(.system(size: 12, weight: .medium, design: .rounded))
@@ -74,7 +109,12 @@ struct DebugMotionCaptureView: View {
         )) { draft in
             TrickCaptureReviewView(
                 draft: draft,
-                onSave: recorder.saveReviewedCapture,
+                onSave: { label in
+                    recorder.saveReviewedCapture(label: label)
+                    if labMode == .guided, guidedIndex < guidedSteps.count - 1 {
+                        guidedIndex += 1
+                    }
+                },
                 onRetake: recorder.discardReview
             )
         }
@@ -82,13 +122,33 @@ struct DebugMotionCaptureView: View {
 
     private var initialLabel: DebugMotionCaptureLabel {
         DebugMotionCaptureLabel(
-            expectedTrickID: expectedTrickID,
+            expectedTrickID: labMode == .guided ? guidedStep.trick : expectedTrickID,
             gripHand: gripHand,
             caseState: caseState,
-            condition: .standard,
+            condition: labMode == .guided ? guidedStep.condition : .standard,
             outcome: .unclear,
             rhythmNotes: ""
         )
+    }
+
+    private var guidedStep: GuidedStep {
+        guidedSteps[min(guidedIndex, guidedSteps.count - 1)]
+    }
+
+    private var modeSelector: some View {
+        HStack(spacing: 8) {
+            ForEach(LabMode.allCases, id: \.self) { mode in
+                Button(mode.rawValue) { labMode = mode }
+                    .font(.system(size: 11, weight: .black, design: .monospaced))
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .background(
+                        (labMode == mode ? KamikazeTheme.ion : .white).opacity(labMode == mode ? 0.3 : 0.06),
+                        in: Capsule()
+                    )
+                    .overlay(Capsule().stroke(.white.opacity(labMode == mode ? 0.32 : 0.1)))
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private var sensorStatus: some View {
@@ -133,15 +193,29 @@ struct DebugMotionCaptureView: View {
     private var intentionEditor: some View {
         GlassSurface(level: .regular, cornerRadius: 24) {
             VStack(alignment: .leading, spacing: 14) {
-                Text("1 / CHOOSE YOUR INTENTION")
+                Text(labMode == .guided
+                    ? "STEP \(guidedIndex + 1) / \(guidedSteps.count)"
+                    : "1 / CHOOSE YOUR INTENTION")
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundStyle(KamikazeTheme.muted)
-                Picker("Expected trick", selection: $expectedTrickID) {
-                    ForEach(DebugTrickID.allCases, id: \.self) { trick in
-                        Text(trick.title).tag(trick)
+                if labMode == .guided {
+                    Text(guidedStep.trick.title)
+                        .font(.system(size: 25, weight: .black, design: .rounded))
+                    Text(guidedStep.condition.title)
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.hazard)
+                    Text(guidedStep.prompt)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                    ProgressView(value: Double(guidedIndex + 1), total: Double(guidedSteps.count))
+                        .tint(KamikazeTheme.volt)
+                } else {
+                    Picker("Expected trick", selection: $expectedTrickID) {
+                        ForEach(DebugTrickID.allCases, id: \.self) { trick in
+                            Text(trick.title).tag(trick)
+                        }
                     }
+                    .pickerStyle(.menu)
                 }
-                .pickerStyle(.menu)
                 Picker("Grip hand", selection: $gripHand) {
                     Text("RIGHT").tag(GripHand.right)
                     Text("LEFT").tag(GripHand.left)
@@ -156,6 +230,28 @@ struct DebugMotionCaptureView: View {
                 Text("You will mark LANDED, MISSED, the throw condition and notes after watching the replay.")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(KamikazeTheme.muted)
+            }
+            .padding(18)
+        }
+    }
+
+    private func datasetCard(_ dataset: DebugSavedDatasetExport) -> some View {
+        GlassSurface(level: .elevated, cornerRadius: 24) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("CLASSIFIED DATASET")
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundStyle(KamikazeTheme.volt)
+                Text("\(dataset.captureCount) HUMAN-LABELLED CAPTURE\(dataset.captureCount == 1 ? "" : "S")")
+                    .font(.system(size: 15, weight: .black, design: .rounded))
+                Text("Includes LANDED, MISSED and NO ATTEMPT. UNCLEAR stays on-device and is excluded.")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(KamikazeTheme.muted)
+                ShareLink(item: dataset.exportURL) {
+                    Label("EXPORT CLASSIFIED DATASET", systemImage: "square.and.arrow.up")
+                        .font(.system(size: 14, weight: .black, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                }
+                .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.volt)
             }
             .padding(18)
         }
@@ -212,6 +308,7 @@ private struct TrickCaptureReviewView: View {
         self.onRetake = onRetake
         _expectedTrickID = State(initialValue: draft.proposedLabel.expectedTrickID)
         _condition = State(initialValue: draft.proposedLabel.condition)
+        _outcome = State(initialValue: draft.proposedLabel.condition == .negativeControl ? .missed : .landed)
         _notes = State(initialValue: draft.proposedLabel.rhythmNotes)
         _replay = State(initialValue: ReplayController(
             payload: draft.capture.samplePayload,
@@ -284,14 +381,24 @@ private struct TrickCaptureReviewView: View {
                         Text(trick.title).tag(trick)
                     }
                 }
-                Picker("What happened?", selection: $outcome) {
-                    ForEach(DebugMotionCaptureOutcome.allCases.filter { $0 != .calibration }, id: \.self) {
-                        Text($0.title).tag($0)
+                Text("WHAT HAPPENED?")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(KamikazeTheme.muted)
+                LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 9) {
+                    ForEach(DebugMotionCaptureOutcome.allCases.filter { $0 != .calibration }, id: \.self) { value in
+                        selectionButton(value.title, selected: outcome == value) {
+                            outcome = value
+                        }
                     }
                 }
-                Picker("Throw condition", selection: $condition) {
-                    ForEach(DebugMotionCaptureCondition.allCases, id: \.self) {
-                        Text($0.title).tag($0)
+                Text("THROW CONDITION")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(KamikazeTheme.muted)
+                LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 9) {
+                    ForEach(DebugMotionCaptureCondition.allCases, id: \.self) { value in
+                        selectionButton(value.title, selected: condition == value) {
+                            condition = value
+                        }
                     }
                 }
                 TextField("What was unusual? (optional)", text: $notes, axis: .vertical)
@@ -301,6 +408,18 @@ private struct TrickCaptureReviewView: View {
             }
             .padding(18)
         }
+    }
+
+    private func selectionButton(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 10, weight: .black, design: .monospaced))
+                .foregroundStyle(selected ? Color.black : KamikazeTheme.frost)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .background(selected ? KamikazeTheme.volt : .white.opacity(0.07), in: RoundedRectangle(cornerRadius: 15))
+                .overlay(RoundedRectangle(cornerRadius: 15).stroke(.white.opacity(selected ? 0.35 : 0.1)))
+        }
+        .buttonStyle(.plain)
     }
 
     private var reviewedLabel: DebugMotionCaptureLabel {

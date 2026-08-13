@@ -10,10 +10,46 @@ struct DebugMotionCaptureExportTests {
         let validated = try DebugMotionCaptureStore.validateExport(data)
 
         #expect(validated.capture == export.capture)
-        #expect(validated.label.expectedTrickID == .frontFlip)
+        #expect(validated.label.expectedTrickID == .flip)
         #expect(validated.boundarySemantics == "manual-ui-markers-v1")
         #expect(validated.diagnostics.timestampGapCount == 0)
         #expect(validated.diagnostics.sequenceGapCount == 0)
+    }
+
+    @Test func legacyFrontAndBackLabelsDecodeIntoCorrectedNames() throws {
+        let legacyFront = try JSONDecoder().decode(DebugTrickID.self, from: Data("\"front-flip\"".utf8))
+        let legacyBack = try JSONDecoder().decode(DebugTrickID.self, from: Data("\"back-flip\"".utf8))
+        #expect(legacyFront == .flip)
+        #expect(legacyBack == .reverseFlip)
+    }
+
+    @Test func datasetExportIncludesOnlyHumanClassifiedOutcomes() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "KamikazeLabelledDatasetTests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let inputs: [(String, DebugMotionCaptureOutcome)] = [
+            ("landed-001", .landed),
+            ("missed-001", .missed),
+            ("unclear-001", .unclear),
+        ]
+        for (id, outcome) in inputs {
+            let export = try makeExport(checksum: nil, id: id, outcome: outcome)
+            try DebugMotionCaptureStore.encodedJSON(export).write(
+                to: directory.appending(path: "\(id).kamikaze-motion-v3.json"),
+                options: .atomic
+            )
+        }
+
+        let generated = try DebugMotionCaptureStore.exportClassifiedDataset(from: directory)
+        let saved = try #require(generated)
+        #expect(saved.captureCount == 2)
+        let dataset = try JSONDecoder().decode(
+            DebugMotionDatasetExportV1.self,
+            from: Data(contentsOf: saved.exportURL)
+        )
+        #expect(dataset.captures.map(\.label.outcome) == [.landed, .missed])
     }
 
     @Test func rejectsExportWhoseEmbeddedPayloadDoesNotMatchChecksum() throws {
@@ -25,8 +61,11 @@ struct DebugMotionCaptureExportTests {
         }
     }
 
-    private func makeExport(checksum suppliedChecksum: String?) throws -> DebugMotionCaptureExportV1 {
-        let id = "pilot-front-flip-001"
+    private func makeExport(
+        checksum suppliedChecksum: String?,
+        id: String = "pilot-flip-001",
+        outcome: DebugMotionCaptureOutcome = .landed
+    ) throws -> DebugMotionCaptureExportV1 {
         let samples = [
             sample(sequence: 41, timestampS: 10, angle: 0),
             sample(sequence: 42, timestampS: 10.01, angle: 0.3),
@@ -83,11 +122,11 @@ struct DebugMotionCaptureExportTests {
         )
         return DebugMotionCaptureExportV1(
             label: DebugMotionCaptureLabel(
-                expectedTrickID: .frontFlip,
+                expectedTrickID: .flip,
                 gripHand: .right,
                 caseState: .withCase,
                 condition: .standard,
-                outcome: .landed,
+                outcome: outcome,
                 rhythmNotes: "pilot"
             ),
             automaticObservation: nil,

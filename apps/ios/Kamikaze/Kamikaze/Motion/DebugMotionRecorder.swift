@@ -54,6 +54,7 @@ final class DebugMotionRecorder {
     private(set) var lastSaved: DebugSavedMotionCapture?
     private(set) var automaticObservation: DebugAutomaticObservation?
     private(set) var reviewDraft: DebugMotionCaptureDraft?
+    private(set) var labelledDatasetExport: DebugSavedDatasetExport?
 
     var isRecording: Bool {
         if case .recording = state { return true }
@@ -88,6 +89,7 @@ final class DebugMotionRecorder {
         }
 
         state = .monitoring
+        refreshLabelledDatasetExport()
         streamTask = Task { [weak self] in
             guard let self else { return }
             do {
@@ -181,6 +183,7 @@ final class DebugMotionRecorder {
                     self.lastSaved = saved
                     self.reviewDraft = nil
                     self.state = .saved
+                    self.refreshLabelledDatasetExport()
                 }
             } catch {
                 await MainActor.run {
@@ -195,6 +198,15 @@ final class DebugMotionRecorder {
         reviewDraft = nil
         automaticObservation = nil
         state = .monitoring
+    }
+
+    func refreshLabelledDatasetExport() {
+        Task.detached(priority: .utility) {
+            let export = try? DebugMotionCaptureStore.exportClassifiedDataset()
+            await MainActor.run {
+                self.labelledDatasetExport = export
+            }
+        }
     }
 
     private func ingest(_ sample: MotionSampleV3) {
@@ -262,14 +274,19 @@ final class DebugMotionRecorder {
         self.pending = nil
         let capture: MotionCaptureV3
         do {
+            let refined = MotionBurstRefiner.primaryBurst(
+                samples: pending.samples,
+                markerStartS: pending.motionStartS,
+                markerEndS: motionEndS
+            )
             capture = try makeCapture(
                 id: pending.id,
                 label: pending.label,
                 samples: pending.samples,
                 captureStartS: first.timestampS,
                 captureEndS: last.timestampS,
-                motionStartS: pending.motionStartS,
-                motionEndS: motionEndS
+                motionStartS: refined?.startS ?? pending.motionStartS,
+                motionEndS: refined?.endS ?? motionEndS
             )
         } catch {
             state = .failed(error.localizedDescription)
@@ -316,7 +333,7 @@ final class DebugMotionRecorder {
         let versions = ProcessingVersionsV3(
             calibrationProfileID: nil,
             calibrationVersion: nil,
-            detectorVersion: "debug-recorder/v1",
+            detectorVersion: "debug-recorder/manual-primary-burst-v2",
             analysisVersion: "unanalysed/debug-recorder/v1",
             scoreVersion: nil
         )
@@ -445,8 +462,8 @@ nonisolated struct DebugMotionCaptureDraft: Identifiable, Equatable, Sendable {
 nonisolated enum DebugTrickID: String, Codable, CaseIterable, Sendable {
     case phoneFlip = "phone-flip"
     case reversePhoneFlip = "reverse-phone-flip"
-    case frontFlip = "front-flip"
-    case backFlip = "back-flip"
+    case flip = "flip"
+    case reverseFlip = "reverse-flip"
     case frontsideShuvit = "frontside-shuvit"
     case backsideShuvit = "backside-shuvit"
     case straightAir = "straight-air"
@@ -456,13 +473,34 @@ nonisolated enum DebugTrickID: String, Codable, CaseIterable, Sendable {
         switch self {
         case .phoneFlip: "PHONE FLIP"
         case .reversePhoneFlip: "REVERSE PHONE FLIP"
-        case .frontFlip: "FRONT FLIP"
-        case .backFlip: "BACK FLIP"
+        case .flip: "FLIP"
+        case .reverseFlip: "REVERSE FLIP"
         case .frontsideShuvit: "FS SHUVIT"
         case .backsideShuvit: "BS SHUVIT"
         case .straightAir: "STRAIGHT AIR"
         case .unknown: "UNKNOWN / NO TRICK"
         }
+    }
+
+    init(from decoder: any Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        switch value {
+        case "front-flip": self = .flip
+        case "back-flip": self = .reverseFlip
+        default:
+            guard let decoded = Self(rawValue: value) else {
+                throw DecodingError.dataCorruptedError(
+                    in: try decoder.singleValueContainer(),
+                    debugDescription: "Unknown trick identifier: \(value)"
+                )
+            }
+            self = decoded
+        }
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
     }
 }
 
@@ -523,7 +561,7 @@ nonisolated struct DebugAutomaticObservation: Codable, Equatable, Sendable {
     let detectorVersion: String
 }
 
-nonisolated struct DebugMotionCaptureExportV1: Codable, Sendable {
+nonisolated struct DebugMotionCaptureExportV1: Codable, Equatable, Sendable {
     let format: String
     let exportedAtISO8601: String
     let boundarySemantics: String
@@ -539,11 +577,27 @@ nonisolated struct DebugMotionCaptureExportV1: Codable, Sendable {
     ) {
         format = "kamikaze.debug-motion-capture.v1"
         exportedAtISO8601 = ISO8601DateFormatter().string(from: Date())
-        boundarySemantics = "manual-ui-markers-v1"
+        boundarySemantics = capture.attempt.versions.detectorVersion.contains("primary-burst-v2")
+            ? "manual-capture-auto-primary-burst-v2"
+            : "manual-ui-markers-v1"
         diagnostics = DebugMotionCaptureDiagnostics(samples: capture.samplePayload.samples)
         self.label = label
         self.automaticObservation = automaticObservation
         self.capture = capture
+    }
+}
+
+nonisolated struct DebugMotionDatasetExportV1: Codable, Equatable, Sendable {
+    let format: String
+    let exportedAtISO8601: String
+    let classificationRule: String
+    let captures: [DebugMotionCaptureExportV1]
+
+    init(captures: [DebugMotionCaptureExportV1]) {
+        format = "kamikaze.labelled-motion-dataset.v1"
+        exportedAtISO8601 = ISO8601DateFormatter().string(from: Date())
+        classificationRule = "human-confirmed-outcome:landed|missed|no-attempt"
+        self.captures = captures
     }
 }
 
@@ -563,6 +617,11 @@ nonisolated struct DebugSavedMotionCapture: Equatable, Sendable {
     let exportURL: URL
     let sampleURL: URL
     let sampleCount: Int
+}
+
+nonisolated struct DebugSavedDatasetExport: Equatable, Sendable {
+    let exportURL: URL
+    let captureCount: Int
 }
 
 nonisolated enum DebugMotionCaptureStore {
@@ -657,7 +716,8 @@ nonisolated enum DebugMotionCaptureStore {
               bounds.motionEndS <= bounds.captureEndS else {
             throw ValidationError.invalidBoundaries
         }
-        guard export.boundarySemantics == "manual-ui-markers-v1" else {
+        guard export.boundarySemantics == "manual-ui-markers-v1"
+                || export.boundarySemantics == "manual-capture-auto-primary-burst-v2" else {
             throw ValidationError.invalidBoundarySemantics
         }
         let replay = ReplayBuilder.buildFrames(payload: payload, boundaries: bounds)
@@ -666,6 +726,42 @@ nonisolated enum DebugMotionCaptureStore {
             throw ValidationError.unreplayableEvidence
         }
         return export
+    }
+
+    nonisolated static func exportClassifiedDataset(
+        from sourceDirectory: URL? = nil
+    ) throws -> DebugSavedDatasetExport? {
+        let directory = try sourceDirectory ?? captureDirectory()
+        let files = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        ).filter { $0.lastPathComponent.hasSuffix(".kamikaze-motion-v3.json") }
+
+        let captures = try files.compactMap { url -> DebugMotionCaptureExportV1? in
+            let capture = try validateExport(Data(contentsOf: url))
+            switch capture.label.outcome {
+            case .landed, .missed, .noAttempt:
+                return capture
+            case .unclear, .calibration:
+                return nil
+            }
+        }.sorted { $0.capture.attempt.recordedAtISO8601 < $1.capture.attempt.recordedAtISO8601 }
+
+        guard !captures.isEmpty else { return nil }
+        let dataset = DebugMotionDatasetExportV1(captures: captures)
+        let data = try encodedJSON(dataset)
+        let decoded = try JSONDecoder().decode(DebugMotionDatasetExportV1.self, from: data)
+        guard decoded.format == dataset.format,
+              decoded.captures.count == captures.count else {
+            throw ValidationError.malformedExport
+        }
+        for capture in decoded.captures {
+            _ = try validateExport(try encodedJSON(capture))
+        }
+
+        let url = directory.appending(path: "kamikaze-labelled-dataset-v1.json")
+        try data.write(to: url, options: .atomic)
+        return DebugSavedDatasetExport(exportURL: url, captureCount: captures.count)
     }
 
     nonisolated enum ValidationError: Error, Equatable, Sendable {
