@@ -8,6 +8,7 @@ Kamikaze: Phone Flip is a physical phone-trick game. The repository intentionall
 | --- | --- | --- |
 | [`apps/expo/`](apps/expo/README.md) | Active alpha | React Native/Expo game, current Expo Go build and the main Android contribution track. |
 | [`apps/ios/`](apps/ios/README.md) | Active beta | Native SwiftUI/RealityKit/Core Motion rewrite for iOS 18+, prioritizing iOS 26. |
+| [`apps/web/`](apps/web/README.md) | Proposed | Zero-install browser build: sensor minigames (magnetometer/NFC/battery/lux), party modes, ElevenLabs narrator. Replays `fixtures/` through its detector for parity. |
 | [`archive/web-prototype/`](archive/web-prototype/README.md) | Archived | Original browser-based sensor/game exploration. Kept runnable, but not under active product development. |
 | [`archive/explorations/`](archive/explorations/README.md) | Archived | Complete runnable snapshots of the divergent game-mode and UI/debug pull requests. |
 | [`fixtures/`](fixtures/motion/v2/README.md) | Shared | Reviewed motion captures used to verify detector and replay parity across implementations. |

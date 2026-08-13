@@ -1,0 +1,8 @@
+{
+    "agents": [
+        {
+            "config": "agent_configs/kamikaze-narrator.json",
+            "id": "agent_8801kzvwmxedfzb9q0he9x9ed41s"
+        }
+    ]
+}

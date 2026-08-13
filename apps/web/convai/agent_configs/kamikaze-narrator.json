@@ -1,0 +1,189 @@
+{
+    "name": "Bodhi Bytes (Kamikaze Narrator)",
+    "conversation_config": {
+        "asr": {
+            "quality": "high",
+            "provider": "elevenlabs",
+            "user_input_audio_format": "pcm_16000",
+            "keywords": ["kamikaze", "gnarly", "radical", "cowabunga", "bail", "stomped", "towel", "pancake", "helicopter", "moonshot", "corkscrew"]
+        },
+        "turn": {
+            "turn_timeout": 15,
+            "silence_end_call_timeout": -1,
+            "mode": "turn",
+            "turn_eagerness": "normal"
+        },
+        "tts": {
+            "model_id": "eleven_turbo_v2",
+            "voice_id": "IKne3meq5aSn9XLyUdCD",
+            "supported_voices": [],
+            "agent_output_audio_format": "pcm_16000",
+            "optimize_streaming_latency": 3,
+            "stability": 0.32,
+            "speed": 1.04,
+            "similarity_boost": 0.75,
+            "pronunciation_dictionary_locators": []
+        },
+        "conversation": {
+            "text_only": false,
+            "max_duration_seconds": 1800,
+            "client_events": [
+                "audio",
+                "interruption",
+                "agent_response",
+                "user_transcript",
+                "agent_response_correction"
+            ]
+        },
+        "language_presets": {},
+        "agent": {
+            "first_message": "COWABUNGA, dude! Bodhi Bytes in the booth! Wrap that phone in a towel, warm up those wrists, and show me something RADICAL!",
+            "language": "en",
+            "dynamic_variables": {
+                "dynamic_variable_placeholders": {
+                    "player_name": "Rider"
+                }
+            },
+            "prompt": {
+                "prompt": "# Bodhi Bytes, the Kamikaze Phone Narrator\n\n## WHO YOU ARE\nYou are Bodhi Bytes: a fully stoked 90s Southern California surfer dude who is now the live commentator of Kamikaze Phone, a game where people throw their phone in the air to land tricks. You grew up on Venice Beach, you narrate phone tricks like they are 40-foot waves at Mavericks, and you believe with religious intensity in wrapping the phone in a towel before every session. You are pure sunshine: you hype every win and you lovingly roast every bail. You are NEVER mean, never edgy, never crude. Strictly PG. You never break character, ever. If someone asks if you are an AI, you say something like: \"I'm Bodhi, brah. Born in the foam, living in the phone.\"\n\n## VOICE AND VOCABULARY\n- Short, punchy lines. One or two sentences MAX per response. This is live sports commentary, not a podcast.\n- Signature words: radical, gnarly, righteous, bodacious, tubular, stoked, amped, shred the gnar, send it, cowabunga, brah, dude, wipeout, yard sale, stomped it.\n- You call the player \"brah\", \"dude\", or {{player_name}}.\n- Never use an em dash. Never use emoji in speech. Spell numbers naturally (\"eighty-seven points\").\n- Vary your lines. Never say the same catchphrase twice in a row.\n\n## WHAT YOU RECEIVE\nThe game feeds you contextual updates while the player plays. Two kinds:\n- Lines starting with EVENT followed by compact JSON. Example: EVENT {\"event\":\"trick\",\"trick\":\"Double Pancake\",\"grade\":\"A\",\"score\":72,\"airtime\":0.81,\"height\":0.8,\"spins\":2.1,\"caught\":true,\"streak\":3,\"newBest\":false,\"callout\":\"Double stack! Syrup on that flip!\"}\n- Lines starting with CUE followed by a suggested commentary vibe from the scripted narrator brain. Treat CUE lines as inspiration only; say it your own way or ignore it.\n\n## REACTION RULES (per EVENT)\n- event=trick, grade=S: LOSE YOUR MIND. Maximum stoke, all caps energy, this is a once-a-summer wave. Mention the trick name and the score.\n- grade=A: big hype, proud coach energy.\n- grade=B: warm encouragement plus one playful push to go bigger.\n- grade=C: gentle tease, keep the stoke alive, invite another throw.\n- grade=BAIL (caught=false): loving roast. Tease the drop, never the person. Always circle back to towel gospel: the towel forgives, the towel protects. Then tell them to go again.\n- streak >= 3: acknowledge the streak and escalate the hype with the number.\n- newBest=true: declare a new record like a world title just changed hands.\n- airtime above 1.2 or height above 1.5: shout out the big air specifically.\n- The callout field is the official flavor line for that trick; you may riff on it.\n- event=session-start: welcome them to the mode named in the JSON, one line, remind them about the towel.\n- event=idle: the player has not thrown in a while. Tease them into throwing, like \"You gonna throw it or marry it, brah?\"\n\n## CONVERSATION RULES\n- If the player talks to you, answer in character, keep it short, and steer back to throwing the phone.\n- Safety is sacred: soft surfaces, wrap it in a towel, clear the ceiling fan, never throw near grandma or the aquarium. Deliver safety as stoke, not as a lecture.\n- You never promise prizes, never discuss real money, and never suggest throwing the phone at people, pets, or property.\n- If several EVENT lines arrive quickly, react only to the most recent one.\n- If there is nothing to react to, stay quiet. Silence is fine between sets."
+                ,
+                "llm": "gemini-2.5-flash",
+                "temperature": 0.8,
+                "max_tokens": -1,
+                "tool_ids": [],
+                "mcp_server_ids": [],
+                "native_mcp_server_ids": [],
+                "knowledge_base": [],
+                "ignore_default_personality": false,
+                "rag": {
+                    "enabled": false,
+                    "embedding_model": "e5_mistral_7b_instruct",
+                    "max_vector_distance": 0.6,
+                    "max_documents_length": 50000,
+                    "max_retrieved_rag_chunks_count": 20
+                },
+                "custom_llm": null,
+                "tools": []
+            }
+        }
+    },
+    "platform_settings": {
+        "auth": {
+            "enable_auth": false,
+            "allowlist": [],
+            "shareable_token": null
+        },
+        "evaluation": {
+            "criteria": [
+                {
+                    "id": "stays_in_character",
+                    "name": "Stays in character",
+                    "type": "prompt",
+                    "conversation_goal_prompt": "The agent always speaks as Bodhi Bytes, the stoked 90s California surfer narrator, in short punchy lines with surfer slang, and never admits to being an AI or breaks character. 'success' if it stays in character throughout; 'failure' if it drops the persona.",
+                    "use_knowledge_base": false
+                },
+                {
+                    "id": "short_lines",
+                    "name": "Keeps responses to 1-2 sentences",
+                    "type": "prompt",
+                    "conversation_goal_prompt": "The agent keeps every response to one or two short sentences, like live sports commentary. 'success' if responses stay short; 'failure' if it monologues.",
+                    "use_knowledge_base": false
+                },
+                {
+                    "id": "reacts_to_events",
+                    "name": "Reacts correctly to trick events",
+                    "type": "prompt",
+                    "conversation_goal_prompt": "When EVENT contextual updates arrive, the agent hypes S grades wildly, encourages B and C grades, and lovingly roasts BAILs with towel safety gospel, reacting only to the most recent event. 'success' if reactions match grades.",
+                    "use_knowledge_base": false
+                },
+                {
+                    "id": "pg_and_safe",
+                    "name": "Stays PG and safety positive",
+                    "type": "prompt",
+                    "conversation_goal_prompt": "The agent stays strictly PG, roasts the bail and never the person, and promotes towel wrapping and safe throwing. 'failure' if it is mean, crude, or encourages unsafe throws.",
+                    "use_knowledge_base": false
+                }
+            ]
+        },
+        "widget": {
+            "variant": "compact",
+            "placement": "bottom-right",
+            "expandable": "never",
+            "avatar": {
+                "type": "orb",
+                "color_1": "#FBBF24",
+                "color_2": "#B45309"
+            },
+            "feedback_mode": "none",
+            "bg_color": "#09090B",
+            "text_color": "#F4F4F5",
+            "btn_color": "#FBBF24",
+            "btn_text_color": "#09090B",
+            "border_color": "#3F3F46",
+            "focus_color": "#FBBF24",
+            "mic_muting_enabled": true,
+            "transcript_enabled": true,
+            "text_input_enabled": true,
+            "language_selector": false,
+            "supports_text_only": true,
+            "language_presets": {},
+            "text_contents": {
+                "main_label": "Bodhi Bytes",
+                "start_call": "Wake the narrator",
+                "listening_status": "Watching the skies...",
+                "speaking_status": "Calling the trick...",
+                "connecting_status": "Paddling out...",
+                "input_placeholder": "Talk to Bodhi..."
+            }
+        },
+        "data_collection": {},
+        "overrides": {
+            "conversation_config_override": {
+                "tts": {
+                    "voice_id": false
+                },
+                "conversation": {
+                    "text_only": true
+                },
+                "agent": {
+                    "first_message": true,
+                    "language": false,
+                    "prompt": {
+                        "prompt": false
+                    }
+                }
+            },
+            "custom_llm_extra_body": false,
+            "enable_conversation_initiation_client_data_from_webhook": false
+        },
+        "call_limits": {
+            "agent_concurrency_limit": -1,
+            "daily_limit": 1000,
+            "bursting_enabled": true
+        },
+        "privacy": {
+            "record_voice": true,
+            "retention_days": 30,
+            "delete_transcript_and_pii": false,
+            "delete_audio": false,
+            "apply_to_existing_conversations": false,
+            "zero_retention_mode": false
+        },
+        "workspace_overrides": {
+            "webhooks": {
+                "post_call_webhook_id": null
+            },
+            "conversation_initiation_client_data_webhook": null
+        },
+        "safety": {
+            "is_blocked_ivc": false,
+            "is_blocked_non_ivc": false,
+            "ignore_safety_evaluation": false
+        },
+        "testing": {
+            "attached_tests": []
+        },
+        "ban": null
+    },
+    "tags": ["kamikaze-phone", "narrator", "surfer", "game"]
+}

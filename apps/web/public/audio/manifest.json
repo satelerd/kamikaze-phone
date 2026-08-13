@@ -1,0 +1,23 @@
+{
+  "music": {
+    "main": "/audio/music-main.mp3"
+  },
+  "sfx": {
+    "tick": "/audio/sfx-tick.mp3",
+    "tick-fast": "/audio/sfx-tick-fast.mp3",
+    "flip": "/audio/sfx-flip.mp3",
+    "launch": "/audio/sfx-launch.mp3",
+    "catch": "/audio/sfx-catch.mp3",
+    "slam": "/audio/sfx-slam.mp3",
+    "bail": "/audio/sfx-bail.mp3",
+    "grind-loop": "/audio/sfx-grind-loop.mp3",
+    "whoosh": "/audio/sfx-whoosh.mp3",
+    "fanfare": "/audio/sfx-fanfare.mp3",
+    "achievement": "/audio/sfx-achievement.mp3",
+    "select": "/audio/sfx-select.mp3",
+    "start": "/audio/sfx-start.mp3",
+    "potato-tick": "/audio/sfx-potato-tick.mp3",
+    "potato-boom": "/audio/sfx-potato-boom.mp3",
+    "crowd-oooh": "/audio/sfx-crowd-oooh.mp3"
+  }
+}
