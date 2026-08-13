@@ -371,7 +371,8 @@ final class DebugMotionRecorder {
         guard sysctlbyname("kern.osversion", nil, &size, nil, 0) == 0, size > 0 else { return nil }
         var value = [CChar](repeating: 0, count: size)
         guard sysctlbyname("kern.osversion", &value, &size, nil, 0) == 0 else { return nil }
-        return String(cString: value)
+        let bytes = value.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     private func legacySample(from sample: MotionSampleV3) -> MotionSample {
