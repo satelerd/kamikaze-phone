@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 import KamikazeMotionApple
 import KamikazeMotionCore
@@ -125,11 +126,6 @@ final class DebugMotionRecorder {
         let id = UUID().uuidString.lowercased()
         detector = MotionDetector()
         _ = detector.arm()
-        // Feed the same pre-roll into the debug detector that is preserved in
-        // the export. This is only a diagnostic hint, never the human label.
-        for sample in preRoll {
-            _ = detector.process(legacySample(from: sample))
-        }
         let capturedPreRoll = preRoll
         pending = PendingCapture(
             id: id,
@@ -151,6 +147,14 @@ final class DebugMotionRecorder {
         pending.postRollEndsS = end + postRollSeconds
         self.pending = pending
         state = .postRoll
+    }
+
+    func interruptCapture() {
+        guard pending != nil else { return }
+        pending = nil
+        _ = detector.disarm()
+        automaticObservation = nil
+        state = .failed("Capture interrupted by app lifecycle. Record it again.")
     }
 
     private func ingest(_ frame: AppleMotionFrame) {
@@ -187,7 +191,9 @@ final class DebugMotionRecorder {
             let interval = frame.timestampS - previousTimestampS
             if interval == 0 { flags.insert(.timestampDuplicate) }
             if interval < 0 { flags.insert(.timestampNonMonotonic) }
-            if interval > (1 / requestedFrequencyHz) * 2.5 {
+            // At 100 Hz, losing one delivery normally produces a ~20 ms
+            // interval. Keep the threshold below that while allowing jitter.
+            if interval > (1 / requestedFrequencyHz) * 1.75 {
                 flags.insert(.timestampGapBefore)
                 timestampGapCount += 1
             }
@@ -345,7 +351,7 @@ final class DebugMotionRecorder {
             modelName: device.model,
             operatingSystemName: device.systemName,
             operatingSystemVersion: device.systemVersion,
-            operatingSystemBuild: nil
+            operatingSystemBuild: operatingSystemBuild()
         )
     }
 
@@ -373,6 +379,14 @@ final class DebugMotionRecorder {
         }
     }
 
+    private static func operatingSystemBuild() -> String? {
+        var size = 0
+        guard sysctlbyname("kern.osversion", nil, &size, nil, 0) == 0, size > 0 else { return nil }
+        var value = [CChar](repeating: 0, count: size)
+        guard sysctlbyname("kern.osversion", &value, &size, nil, 0) == 0 else { return nil }
+        return String(cString: value)
+    }
+
     private func legacySample(from sample: MotionSampleV3) -> MotionSample {
         let acceleration = sample.accelerationIncludingGravityG ?? Vector3(x: 0, y: 0, z: 0)
         return MotionSample(
@@ -392,7 +406,7 @@ final class DebugMotionRecorder {
 }
 
 nonisolated struct DebugMotionCaptureLabel: Codable, Equatable, Sendable {
-    var expectedTrick: String
+    var expectedTrickID: DebugTrickID
     var gripHand: GripHand
     var caseState: DebugPhoneCaseState
     var condition: DebugMotionCaptureCondition
@@ -401,15 +415,37 @@ nonisolated struct DebugMotionCaptureLabel: Codable, Equatable, Sendable {
 
     var normalized: Self {
         Self(
-            expectedTrick: expectedTrick.trimmingCharacters(in: .whitespacesAndNewlines).uppercased().isEmpty
-                ? "UNLABELLED"
-                : expectedTrick.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+            expectedTrickID: expectedTrickID,
             gripHand: gripHand,
             caseState: caseState,
             condition: condition,
             outcome: outcome,
             rhythmNotes: rhythmNotes.trimmingCharacters(in: .whitespacesAndNewlines)
         )
+    }
+}
+
+nonisolated enum DebugTrickID: String, Codable, CaseIterable, Sendable {
+    case phoneFlip = "phone-flip"
+    case reversePhoneFlip = "reverse-phone-flip"
+    case frontFlip = "front-flip"
+    case backFlip = "back-flip"
+    case frontsideShuvit = "frontside-shuvit"
+    case backsideShuvit = "backside-shuvit"
+    case straightAir = "straight-air"
+    case unknown
+
+    var title: String {
+        switch self {
+        case .phoneFlip: "PHONE FLIP"
+        case .reversePhoneFlip: "REVERSE PHONE FLIP"
+        case .frontFlip: "FRONT FLIP"
+        case .backFlip: "BACK FLIP"
+        case .frontsideShuvit: "FS SHUVIT"
+        case .backsideShuvit: "BS SHUVIT"
+        case .straightAir: "STRAIGHT AIR"
+        case .unknown: "UNKNOWN / NO TRICK"
+        }
     }
 }
 
@@ -447,6 +483,7 @@ nonisolated enum DebugMotionCaptureOutcome: String, Codable, CaseIterable, Senda
     case landed
     case missed
     case unclear
+    case noAttempt
     case calibration
 
     var title: String {
@@ -454,6 +491,7 @@ nonisolated enum DebugMotionCaptureOutcome: String, Codable, CaseIterable, Senda
         case .landed: "LANDED"
         case .missed: "MISSED"
         case .unclear: "UNCLEAR"
+        case .noAttempt: "NO ATTEMPT"
         case .calibration: "CALIBRATION"
         }
     }
@@ -471,6 +509,8 @@ nonisolated struct DebugAutomaticObservation: Codable, Equatable, Sendable {
 nonisolated struct DebugMotionCaptureExportV1: Codable, Sendable {
     let format: String
     let exportedAtISO8601: String
+    let boundarySemantics: String
+    let diagnostics: DebugMotionCaptureDiagnostics
     let label: DebugMotionCaptureLabel
     let automaticObservation: DebugAutomaticObservation?
     let capture: MotionCaptureV3
@@ -482,9 +522,23 @@ nonisolated struct DebugMotionCaptureExportV1: Codable, Sendable {
     ) {
         format = "kamikaze.debug-motion-capture.v1"
         exportedAtISO8601 = ISO8601DateFormatter().string(from: Date())
+        boundarySemantics = "manual-ui-markers-v1"
+        diagnostics = DebugMotionCaptureDiagnostics(samples: capture.samplePayload.samples)
         self.label = label
         self.automaticObservation = automaticObservation
         self.capture = capture
+    }
+}
+
+nonisolated struct DebugMotionCaptureDiagnostics: Codable, Equatable, Sendable {
+    let timestampGapCount: Int
+    let sequenceGapCount: Int
+
+    init(samples: [MotionSampleV3]) {
+        timestampGapCount = samples.count { $0.qualityFlags.contains(.timestampGapBefore) }
+        sequenceGapCount = zip(samples, samples.dropFirst()).count { previous, current in
+            current.sequence != previous.sequence + 1
+        }
     }
 }
 
@@ -533,6 +587,73 @@ nonisolated enum DebugMotionCaptureStore {
             sampleURL: sampleURL,
             sampleCount: capture.samplePayload.samples.count
         )
+    }
+
+    nonisolated static func validateExport(_ data: Data) throws -> DebugMotionCaptureExportV1 {
+        let export: DebugMotionCaptureExportV1
+        do {
+            export = try JSONDecoder().decode(DebugMotionCaptureExportV1.self, from: data)
+        } catch {
+            throw ValidationError.malformedExport
+        }
+        guard export.format == "kamikaze.debug-motion-capture.v1" else {
+            throw ValidationError.unsupportedFormat
+        }
+        let attempt = export.capture.attempt
+        let payload = export.capture.samplePayload
+        guard attempt.schemaVersion == MotionSchemaV3.version,
+              payload.schemaVersion == MotionSchemaV3.version else {
+            throw ValidationError.schemaMismatch
+        }
+        guard attempt.id == payload.attemptID else { throw ValidationError.attemptIDMismatch }
+        guard attempt.rawSamples.sampleCount == payload.samples.count else {
+            throw ValidationError.sampleCountMismatch
+        }
+        let canonicalPayload = try encodedJSON(payload)
+        guard sha256(canonicalPayload) == attempt.rawSamples.checksum else {
+            throw ValidationError.checksumMismatch
+        }
+        guard !payload.samples.isEmpty else { throw ValidationError.emptySamples }
+        guard zip(payload.samples, payload.samples.dropFirst()).allSatisfy({ previous, current in
+            current.timestampS > previous.timestampS && current.sequence == previous.sequence + 1
+        }) else {
+            throw ValidationError.nonContiguousEvidence
+        }
+        guard payload.samples.allSatisfy({ sample in
+            sample.timestampS.isFinite
+                && sample.rotationRateRadS.x.isFinite
+                && sample.rotationRateRadS.y.isFinite
+                && sample.rotationRateRadS.z.isFinite
+                && sample.userAccelerationG != nil
+                && sample.gravityG != nil
+                && sample.fusedAttitude != nil
+        }) else {
+            throw ValidationError.incompleteNativeEvidence
+        }
+        let bounds = attempt.boundaries
+        guard bounds.captureStartS <= bounds.motionStartS,
+              bounds.motionStartS <= bounds.motionEndS,
+              bounds.motionEndS <= bounds.captureEndS else {
+            throw ValidationError.invalidBoundaries
+        }
+        guard export.boundarySemantics == "manual-ui-markers-v1" else {
+            throw ValidationError.invalidBoundarySemantics
+        }
+        return export
+    }
+
+    nonisolated enum ValidationError: Error, Equatable, Sendable {
+        case malformedExport
+        case unsupportedFormat
+        case schemaMismatch
+        case attemptIDMismatch
+        case sampleCountMismatch
+        case checksumMismatch
+        case emptySamples
+        case nonContiguousEvidence
+        case incompleteNativeEvidence
+        case invalidBoundaries
+        case invalidBoundarySemantics
     }
 
     nonisolated static func encodedJSON<T: Encodable>(_ value: T) throws -> Data {

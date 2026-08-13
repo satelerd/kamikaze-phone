@@ -2,8 +2,9 @@ import KamikazeMotionCore
 import SwiftUI
 
 struct DebugMotionCaptureView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var recorder = DebugMotionRecorder()
-    @State private var expectedTrick = "PHONE FLIP"
+    @State private var expectedTrickID = DebugTrickID.phoneFlip
     @State private var gripHand = GripHand.right
     @State private var caseState = DebugPhoneCaseState.unknown
     @State private var condition = DebugMotionCaptureCondition.standard
@@ -50,7 +51,7 @@ struct DebugMotionCaptureView: View {
                             recorder.endCapture()
                         } else {
                             recorder.beginCapture(label: DebugMotionCaptureLabel(
-                                expectedTrick: expectedTrick,
+                                expectedTrickID: expectedTrickID,
                                 gripHand: gripHand,
                                 caseState: caseState,
                                 condition: condition,
@@ -72,7 +73,7 @@ struct DebugMotionCaptureView: View {
                     if recorder.lastSaved != nil && !recorder.isRecording && !recorder.isSaving {
                         Button("NEW CAPTURE", systemImage: "plus") {
                             recorder.beginCapture(label: DebugMotionCaptureLabel(
-                                expectedTrick: expectedTrick,
+                                expectedTrickID: expectedTrickID,
                                 gripHand: gripHand,
                                 caseState: caseState,
                                 condition: condition,
@@ -133,6 +134,9 @@ struct DebugMotionCaptureView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { recorder.start() }
         .onDisappear { recorder.stop() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { recorder.interruptCapture() }
+        }
     }
 
     private var labelEditor: some View {
@@ -141,11 +145,12 @@ struct DebugMotionCaptureView: View {
                 Text("LABEL BEFORE RECORDING")
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundStyle(KamikazeTheme.muted)
-                TextField("Expected trick", text: $expectedTrick)
-                    .textInputAutocapitalization(.characters)
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .padding(12)
-                    .background(.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                Picker("Expected trick", selection: $expectedTrickID) {
+                    ForEach(DebugTrickID.allCases, id: \.self) { trick in
+                        Text(trick.title).tag(trick)
+                    }
+                }
+                .pickerStyle(.menu)
                 Picker("Grip hand", selection: $gripHand) {
                     Text("RIGHT").tag(GripHand.right)
                     Text("LEFT").tag(GripHand.left)
