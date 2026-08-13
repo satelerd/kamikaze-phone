@@ -33,14 +33,13 @@ final class DebugMotionRecorder {
         var automaticObservation: DebugAutomaticObservation?
     }
 
-    private let source = CoreMotionSource()
+    private let source = CoreMotionSampleSource()
     private let requestedFrequencyHz = 100.0
     private let preRollSeconds = 0.35
     private let postRollSeconds = 0.35
     private var streamTask: Task<Void, Never>?
     private var preRoll: [MotionSampleV3] = []
     private var pending: PendingCapture?
-    private var sequence: UInt64 = 0
     private var previousTimestampS: Double?
     private var latestTimestampS: Double?
     private var detector = MotionDetector()
@@ -89,9 +88,13 @@ final class DebugMotionRecorder {
         streamTask = Task { [weak self] in
             guard let self else { return }
             do {
-                for try await frame in source.frames(frequencyHz: requestedFrequencyHz) {
+                for try await sample in source.samples(configuration: MotionStreamConfiguration(
+                    requestedFrequencyHz: requestedFrequencyHz,
+                    ringBufferDurationS: preRollSeconds,
+                    timestampGapFactor: 1.5
+                )) {
                     guard !Task.isCancelled else { break }
-                    ingest(frame)
+                    ingest(sample)
                 }
             } catch is CancellationError {
                 // Expected when Workshop leaves the screen.
@@ -157,9 +160,9 @@ final class DebugMotionRecorder {
         state = .failed("Capture interrupted by app lifecycle. Record it again.")
     }
 
-    private func ingest(_ frame: AppleMotionFrame) {
-        let sample = makeSample(from: frame)
+    private func ingest(_ sample: MotionSampleV3) {
         latestTimestampS = sample.timestampS
+        updateTiming(with: sample)
 
         guard var pending else {
             appendToPreRoll(sample)
@@ -185,18 +188,9 @@ final class DebugMotionRecorder {
         appendToPreRoll(sample)
     }
 
-    private func makeSample(from frame: AppleMotionFrame) -> MotionSampleV3 {
-        var flags: MotionSampleQualityFlags = []
+    private func updateTiming(with sample: MotionSampleV3) {
         if let previousTimestampS {
-            let interval = frame.timestampS - previousTimestampS
-            if interval == 0 { flags.insert(.timestampDuplicate) }
-            if interval < 0 { flags.insert(.timestampNonMonotonic) }
-            // At 100 Hz, losing one delivery normally produces a ~20 ms
-            // interval. Keep the threshold below that while allowing jitter.
-            if interval > (1 / requestedFrequencyHz) * 1.75 {
-                flags.insert(.timestampGapBefore)
-                timestampGapCount += 1
-            }
+            let interval = sample.timestampS - previousTimestampS
             if interval > 0 {
                 let instantaneous = 1 / interval
                 measuredHz = measuredHz == 0
@@ -204,18 +198,11 @@ final class DebugMotionRecorder {
                     : measuredHz * 0.88 + instantaneous * 0.12
             }
         }
-        previousTimestampS = frame.timestampS
-        defer { sequence += 1 }
-
-        return MotionSampleV3(
-            sequence: sequence,
-            timestampS: frame.timestampS,
-            rotationRateRadS: frame.rotationRateRadiansPerSecond,
-            userAccelerationG: frame.userAccelerationG,
-            gravityG: frame.gravityG,
-            fusedAttitude: frame.attitude,
-            qualityFlags: flags
-        )
+        previousTimestampS = sample.timestampS
+        if sample.qualityFlags.contains(.timestampGapBefore)
+            || sample.qualityFlags.contains(.sequenceGapBefore) {
+            timestampGapCount += 1
+        }
     }
 
     private func appendToPreRoll(_ sample: MotionSampleV3) {
