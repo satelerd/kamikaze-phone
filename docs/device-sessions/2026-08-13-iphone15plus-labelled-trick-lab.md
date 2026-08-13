@@ -73,3 +73,11 @@ low fit must be presented as review/unknown rather than forced into a trick.
    confusion matrix and abstention rate.
 5. Validate the tuned policy with a second physical session rather than tuning
    repeatedly against this one hour of data.
+
+## Follow-up result
+
+The split, evaluator and v0.2 angular-path matcher were implemented after this
+report's initial analysis. See
+`datasets/evaluations/iphone15plus-right-2026-08-13-matcher-v02.md` for the
+frozen before/after result. Further threshold changes require a new physical
+session; this first holdout must not become an iterative tuning set.

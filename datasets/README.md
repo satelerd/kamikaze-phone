@@ -15,3 +15,16 @@ For each import:
 
 Never treat `automaticObservation` as ground truth. The human label and outcome
 are the reference annotations.
+
+Run the native evaluator from the repository root:
+
+```sh
+swift run --package-path apps/ios/Packages/KamikazeMotionCore \
+  kamikaze-motion-eval \
+  --dataset datasets/inbox/2026-08-13-whatsapp/kamikaze-labelled-dataset-v1.json \
+  --split-manifest datasets/splits/iphone15plus-right-2026-08-13-v1.json \
+  --set holdout
+```
+
+The split manifest is versioned; the full source export remains local. Never
+move an ID between development and holdout after inspecting matcher results.

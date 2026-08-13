@@ -52,7 +52,18 @@ final class ProfileModel {
             for attempt in metadata {
                 let capture = try await attemptRepository.load(id: attempt.id)
                 let stored = try await analysisRepository.load(attemptID: attempt.id)
-                let result = stored?.result ?? analyzeCurrent(capture)
+                let result: TrickMatchResult
+                if let stored,
+                   stored.result.policyVersion == TrickMatchingPolicy.provisionalVersion,
+                   stored.result.catalogVersion == catalog.version {
+                    result = stored.result
+                } else {
+                    result = analyzeCurrent(capture)
+                    try await analysisRepository.save(AttemptAnalysisRecord(
+                        attemptID: attempt.id,
+                        result: result
+                    ))
+                }
                 loaded.append(NativeRunResult(capture: capture, match: result))
             }
             recent = loaded

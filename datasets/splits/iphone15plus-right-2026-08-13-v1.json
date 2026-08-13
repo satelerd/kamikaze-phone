@@ -1,0 +1,33 @@
+{
+  "format": "kamikaze.motion-evaluation-split.v1",
+  "sourceSHA256": "6c2c9c41cb3500cf59706bbda88b16d3b4784971039716f3abe5dd9f34a23bf9",
+  "policy": "Freeze before matcher tuning. Development contains standard/high landed captures. Holdout contains fast-low landed and all guided negative controls.",
+  "development": [
+    "d4d3f892-3b06-4075-91b3-577b89f238a4",
+    "cf6d80bb-ac2f-4a9f-a403-28080a995332",
+    "c78d9ba9-e665-4a92-b7f7-57cabb22f703",
+    "e217b292-69f9-4a04-81d5-cb1ef56805d4",
+    "d2b15907-469f-4201-b4c5-c321a3e64752",
+    "ba2a6377-fa87-471b-a1ad-a1c2d04de394",
+    "ec7b730b-ac38-43e2-9210-5de1543cb745",
+    "4dbcd975-a6d4-4abc-8e56-146c06963d72",
+    "abc30d3e-f88b-4413-b172-a30ed673c746",
+    "7bb4d4ff-205d-4cf9-8b9c-3f8a7ff2d261",
+    "5ab3855a-3289-4b13-b4bd-adfd7e8093a3"
+  ],
+  "holdout": [
+    "cf64267c-34f0-4977-9888-8404e1c90577",
+    "d827b4db-7514-48c5-9174-9b1a6b62c862",
+    "d4d05801-dcfa-4e5d-b18d-0fe27d46668c",
+    "8e26c66d-39ca-48a2-ba18-7e93fee06805",
+    "f2e01a32-31eb-4061-b4d6-dd17380e48bd",
+    "17f178c3-f8bf-435f-bb6f-01db102308fb",
+    "3ba697ca-92b3-4e0a-9417-bd043c60285a",
+    "0110f656-ceee-4001-bae4-4de468f8b451",
+    "d3ab043f-73e8-44e1-b42a-f17684476b97",
+    "cad28c91-f2fe-4abf-9629-a1031d346101",
+    "b7483816-e4d2-4d68-8e98-930defd5c361",
+    "6b03d91b-4042-4a2b-9b64-e8ee79e3b7cd",
+    "3b121ac1-4d2a-4821-9666-f839f982d53b"
+  ]
+}

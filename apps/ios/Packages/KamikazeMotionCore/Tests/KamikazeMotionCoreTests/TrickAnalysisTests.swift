@@ -57,10 +57,14 @@ struct MotionFeatureExtractorTests {
 
 @Suite("Provisional trick catalog matcher")
 struct TrickMatcherTests {
-    @Test("returns a recognized Phone Flip plus two transparent alternatives")
+    @Test("recognizes a compound Phone Flip while preserving transparent alternatives")
     func phoneFlipTopThree() throws {
         let result = TrickMatcher().match(
-            attempt: makeAttempt(rotationDegrees: Vector3(x: 4, y: 360, z: 6), durationS: 0.78),
+            attempt: makeAttempt(
+                rotationDegrees: Vector3(x: 0, y: 490, z: 0),
+                durationS: 1.0,
+                cancellingPathDegrees: Vector3(x: 300, y: 0, z: 200)
+            ),
             catalog: .provisional(gripHand: .right)
         )
 
@@ -68,21 +72,24 @@ struct TrickMatcherTests {
         #expect(result.candidates.count == 3)
         #expect(result.candidates.first?.definition.id == .phoneFlip)
         #expect(result.candidates.first?.presentationFit ?? 0 >= 0.75)
-        #expect(result.policyVersion.contains("uncalibrated"))
-        #expect(result.catalogVersion.contains("uncalibrated"))
+        #expect(result.policyVersion.contains("angular-path"))
+        #expect(result.catalogVersion.contains("iphone15plus-right"))
     }
 
     @Test("does not promote a noisy half shuvit to a 360 combo")
     func noisyHalfShuvit() {
         let result = TrickMatcher().match(
-            attempt: makeAttempt(rotationDegrees: Vector3(x: 12, y: 200, z: 185), durationS: 0.52),
+            attempt: makeAttempt(
+                rotationDegrees: Vector3(x: 12, y: 45, z: 335),
+                durationS: 0.72,
+                cancellingPathDegrees: Vector3(x: 120, y: 120, z: 0)
+            ),
             catalog: .provisional(gripHand: .right)
         )
 
         #expect(result.candidates.first?.definition.id == .backsideShuvit)
         #expect(result.status == .recognized)
-        let combo = result.candidates.first { $0.definition.id == .threeSixtyFlip }
-        #expect(combo == nil || combo?.axesAreSeparable == false)
+        #expect(result.candidates.first?.definition.family == .shuvit)
     }
 
     @Test("malformed partial front rotation abstains instead of forcing a label")
@@ -98,7 +105,7 @@ struct TrickMatcherTests {
 
     @Test("left grip mirrors Y and Z names without changing raw features")
     func gripMirror() throws {
-        let attempt = makeAttempt(rotationDegrees: Vector3(x: 0, y: 0, z: 180), durationS: 0.52)
+        let attempt = makeAttempt(rotationDegrees: Vector3(x: 0, y: 0, z: 335), durationS: 0.72)
         let right = TrickMatcher().match(attempt: attempt, catalog: .provisional(gripHand: .right))
         let left = TrickMatcher().match(attempt: attempt, catalog: .provisional(gripHand: .left))
 
@@ -107,15 +114,14 @@ struct TrickMatcherTests {
         #expect(try #require(right.features).signedRotationDegrees == left.features?.signedRotationDegrees)
     }
 
-    @Test("combo wins only when both axes are independently covered")
-    func separableCombo() {
+    @Test("pure Y rotation is a Flip, not a Phone Flip")
+    func axialFlipDoesNotCollapseIntoPhoneFlip() {
         let result = TrickMatcher().match(
-            attempt: makeAttempt(rotationDegrees: Vector3(x: 0, y: 360, z: 360), durationS: 0.82),
+            attempt: makeAttempt(rotationDegrees: Vector3(x: 0, y: 370, z: 0), durationS: 0.82),
             catalog: .provisional(gripHand: .right)
         )
 
-        #expect(result.candidates.first?.definition.id == .threeSixtyFlip)
-        #expect(result.candidates.first?.axesAreSeparable == true)
+        #expect(result.candidates.first?.definition.id == .frontFlip)
         #expect(result.status == .recognized)
     }
 
@@ -155,10 +161,36 @@ struct TrickMatcherTests {
             catalog: .provisional(gripHand: .right)
         )
 
-        #expect(result.candidates.first?.definition.id == .phoneFlip)
+        #expect(result.candidates.first?.definition.id == .frontFlip)
         #expect(result.status == .review)
         #expect(result.featureIssues.contains(.timestampGap))
         #expect(result.featureIssues.contains(.sequenceGap))
+    }
+
+    @Test("v0.1 persisted results decode without angular-path fields")
+    func legacyResultRemainsDecodable() throws {
+        let result = TrickMatcher().match(
+            attempt: makeAttempt(rotationDegrees: Vector3(x: 0, y: 370, z: 0)),
+            catalog: .provisional(gripHand: .right)
+        )
+        let encoded = try JSONEncoder().encode(result)
+        var root = try #require(
+            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        var candidates = try #require(root["candidates"] as? [[String: Any]])
+        for index in candidates.indices {
+            candidates[index].removeValue(forKey: "pathProfileFit")
+            var definition = try #require(candidates[index]["definition"] as? [String: Any])
+            definition.removeValue(forKey: "targetAngularPathShare")
+            candidates[index]["definition"] = definition
+        }
+        root["candidates"] = candidates
+        let legacyData = try JSONSerialization.data(withJSONObject: root)
+        let decoded = try JSONDecoder().decode(TrickMatchResult.self, from: legacyData)
+
+        #expect(decoded.candidates.count == result.candidates.count)
+        #expect(decoded.candidates.first?.pathProfileFit == nil)
+        #expect(decoded.candidates.first?.definition.targetAngularPathShare == nil)
     }
 }
 
@@ -166,23 +198,30 @@ private func makeAttempt(
     rotationDegrees: Vector3,
     durationS: Double = 0.62,
     catchAccelerationG: Double = 1,
-    qualityAtMiddle: MotionSampleQualityFlags = []
+    qualityAtMiddle: MotionSampleQualityFlags = [],
+    cancellingPathDegrees: Vector3 = Vector3(x: 0, y: 0, z: 0)
 ) -> SegmentedAttemptV3 {
     let stepCount = 100
     let deltaTimeS = durationS / Double(stepCount)
-    let rateDps = Vector3(
+    let baseRateDps = Vector3(
         x: rotationDegrees.x / durationS,
         y: rotationDegrees.y / durationS,
         z: rotationDegrees.z / durationS
     )
-    let rateRadS = Vector3(
-        x: rateDps.x * .pi / 180,
-        y: rateDps.y * .pi / 180,
-        z: rateDps.z * .pi / 180
-    )
     var attitude = Quaternion.identity
     var samples: [MotionSampleV3] = []
     for index in 0...stepCount {
+        let cancellationSign = index <= stepCount / 2 ? 1.0 : -1.0
+        let rateDps = Vector3(
+            x: baseRateDps.x + cancellationSign * cancellingPathDegrees.x / durationS,
+            y: baseRateDps.y + cancellationSign * cancellingPathDegrees.y / durationS,
+            z: baseRateDps.z + cancellationSign * cancellingPathDegrees.z / durationS
+        )
+        let rateRadS = Vector3(
+            x: rateDps.x * .pi / 180,
+            y: rateDps.y * .pi / 180,
+            z: rateDps.z * .pi / 180
+        )
         if index > 0 {
             attitude = QuaternionMath.integrated(attitude, rotationRateDps: rateDps, deltaTimeS: deltaTimeS)
         }

@@ -1,7 +1,7 @@
 import Foundation
 
 public enum TrickCatalogVersion {
-    public static let provisionalV1 = "trick-catalog-v0.1-uncalibrated"
+    public static let physicalDatasetV1 = "trick-catalog-v0.2-iphone15plus-right"
 }
 
 public enum BuiltInTrickID: String, Codable, CaseIterable, Equatable, Sendable {
@@ -28,6 +28,10 @@ public struct TrickDefinition: Codable, Equatable, Sendable {
     public let displayName: String
     public let family: TrickFamily
     public let targetRotationDegrees: Vector3
+    /// Normalized unsigned angular-path distribution across body X/Y/Z.
+    /// Unlike signed net rotation, this preserves compound motion that cancels
+    /// before the phone returns to the hand.
+    public let targetAngularPathShare: Vector3?
     public let referenceDurationMs: Double
     public let requiresSeparableAxes: Bool
 
@@ -36,6 +40,7 @@ public struct TrickDefinition: Codable, Equatable, Sendable {
         displayName: String,
         family: TrickFamily,
         targetRotationDegrees: Vector3,
+        targetAngularPathShare: Vector3? = nil,
         referenceDurationMs: Double,
         requiresSeparableAxes: Bool = false
     ) {
@@ -43,6 +48,7 @@ public struct TrickDefinition: Codable, Equatable, Sendable {
         self.displayName = displayName
         self.family = family
         self.targetRotationDegrees = targetRotationDegrees
+        self.targetAngularPathShare = targetAngularPathShare
         self.referenceDurationMs = referenceDurationMs
         self.requiresSeparableAxes = requiresSeparableAxes
     }
@@ -60,7 +66,7 @@ public struct TrickCatalog: Codable, Equatable, Sendable {
     }
 
     /// Mirrors only player-facing Y/Z semantics. Raw sensor evidence remains untouched.
-    public static func provisional(gripHand: GripHand, includesUncalibratedCombos: Bool = true) -> Self {
+    public static func provisional(gripHand: GripHand, includesUncalibratedCombos: Bool = false) -> Self {
         let semanticSign = gripHand == .left ? -1.0 : 1.0
         let y: (Double) -> Double = { $0 * semanticSign }
         let z: (Double) -> Double = { $0 * semanticSign }
@@ -75,44 +81,50 @@ public struct TrickCatalog: Codable, Equatable, Sendable {
             TrickDefinition(
                 id: .phoneFlip,
                 displayName: "PHONE FLIP",
-                family: .flip,
-                targetRotationDegrees: Vector3(x: 0, y: y(360), z: 0),
-                referenceDurationMs: 780
+                family: .combo,
+                targetRotationDegrees: Vector3(x: 0, y: y(490), z: 0),
+                targetAngularPathShare: Vector3(x: 0.30, y: 0.50, z: 0.20),
+                referenceDurationMs: 1_380
             ),
             TrickDefinition(
                 id: .reversePhoneFlip,
                 displayName: "REVERSE PHONE FLIP",
-                family: .flip,
-                targetRotationDegrees: Vector3(x: 0, y: y(-360), z: 0),
-                referenceDurationMs: 780
+                family: .combo,
+                targetRotationDegrees: Vector3(x: 0, y: y(-460), z: 0),
+                targetAngularPathShare: Vector3(x: 0.33, y: 0.46, z: 0.21),
+                referenceDurationMs: 920
             ),
             TrickDefinition(
                 id: .frontFlip,
                 displayName: "FLIP",
                 family: .flip,
-                targetRotationDegrees: Vector3(x: 360, y: 0, z: 0),
-                referenceDurationMs: 620
+                targetRotationDegrees: Vector3(x: 0, y: y(370), z: 0),
+                targetAngularPathShare: Vector3(x: 0.14, y: 0.76, z: 0.10),
+                referenceDurationMs: 970
             ),
             TrickDefinition(
                 id: .backFlip,
                 displayName: "REVERSE FLIP",
                 family: .flip,
-                targetRotationDegrees: Vector3(x: -360, y: 0, z: 0),
-                referenceDurationMs: 620
+                targetRotationDegrees: Vector3(x: 0, y: y(-360), z: 0),
+                targetAngularPathShare: Vector3(x: 0.10, y: 0.84, z: 0.06),
+                referenceDurationMs: 800
             ),
             TrickDefinition(
                 id: .backsideShuvit,
                 displayName: "BACKSIDE SHUVIT",
                 family: .shuvit,
-                targetRotationDegrees: Vector3(x: 0, y: 0, z: z(180)),
-                referenceDurationMs: 520
+                targetRotationDegrees: Vector3(x: 0, y: 0, z: z(335)),
+                targetAngularPathShare: Vector3(x: 0.24, y: 0.23, z: 0.53),
+                referenceDurationMs: 960
             ),
             TrickDefinition(
                 id: .frontsideShuvit,
                 displayName: "FRONTSIDE SHUVIT",
                 family: .shuvit,
-                targetRotationDegrees: Vector3(x: 0, y: 0, z: z(-180)),
-                referenceDurationMs: 520
+                targetRotationDegrees: Vector3(x: 0, y: 0, z: z(-335)),
+                targetAngularPathShare: Vector3(x: 0.29, y: 0.28, z: 0.43),
+                referenceDurationMs: 1_040
             ),
         ]
         if includesUncalibratedCombos {
@@ -135,7 +147,7 @@ public struct TrickCatalog: Codable, Equatable, Sendable {
                 ),
             ]
         }
-        return Self(version: TrickCatalogVersion.provisionalV1, gripHand: gripHand, definitions: definitions)
+        return Self(version: TrickCatalogVersion.physicalDatasetV1, gripHand: gripHand, definitions: definitions)
     }
 }
 
@@ -153,6 +165,7 @@ public struct TrickMatchCandidate: Codable, Equatable, Sendable {
     public let rotationFit: Double
     public let axisPurity: Double
     public let durationFit: Double
+    public let pathProfileFit: Double?
     public let minimumAxisCoverage: Double
     public let axesAreSeparable: Bool
 
@@ -162,6 +175,7 @@ public struct TrickMatchCandidate: Codable, Equatable, Sendable {
         rotationFit: Double,
         axisPurity: Double,
         durationFit: Double,
+        pathProfileFit: Double? = nil,
         minimumAxisCoverage: Double,
         axesAreSeparable: Bool
     ) {
@@ -170,6 +184,7 @@ public struct TrickMatchCandidate: Codable, Equatable, Sendable {
         self.rotationFit = rotationFit
         self.axisPurity = axisPurity
         self.durationFit = durationFit
+        self.pathProfileFit = pathProfileFit
         self.minimumAxisCoverage = minimumAxisCoverage
         self.axesAreSeparable = axesAreSeparable
     }
@@ -201,7 +216,7 @@ public struct TrickMatchResult: Codable, Equatable, Sendable {
 }
 
 public struct TrickMatchingPolicy: Equatable, Sendable {
-    public static let provisionalVersion = "rule-matcher-v0.1-uncalibrated"
+    public static let provisionalVersion = "rule-matcher-v0.2-angular-path"
 
     /// Presentation hypotheses only. They must be tuned against labelled/holdout fixtures.
     public var recognizedPresentationFit = 0.75
@@ -209,6 +224,9 @@ public struct TrickMatchingPolicy: Equatable, Sendable {
     public var recognizedMinimumMargin = 0.08
     public var comboMinimumAxisCoverage = 0.70
     public var comboMinimumAxisEfficiency = 0.58
+    /// Very low post-motion stability is treated as incomplete evidence, not
+    /// as proof of a landed or missed trick.
+    public var recognizedMinimumPostCatchStability = 0.12
 
     public init() {}
 }
@@ -252,6 +270,9 @@ public struct TrickMatcher: Sendable {
             || extraction.issues.contains(.timedOutSegmentation)
             || extraction.issues.contains(.partialFusedAttitude)
             || extraction.issues.contains(.fusedAttitudeUnavailable)
+            || features.postCatchStability.map {
+                $0 < policy.recognizedMinimumPostCatchStability
+            } == true
         let status: TrickRecognitionStatus
         if bestFit >= policy.recognizedPresentationFit,
            margin >= policy.recognizedMinimumMargin,
@@ -291,6 +312,7 @@ public struct TrickMatcher: Sendable {
                 rotationFit: rotationFit,
                 axisPurity: rotationFit,
                 durationFit: durationFit,
+                pathProfileFit: nil,
                 minimumAxisCoverage: rotationFit,
                 axesAreSeparable: true
             )
@@ -316,13 +338,16 @@ public struct TrickMatcher: Sendable {
         let rotationFit = axisFits.reduce(0, +) / Double(axisFits.count)
         let minimumCoverage = coverage.min() ?? 0
         let durationFit = durationFit(features.motionDurationMs, definition.referenceDurationMs)
+        let pathProfileFit = definition.targetAngularPathShare.map {
+            scorePathProfile(measuredPath: path, targetShare: $0)
+        }
         var presentationFit = clamp(
-            rotationFit * 0.68
-                + axisPurity * 0.18
-                + durationFit * 0.08
-                + features.rotationEfficiency * 0.06
+            rotationFit * 0.46
+                + (pathProfileFit ?? axisPurity) * 0.34
+                + durationFit * 0.12
+                + features.rotationEfficiency * 0.08
         )
-        presentationFit *= 0.25 + 0.75 * minimumCoverage
+        presentationFit *= 0.45 + 0.55 * minimumCoverage
 
         let activeEfficiencies = activeAxes.map { axis -> Double in
             let axisPath = value(path, axis: axis)
@@ -343,6 +368,7 @@ public struct TrickMatcher: Sendable {
             rotationFit: rotationFit,
             axisPurity: axisPurity,
             durationFit: durationFit,
+            pathProfileFit: pathProfileFit,
             minimumAxisCoverage: minimumCoverage,
             axesAreSeparable: axesAreSeparable
         )
@@ -350,6 +376,20 @@ public struct TrickMatcher: Sendable {
 
     private func durationFit(_ actual: Double, _ reference: Double) -> Double {
         clamp(1 - abs(actual - reference) / max(reference, 350))
+    }
+
+    private func scorePathProfile(measuredPath: Vector3, targetShare: Vector3) -> Double {
+        let total = measuredPath.x + measuredPath.y + measuredPath.z
+        guard total > 0 else { return 0 }
+        let measuredShare = Vector3(
+            x: measuredPath.x / total,
+            y: measuredPath.y / total,
+            z: measuredPath.z / total
+        )
+        let l1Distance = abs(measuredShare.x - targetShare.x)
+            + abs(measuredShare.y - targetShare.y)
+            + abs(measuredShare.z - targetShare.z)
+        return clamp(1 - l1Distance / 2)
     }
 
     private func value(_ vector: Vector3, axis: Axis) -> Double {
