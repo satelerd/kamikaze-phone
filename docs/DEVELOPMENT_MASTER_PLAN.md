@@ -394,6 +394,36 @@ Release gate:
 - privacy, permissions, accessibility and safety reviewed;
 - internal build changelog and known issues published.
 
+### Section 10 — Identity, social sharing and Camera Runs (post-beta)
+
+**Dependency:** reliable detector, stable attempt schema and ordinary replay export. This section must not delay local gameplay validation.
+
+Product goals:
+
+- optional player account with local-first identity, authenticated sync and explicit conflict/deletion/export behavior;
+- preserve raw attempts locally even when signed out, then attach them to an account only with user consent;
+- export a normal measured replay as a vertical video with trick name, result/FIT, timing and optional 3D replay overlays;
+- add an explicit `Camera Run` mode that shares one monotonic clock across sensor evidence, front/rear camera recordings, result and replay;
+- on compatible devices, evaluate `AVCaptureMultiCamSession`; provide a deliberate single-camera fallback rather than assuming simultaneous cameras exist everywhere;
+- capture an intro, throw and outro, then offer an editable composition using cuts or picture-in-picture, synchronized trick moment, 3D replay and result card;
+- export locally before any publish action; sharing to another person or social network always remains a separate user-confirmed action;
+- design privacy/permission states for microphone, front camera, rear camera, Photos and cloud/account data before implementation.
+
+Non-goals for the first detector beta:
+
+- public feed, followers, comments, rankings or moderation;
+- background camera recording;
+- mandatory account creation;
+- uploading raw motion/video automatically.
+
+Exit gate:
+
+- exported video remains audio/video synchronized through the detected trick moment;
+- unsupported or thermally constrained devices degrade predictably;
+- an offline/signed-out player can still play, save and export locally;
+- account deletion and local/cloud retention semantics are documented and testable;
+- no media or motion evidence is published without an explicit final user action.
+
 ## Execution waves
 
 The dependency order matters more than maximum concurrency.
