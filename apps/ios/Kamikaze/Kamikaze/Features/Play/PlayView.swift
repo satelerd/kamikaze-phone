@@ -1,25 +1,23 @@
-import KamikazeMotionCore
 import SwiftUI
 
 struct PlayView: View {
-    @State private var motion = LiveMotionModel()
+    @State private var run = NativeRunModel()
 
-    private var armed: Bool {
-        motion.detection.phase == .armed
-            || motion.detection.phase == .airborne
-            || motion.detection.phase == .settling
+    private var active: Bool {
+        switch run.phase {
+        case .armed, .motion, .settling: true
+        case .ready, .result, .unknown, .failed: false
+        }
     }
 
     var body: some View {
         ZStack {
-            KineticBackground(accent: armed ? KamikazeTheme.hazard : KamikazeTheme.ion)
+            KineticBackground(accent: accent)
             VStack(spacing: 16) {
                 HStack {
-                    SectionKicker(text: phaseKicker)
+                    SectionKicker(text: kicker)
                     Spacer()
-                    Button("ZERO POSE", systemImage: "scope") {
-                        motion.zeroPose()
-                    }
+                    Button("ZERO POSE", systemImage: "scope") { run.zeroPose() }
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
                         .adaptiveGlassButton()
                 }
@@ -28,126 +26,104 @@ struct PlayView: View {
 
                 GlassSurface(level: .subtle, cornerRadius: 42) {
                     ZStack {
-                        Circle()
-                            .fill((armed ? KamikazeTheme.hazard : KamikazeTheme.ion).opacity(0.13))
-                            .overlay(Circle().stroke(.white.opacity(0.13)))
-                            .padding(10)
-                        LivePhoneScene(
-                            attitude: motion.relativeAttitude,
-                            accent: armed ? KamikazeTheme.hazard : KamikazeTheme.ion
-                        )
+                        Circle().fill(accent.opacity(0.13)).overlay(Circle().stroke(.white.opacity(0.13))).padding(10)
+                        LivePhoneScene(attitude: run.relativeAttitude, accent: accent)
                     }
                 }
                 .frame(maxHeight: 430)
 
                 GlassSurface(level: .subtle, cornerRadius: 20) {
                     HStack(spacing: 18) {
-                        sensorMetric(title: "MOTION", value: motionLabel)
-                        sensorMetric(title: "RATE", value: motion.measuredHz > 0 ? "\(Int(motion.measuredHz.rounded())) HZ" : "— HZ")
-                        sensorMetric(title: "GYRO", value: "\(Int(motion.rotationRate.magnitude * 180 / .pi))°/S")
+                        metric("MOTION", sensorLabel)
+                        metric("RATE", run.measuredHz > 0 ? "\(Int(run.measuredHz.rounded())) HZ" : "— HZ")
+                        metric("GYRO", "\(Int(run.gyroDps.rounded()))°/S")
                     }
                     .padding(.vertical, 12)
                     .padding(.horizontal, 8)
                 }
 
                 VStack(spacing: 6) {
-                    Text(phaseTitle)
-                        .font(.system(size: 32, weight: .black, design: .rounded))
-                        .tracking(-1.2)
-                    Text(phaseDetail)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(KamikazeTheme.muted)
+                    Text(title).font(.system(size: 32, weight: .black, design: .rounded)).tracking(-1.2)
+                    Text(detail).font(.system(size: 13, weight: .medium, design: .rounded)).foregroundStyle(KamikazeTheme.muted)
                 }
                 .multilineTextAlignment(.center)
 
-                Button {
-                    withAnimation(.snappy) {
-                        armed ? motion.cancelDetection() : motion.armDetection()
-                    }
-                } label: {
-                    Text(primaryButtonTitle)
+                Button { active ? run.cancel() : run.arm() } label: {
+                    Text(active ? "CANCEL SESSION" : "START SESSION")
                         .font(.system(size: 18, weight: .black, design: .rounded))
                         .frame(maxWidth: .infinity, minHeight: 72)
                 }
-                .adaptiveGlassButton(prominent: true, tint: armed ? KamikazeTheme.hazard : KamikazeTheme.ion)
-                .disabled(motion.status != .running)
+                .adaptiveGlassButton(prominent: true, tint: active ? KamikazeTheme.hazard : KamikazeTheme.ion)
             }
             .padding(.horizontal, 18)
             .padding(.top, 12)
             .padding(.bottom, 18)
         }
         .toolbar(.hidden, for: .navigationBar)
-        .task { motion.start() }
-        .onDisappear { motion.stop() }
-        .sensoryFeedback(.success, trigger: motion.completedAttemptCount)
-        .accessibilityValue(motion.status == .running ? "motion active" : motionLabel)
+        .task { run.start() }
+        .onDisappear { run.stop() }
+        .fullScreenCover(item: Binding(
+            get: { run.result },
+            set: { if $0 == nil { run.dismissResult() } }
+        )) { result in
+            ResultReplayView(result: result, onAgain: run.dismissResultAndRearm, onClose: run.dismissResult)
+        }
     }
 
-    private var phaseKicker: String {
-        switch motion.detection.phase {
-        case .idle: "PLAY / READY"
+    private var accent: Color {
+        switch run.phase {
+        case .motion, .settling: KamikazeTheme.hazard
+        case .result: KamikazeTheme.volt
+        case .unknown, .failed: KamikazeTheme.hazard
+        case .ready, .armed: KamikazeTheme.ion
+        }
+    }
+
+    private var kicker: String {
+        switch run.phase {
+        case .ready: "PLAY / READY"
         case .armed: "SESSION / ARMED"
-        case .airborne: "SESSION / MOTION"
+        case .motion: "SESSION / MOTION"
         case .settling: "SESSION / LANDING"
-        case .complete: "SESSION / LANDED"
+        case .result: "SESSION / LANDED"
+        case .unknown: "SESSION / REVIEW"
+        case .failed: "SESSION / SENSOR"
         }
     }
 
-    private var phaseTitle: String {
-        switch motion.detection.phase {
-        case .idle: "READY TO FLIP?"
+    private var title: String {
+        switch run.phase {
+        case .ready: "READY TO FLIP?"
         case .armed: "THROW WHEN READY"
-        case .airborne: "TRICK IN MOTION"
+        case .motion: "TRICK IN MOTION"
         case .settling: "HOLD THE CATCH"
-        case .complete: motion.detection.lastAttempt?.trick ?? "LANDED"
+        case .result: "LANDED"
+        case .unknown: "CHECK THE THROW"
+        case let .failed(message): "SENSOR ERROR\n\(message)"
         }
     }
 
-    private var phaseDetail: String {
-        switch motion.detection.phase {
-        case .idle:
-            return motion.status == .running
-                ? "Motion capture will run at the device's measured rate."
-                : "Motion sensors must be available before starting."
-        case .armed:
-            return "A quick spin is enough. You do not need a high throw."
-        case .airborne:
-            return "Rotation captured — catch it and steady the phone."
-        case .settling:
-            return "Keep it still for a fraction of a second."
-        case .complete:
-            if let attempt = motion.detection.lastAttempt {
-                return "\(Int((attempt.confidence * 100).rounded()))% CONF  ·  \(Int(attempt.airtimeMs.rounded())) MS MOTION  ·  \(attempt.triggerMode == .gyro ? "LOW TRICK" : "AIR")"
-            }
-            return "Attempt captured."
+    private var detail: String {
+        switch run.phase {
+        case .ready: "A quick spin is enough. You do not need a high throw."
+        case .armed: "The full 100 Hz stream is armed."
+        case .motion: "Rotation captured — catch it and steady the phone."
+        case .settling: "Keep it still for a fraction of a second."
+        case .result: "Opening measured replay."
+        case .unknown: "The evidence is saved for review, not guessed."
+        case .failed: "Reconnect motion access, then try again."
         }
     }
 
-    private var primaryButtonTitle: String {
-        switch motion.detection.phase {
-        case .complete: "THROW AGAIN"
-        case .armed, .airborne, .settling: "CANCEL SESSION"
-        case .idle: "START SESSION"
-        }
+    private var sensorLabel: String {
+        if case .failed = run.phase { return "ERROR" }
+        return run.measuredHz > 0 ? "LIVE" : "WAITING"
     }
 
-    private var motionLabel: String {
-        switch motion.status {
-        case .idle: "IDLE"
-        case .running: "LIVE"
-        case .unavailable: "SIMULATOR"
-        case .failed: "ERROR"
-        }
-    }
-
-    private func sensorMetric(title: String, value: String) -> some View {
+    private func metric(_ title: String, _ value: String) -> some View {
         VStack(spacing: 3) {
-            Text(title)
-                .font(.system(size: 8, weight: .bold, design: .monospaced))
-                .foregroundStyle(KamikazeTheme.muted)
-            Text(value)
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                .foregroundStyle(KamikazeTheme.frost)
+            Text(title).font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(KamikazeTheme.muted)
+            Text(value).font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundStyle(KamikazeTheme.frost)
         }
         .frame(maxWidth: .infinity)
     }
