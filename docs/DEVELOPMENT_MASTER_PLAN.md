@@ -1,6 +1,6 @@
 # Kamikaze: Phone Flip — master development plan
 
-Status: execution started. Section 0 preserves the physically validated detector under `native-beta-device-detector-v0.1.0`; Section 1 is next.
+Status: execution active. Section 0 preserves the physically validated detector under `native-beta-device-detector-v0.1.0`. Section 1 has a schema-v3 foundation, verified immutable Expo-v2 seed fixtures and an iPhone raw-recorder integration in progress.
 
 This is the operating plan for turning the current Swift vertical slice into a complete, trustworthy and polished native beta. It complements `NATIVE_SWIFT_MIGRATION.md` (architecture) and `NATIVE_BETA_EXECUTION.md` (migration decisions).
 
