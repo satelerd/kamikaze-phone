@@ -30,21 +30,39 @@ Each trick has one readiness state:
 4. `detectorReady`: independent validation passed; Practice can judge attempts.
 5. `mastered`: player progression, derived from saved attempts.
 
-## Trick tree
+## Ordered progression
 
 ```text
-FOUNDATION
-  BS Shuvit 180 ──→ BS 360 Shuvit ──┐
-  FS Shuvit 180 ──→ FS 360 Shuvit ──┤
-                                     ├─→ Phone Flip ──→ Double Phone Flip
-  Flip ───────────→ Double Flip ─────┤
-  Reverse Flip ───→ Double Reverse ──┤
-                                     └─→ Reverse Phone ─→ Double Reverse Phone
+01 SHUVIT          BS Shuvit 180       → FS Shuvit 180
+02 FULL SHUVIT     BS 360 Shuvit       → FS 360 Shuvit
+03 FLIP            Flip                → Reverse Flip
+04 DOUBLE FLIP     Double Flip         → Double Reverse Flip
+05 PHONE FLIP      Phone Flip           → Reverse Phone Flip
+06 DOUBLE PHONE    Double Phone Flip    → Double Reverse Phone Flip
 ```
 
-The exact dependencies remain editable. The first beta should not hard-lock the
-whole library: a player may preview every trick, while scored attempts unlock in
-the tree once their prerequisite and detector readiness are satisfied.
+This is a deliberate skill ladder:
+
+- first isolate horizontal rotation at 180°, then complete the same axis at
+  360°;
+- isolate the flip axis before asking for a double rotation;
+- combine the learned axes in Phone Flip only after both foundations;
+- finish each family in its opposite direction before increasing complexity.
+
+`Backside` and `Frontside` are the canonical skateboard direction names for
+Shuvits; `Reverse` remains the player-facing opposite for Flip and Phone Flip
+until hand/grip semantics are physically validated. Phone Flip is the project's
+name for its 360-flip-like compound phone motion, not a claim that phone axes
+map one-to-one to a skateboard.
+
+The first beta should not hard-lock the whole library: a player may preview
+every trick. A scored level becomes playable only when its detector definition
+is ready and the prerequisite pair is complete. Tricks still collecting
+evidence route to Trick Lab instead of pretending they can be judged.
+
+Within a pair, the default order is regular direction followed by its opposite.
+For returning players, a human-confirmed qualifying capture may satisfy an
+earlier prerequisite retroactively.
 
 ## Level screen
 

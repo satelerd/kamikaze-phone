@@ -287,7 +287,9 @@ Exit gate:
 
 Deliverables:
 
-- ordered levels: both shuvits, Phone/Reverse, Front/Back;
+- ordered six-stage progression documented in
+  `PRACTICE_PROGRESSION_V1.md`: Shuvit 180 pair, 360 Shuvit pair, Flip pair,
+  Double Flip pair, Phone Flip pair and Double Phone Flip pair;
 - target animation before each attempt;
 - automatic capture by default, manual fallback;
 - target vs measured comparison using the shared replay engine;
@@ -309,13 +311,18 @@ Exit gate:
 
 **Reviewer:** Integrator
 
+Detailed product, metric, data and delivery contract:
+`PROFILE_LOCKER_STATS_V1.md`.
+
 Deliverables:
 
 - real totals, per-trick counts, best score, streak, fastest/longest and most-used trick;
+- a lightweight summary index so Profile does not decode every raw motion file;
 - activity calendar with one documented definition of what a cell counts;
 - expandable/clickable Recent history;
 - deletion/export and local privacy controls;
-- points/rewards computed from versioned saved scores;
+- local rewards recorded idempotently from versioned score/mastery events so a
+  future re-analysis cannot silently rewrite already-awarded currency;
 - selected skin persisted and applied immediately across every phone scene;
 - settings for hand, sound/haptics, diagnostics, reduced effects and onboarding replay;
 - Workshop nested under Me, not primary navigation.
