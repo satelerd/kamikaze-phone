@@ -1,7 +1,9 @@
+import CryptoKit
 import Foundation
 import KamikazeMotionCore
 
 private struct Dataset: Decodable {
+    let format: String
     let captures: [LabelledCapture]
 }
 
@@ -43,8 +45,10 @@ private enum MotionEvaluationCommand {
             .flatMap(RequestedSplit.init(rawValue:)) ?? .all
         let datasetURL = URL(fileURLWithPath: arguments[2])
         let splitURL = URL(fileURLWithPath: arguments[4])
-        let dataset = try JSONDecoder().decode(Dataset.self, from: Data(contentsOf: datasetURL))
+        let datasetData = try Data(contentsOf: datasetURL)
+        let dataset = try JSONDecoder().decode(Dataset.self, from: datasetData)
         let split = try JSONDecoder().decode(EvaluationSplit.self, from: Data(contentsOf: splitURL))
+        try validate(dataset: dataset, bytes: datasetData, expectedSHA256: split.sourceSHA256)
         let selectedIDs: Set<String>
         switch requested {
         case .development: selectedIDs = Set(split.development)
@@ -121,6 +125,48 @@ private enum MotionEvaluationCommand {
         return arguments[index + 1]
     }
 
+    private static func validate(
+        dataset: Dataset,
+        bytes: Data,
+        expectedSHA256: String
+    ) throws {
+        guard dataset.format == "kamikaze.labelled-motion-dataset.v1" else {
+            throw EvaluationError.invalidDataset("Unexpected dataset format: \(dataset.format)")
+        }
+        let actualSHA256 = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+        guard actualSHA256 == expectedSHA256 else {
+            throw EvaluationError.sourceChecksumMismatch(expected: expectedSHA256, actual: actualSHA256)
+        }
+        let ids = dataset.captures.map(\.capture.attempt.id)
+        guard Set(ids).count == ids.count else {
+            throw EvaluationError.invalidDataset("Duplicate capture IDs.")
+        }
+        for item in dataset.captures {
+            let capture = item.capture
+            let reference = capture.attempt.rawSamples
+            guard capture.attempt.id == capture.samplePayload.attemptID else {
+                throw EvaluationError.invalidCapture(capture.attempt.id, "payload attempt ID mismatch")
+            }
+            guard reference.sampleCount == capture.samplePayload.samples.count else {
+                throw EvaluationError.invalidCapture(capture.attempt.id, "sample count mismatch")
+            }
+            guard reference.payloadSchemaVersion == capture.samplePayload.schemaVersion else {
+                throw EvaluationError.invalidCapture(capture.attempt.id, "payload schema mismatch")
+            }
+            let payloadData = try canonicalJSON(capture.samplePayload)
+            let payloadSHA256 = SHA256.hash(data: payloadData).map { String(format: "%02x", $0) }.joined()
+            guard payloadSHA256 == reference.checksum else {
+                throw EvaluationError.invalidCapture(capture.attempt.id, "raw payload checksum mismatch")
+            }
+        }
+    }
+
+    private static func canonicalJSON<T: Encodable>(_ value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(value)
+    }
+
     private static func segmentedAttempt(from capture: MotionCaptureV3) -> SegmentedAttemptV3 {
         let trigger: AttemptSegmentationTrigger
         switch capture.attempt.triggerMode {
@@ -152,6 +198,9 @@ private enum MotionEvaluationCommand {
     private enum EvaluationError: Error, CustomStringConvertible {
         case usage
         case missingCaptureIDs(Int)
+        case invalidDataset(String)
+        case invalidCapture(String, String)
+        case sourceChecksumMismatch(expected: String, actual: String)
 
         var description: String {
             switch self {
@@ -159,6 +208,12 @@ private enum MotionEvaluationCommand {
                 return "Usage: kamikaze-motion-eval --dataset <json> --split-manifest <json> [--set development|holdout|all]"
             case let .missingCaptureIDs(count):
                 return "Dataset is missing \(count) capture IDs declared by the split manifest."
+            case let .invalidDataset(reason):
+                return "Invalid dataset: \(reason)"
+            case let .invalidCapture(id, reason):
+                return "Invalid capture \(id): \(reason)."
+            case let .sourceChecksumMismatch(expected, actual):
+                return "Dataset SHA-256 mismatch. Expected \(expected), got \(actual)."
             }
         }
     }

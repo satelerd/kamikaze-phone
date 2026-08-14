@@ -28,3 +28,7 @@ swift run --package-path apps/ios/Packages/KamikazeMotionCore \
 
 The split manifest is versioned; the full source export remains local. Never
 move an ID between development and holdout after inspecting matcher results.
+
+Independent physical-session reports live in `datasets/evaluations/`. Session
+2 is a permanent holdout: do not tune against its captures and then continue to
+describe it as independent validation.
