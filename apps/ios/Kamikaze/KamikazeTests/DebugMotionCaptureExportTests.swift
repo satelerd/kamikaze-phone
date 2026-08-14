@@ -23,6 +23,24 @@ struct DebugMotionCaptureExportTests {
         #expect(legacyBack == .reverseFlip)
     }
 
+    @Test func legacyShuvitLabelsRemainFullRotationsAndNewBaseLabelsAreExplicit() throws {
+        let legacyFrontside = try JSONDecoder().decode(
+            DebugTrickID.self,
+            from: Data("\"frontside-shuvit\"".utf8)
+        )
+        let legacyBackside = try JSONDecoder().decode(
+            DebugTrickID.self,
+            from: Data("\"backside-shuvit\"".utf8)
+        )
+
+        #expect(legacyFrontside == .frontsideThreeSixtyShuvit)
+        #expect(legacyBackside == .backsideThreeSixtyShuvit)
+        #expect(DebugTrickID.frontsideShuvit.rawValue == "frontside-shuvit-180")
+        #expect(DebugTrickID.backsideShuvit.rawValue == "backside-shuvit-180")
+        #expect(DebugTrickID.doubleFlip.rawValue == "double-flip")
+        #expect(DebugTrickID.doublePhoneFlip.rawValue == "double-phone-flip")
+    }
+
     @Test func datasetExportIncludesOnlyHumanClassifiedOutcomes() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "KamikazeLabelledDatasetTests-\(UUID().uuidString)")
@@ -45,6 +63,7 @@ struct DebugMotionCaptureExportTests {
         let generated = try DebugMotionCaptureStore.exportClassifiedDataset(from: directory)
         let saved = try #require(generated)
         #expect(saved.captureCount == 2)
+        #expect(saved.countsByTrick[.flip] == 2)
         let dataset = try JSONDecoder().decode(
             DebugMotionDatasetExportV1.self,
             from: Data(contentsOf: saved.exportURL)
@@ -76,7 +95,8 @@ struct DebugMotionCaptureExportTests {
     private func makeExport(
         checksum suppliedChecksum: String?,
         id: String = "pilot-flip-001",
-        outcome: DebugMotionCaptureOutcome = .landed
+        outcome: DebugMotionCaptureOutcome = .landed,
+        trick: DebugTrickID = .flip
     ) throws -> DebugMotionCaptureExportV1 {
         let samples = [
             sample(sequence: 41, timestampS: 10, angle: 0),
@@ -134,7 +154,7 @@ struct DebugMotionCaptureExportTests {
         )
         return DebugMotionCaptureExportV1(
             label: DebugMotionCaptureLabel(
-                expectedTrickID: .flip,
+                expectedTrickID: trick,
                 gripHand: .right,
                 caseState: .withCase,
                 condition: .standard,

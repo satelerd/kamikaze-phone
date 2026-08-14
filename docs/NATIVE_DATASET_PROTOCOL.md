@@ -8,14 +8,29 @@ The recorder captures evidence; the automatic detector only adds a proposal. Bef
 
 - `phone-flip`
 - `reverse-phone-flip`
-- `front-flip`
-- `back-flip` (the current name for a reverse-direction front rotation)
-- `frontside-shuvit`
-- `backside-shuvit`
+- `double-phone-flip`
+- `double-reverse-phone-flip`
+- `flip`
+- `reverse-flip`
+- `double-flip`
+- `double-reverse-flip`
+- `frontside-shuvit-180`
+- `backside-shuvit-180`
+- `frontside-360-shuvit`
+- `backside-360-shuvit`
 - `straight-air`
 - `unknown` / `no-attempt`
 
-Use **Shuvit** as the canonical skate spelling. `FS` and `BS` are accepted display abbreviations only after hand and axis semantics have been physically validated.
+Use **Shuvit** as the canonical skate spelling. An unqualified Shuvit is 180°;
+larger rotations always include their degrees. Dataset v1 incorrectly stored the
+physically measured 360° classes as `frontside-shuvit` / `backside-shuvit`.
+Decoders preserve those legacy IDs as 360 Shuvits; all new exports use explicit
+degree-bearing IDs. `FS` and `BS` are display abbreviations only after hand and
+axis semantics have been physically validated.
+
+Double Flip and Double Phone Flip labels are collection-only until independent
+physical sessions establish their angular path and holdout accuracy. Do not add
+synthetic matcher targets and describe them as calibrated detection.
 
 ## Capture variants
 

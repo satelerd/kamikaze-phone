@@ -132,11 +132,12 @@ Deliverables:
 - iPhone recorder/export action for labelled and negative captures;
 - real fixtures for six core tricks, Straight Air, misses and ordinary handling.
 
-Core trick set for this gate:
+Original core trick set for this gate (display names corrected after physical
+review; see `PRACTICE_PROGRESSION_V1.md`):
 
 - Phone Flip / Reverse Phone Flip;
-- Front Flip / Back Flip;
-- Frontside Shuvit / Backside Shuvit;
+- Flip / Reverse Flip;
+- Frontside 360 Shuvit / Backside 360 Shuvit;
 - Straight Air / Unknown.
 
 Dataset target before claiming classification quality:
@@ -238,6 +239,16 @@ Exit gate:
 - ambiguous attempts become `Unknown`, not a fabricated confident label;
 - hand changes semantics, never raw samples;
 - no fake measured vertical translation. Freefall may use a clearly labelled estimated arc.
+
+Collection-only expansion after the validated v0.2 core:
+
+- Frontside / Backside Shuvit means 180°;
+- the already measured full rotations are explicitly 360 Shuvits;
+- Double Flip, Double Reverse Flip, Double Phone Flip and Double Reverse Phone
+  Flip remain unavailable to automatic recognition until labelled-session and
+  independent-holdout gates pass.
+- Lines are ordered groups of separately segmented attempts, never a new
+  single-trick matcher label.
 
 ### Section 5 — Complete the player loop
 

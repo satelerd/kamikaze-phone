@@ -7,10 +7,16 @@ public enum TrickCatalogVersion {
 public enum BuiltInTrickID: String, Codable, CaseIterable, Equatable, Sendable {
     case phoneFlip = "phone-flip"
     case reversePhoneFlip = "reverse-phone-flip"
+    case doublePhoneFlip = "double-phone-flip"
+    case doubleReversePhoneFlip = "double-reverse-phone-flip"
     case flip = "flip"
     case reverseFlip = "reverse-flip"
-    case backsideShuvit = "backside-shuvit"
-    case frontsideShuvit = "frontside-shuvit"
+    case doubleFlip = "double-flip"
+    case doubleReverseFlip = "double-reverse-flip"
+    case backsideShuvit = "backside-shuvit-180"
+    case frontsideShuvit = "frontside-shuvit-180"
+    case backsideThreeSixtyShuvit = "backside-360-shuvit"
+    case frontsideThreeSixtyShuvit = "frontside-360-shuvit"
     case straightAir = "straight-air"
     case threeSixtyFlip = "360-flip"
     case laserFlip = "laser-flip"
@@ -19,20 +25,30 @@ public enum BuiltInTrickID: String, Codable, CaseIterable, Equatable, Sendable {
         switch self {
         case .phoneFlip: "PHONE FLIP"
         case .reversePhoneFlip: "REVERSE PHONE FLIP"
+        case .doublePhoneFlip: "DOUBLE PHONE FLIP"
+        case .doubleReversePhoneFlip: "DOUBLE REVERSE PHONE FLIP"
         case .flip: "FLIP"
         case .reverseFlip: "REVERSE FLIP"
+        case .doubleFlip: "DOUBLE FLIP"
+        case .doubleReverseFlip: "DOUBLE REVERSE FLIP"
         case .backsideShuvit: "BACKSIDE SHUVIT"
         case .frontsideShuvit: "FRONTSIDE SHUVIT"
+        case .backsideThreeSixtyShuvit: "BACKSIDE 360 SHUVIT"
+        case .frontsideThreeSixtyShuvit: "FRONTSIDE 360 SHUVIT"
         case .straightAir: "STRAIGHT AIR"
         case .threeSixtyFlip: "360 FLIP"
         case .laserFlip: "LASER FLIP"
         }
     }
 
-    /// Player-facing choices supported by the physical v0.2 catalog.
+    /// Player-facing human-label choices. Collection-only cases intentionally
+    /// appear here before they are admitted to the physical matcher catalog.
     public static let correctableCases: [Self] = [
-        .flip, .reverseFlip, .phoneFlip, .reversePhoneFlip,
-        .backsideShuvit, .frontsideShuvit, .straightAir,
+        .flip, .reverseFlip, .doubleFlip, .doubleReverseFlip,
+        .phoneFlip, .reversePhoneFlip, .doublePhoneFlip, .doubleReversePhoneFlip,
+        .backsideShuvit, .frontsideShuvit,
+        .backsideThreeSixtyShuvit, .frontsideThreeSixtyShuvit,
+        .straightAir,
     ]
 
     public init(from decoder: any Decoder) throws {
@@ -41,6 +57,10 @@ public enum BuiltInTrickID: String, Codable, CaseIterable, Equatable, Sendable {
         switch value {
         case "front-flip": self = .flip
         case "back-flip": self = .reverseFlip
+        // v0.2 incorrectly displayed these full rotations as plain Shuvits.
+        // Preserve their meaning when decoding saved attempts and datasets.
+        case "backside-shuvit": self = .backsideThreeSixtyShuvit
+        case "frontside-shuvit": self = .frontsideThreeSixtyShuvit
         default:
             guard let decoded = Self(rawValue: value) else {
                 throw DecodingError.dataCorruptedError(
@@ -153,16 +173,16 @@ public struct TrickCatalog: Codable, Equatable, Sendable {
                 referenceDurationMs: 800
             ),
             TrickDefinition(
-                id: .backsideShuvit,
-                displayName: "BACKSIDE SHUVIT",
+                id: .backsideThreeSixtyShuvit,
+                displayName: "BACKSIDE 360 SHUVIT",
                 family: .shuvit,
                 targetRotationDegrees: Vector3(x: 0, y: 0, z: z(335)),
                 targetAngularPathShare: Vector3(x: 0.24, y: 0.23, z: 0.53),
                 referenceDurationMs: 960
             ),
             TrickDefinition(
-                id: .frontsideShuvit,
-                displayName: "FRONTSIDE SHUVIT",
+                id: .frontsideThreeSixtyShuvit,
+                displayName: "FRONTSIDE 360 SHUVIT",
                 family: .shuvit,
                 targetRotationDegrees: Vector3(x: 0, y: 0, z: z(-335)),
                 targetAngularPathShare: Vector3(x: 0.29, y: 0.28, z: 0.43),

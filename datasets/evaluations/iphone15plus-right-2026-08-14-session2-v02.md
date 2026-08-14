@@ -25,8 +25,8 @@ or `rule-matcher-v0.2-angular-path`.
 | Reverse Flip | 3/3 | 1/1 |
 | Phone Flip | 3/3 | 1/1 |
 | Reverse Phone Flip | 3/3 | 1/1 |
-| Backside Shuvit | 3/3 | 1/1 |
-| Frontside Shuvit | 3/3 | 1/1 |
+| Backside 360 Shuvit | 3/3 | 1/1 |
+| Frontside 360 Shuvit | 3/3 | 1/1 |
 
 Landed identity FIT ranged from 0.843 to 0.956 (mean 0.903). Intentional-miss
 top-candidate FIT ranged from 0.555 to 0.760 (mean 0.642). The highest miss

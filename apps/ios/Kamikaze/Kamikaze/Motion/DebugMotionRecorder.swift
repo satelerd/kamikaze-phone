@@ -459,13 +459,19 @@ nonisolated struct DebugMotionCaptureDraft: Identifiable, Equatable, Sendable {
     let automaticObservation: DebugAutomaticObservation?
 }
 
-nonisolated enum DebugTrickID: String, Codable, CaseIterable, Sendable {
+nonisolated enum DebugTrickID: String, Codable, CaseIterable, Hashable, Sendable {
     case phoneFlip = "phone-flip"
     case reversePhoneFlip = "reverse-phone-flip"
+    case doublePhoneFlip = "double-phone-flip"
+    case doubleReversePhoneFlip = "double-reverse-phone-flip"
     case flip = "flip"
     case reverseFlip = "reverse-flip"
-    case frontsideShuvit = "frontside-shuvit"
-    case backsideShuvit = "backside-shuvit"
+    case doubleFlip = "double-flip"
+    case doubleReverseFlip = "double-reverse-flip"
+    case frontsideShuvit = "frontside-shuvit-180"
+    case backsideShuvit = "backside-shuvit-180"
+    case frontsideThreeSixtyShuvit = "frontside-360-shuvit"
+    case backsideThreeSixtyShuvit = "backside-360-shuvit"
     case straightAir = "straight-air"
     case unknown
 
@@ -473,10 +479,16 @@ nonisolated enum DebugTrickID: String, Codable, CaseIterable, Sendable {
         switch self {
         case .phoneFlip: "PHONE FLIP"
         case .reversePhoneFlip: "REVERSE PHONE FLIP"
+        case .doublePhoneFlip: "DOUBLE PHONE FLIP"
+        case .doubleReversePhoneFlip: "DOUBLE REVERSE PHONE FLIP"
         case .flip: "FLIP"
         case .reverseFlip: "REVERSE FLIP"
+        case .doubleFlip: "DOUBLE FLIP"
+        case .doubleReverseFlip: "DOUBLE REVERSE FLIP"
         case .frontsideShuvit: "FS SHUVIT"
         case .backsideShuvit: "BS SHUVIT"
+        case .frontsideThreeSixtyShuvit: "FS 360 SHUVIT"
+        case .backsideThreeSixtyShuvit: "BS 360 SHUVIT"
         case .straightAir: "STRAIGHT AIR"
         case .unknown: "UNKNOWN / NO TRICK"
         }
@@ -487,6 +499,9 @@ nonisolated enum DebugTrickID: String, Codable, CaseIterable, Sendable {
         switch value {
         case "front-flip": self = .flip
         case "back-flip": self = .reverseFlip
+        // Dataset v1 used the plain Shuvit IDs for measured full rotations.
+        case "frontside-shuvit": self = .frontsideThreeSixtyShuvit
+        case "backside-shuvit": self = .backsideThreeSixtyShuvit
         default:
             guard let decoded = Self(rawValue: value) else {
                 throw DecodingError.dataCorruptedError(
@@ -622,6 +637,7 @@ nonisolated struct DebugSavedMotionCapture: Equatable, Sendable {
 nonisolated struct DebugSavedDatasetExport: Equatable, Sendable {
     let exportURL: URL
     let captureCount: Int
+    let countsByTrick: [DebugTrickID: Int]
 }
 
 nonisolated enum DebugMotionCaptureStore {
@@ -796,7 +812,13 @@ nonisolated enum DebugMotionCaptureStore {
 
         let url = directory.appending(path: "kamikaze-labelled-dataset-v1.json")
         try data.write(to: url, options: .atomic)
-        return DebugSavedDatasetExport(exportURL: url, captureCount: captures.count)
+        let countsByTrick = Dictionary(grouping: captures) { $0.label.expectedTrickID }
+            .mapValues(\.count)
+        return DebugSavedDatasetExport(
+            exportURL: url,
+            captureCount: captures.count,
+            countsByTrick: countsByTrick
+        )
     }
 
     nonisolated enum ValidationError: Error, Equatable, Sendable {

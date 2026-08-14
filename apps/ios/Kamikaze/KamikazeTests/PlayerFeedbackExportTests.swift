@@ -29,7 +29,7 @@ struct PlayerFeedbackExportTests {
             outcome: .landed
         ))
         let correctedOutsideTopThree = automatic.replacingHumanReview(HumanAttemptReview(
-            trickID: .frontsideShuvit,
+            trickID: .frontsideThreeSixtyShuvit,
             outcome: .landed
         ))
 

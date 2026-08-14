@@ -76,7 +76,7 @@ struct TrickMatcherTests {
         #expect(result.catalogVersion.contains("iphone15plus-right"))
     }
 
-    @Test("does not promote a noisy half shuvit to a 360 combo")
+    @Test("recognizes the physically calibrated full rotation as a 360 Shuvit")
     func noisyHalfShuvit() {
         let result = TrickMatcher().match(
             attempt: makeAttempt(
@@ -87,7 +87,7 @@ struct TrickMatcherTests {
             catalog: .provisional(gripHand: .right)
         )
 
-        #expect(result.candidates.first?.definition.id == .backsideShuvit)
+        #expect(result.candidates.first?.definition.id == .backsideThreeSixtyShuvit)
         #expect(result.status == .recognized)
         #expect(result.candidates.first?.definition.family == .shuvit)
     }
@@ -109,9 +109,26 @@ struct TrickMatcherTests {
         let right = TrickMatcher().match(attempt: attempt, catalog: .provisional(gripHand: .right))
         let left = TrickMatcher().match(attempt: attempt, catalog: .provisional(gripHand: .left))
 
-        #expect(right.candidates.first?.definition.id == .backsideShuvit)
-        #expect(left.candidates.first?.definition.id == .frontsideShuvit)
+        #expect(right.candidates.first?.definition.id == .backsideThreeSixtyShuvit)
+        #expect(left.candidates.first?.definition.id == .frontsideThreeSixtyShuvit)
         #expect(try #require(right.features).signedRotationDegrees == left.features?.signedRotationDegrees)
+    }
+
+    @Test("legacy Shuvit identifiers decode as the calibrated 360 variants")
+    func legacyShuvitNamesKeepTheirPhysicalMeaning() throws {
+        let backside = try JSONDecoder().decode(
+            BuiltInTrickID.self,
+            from: Data("\"backside-shuvit\"".utf8)
+        )
+        let frontside = try JSONDecoder().decode(
+            BuiltInTrickID.self,
+            from: Data("\"frontside-shuvit\"".utf8)
+        )
+
+        #expect(backside == .backsideThreeSixtyShuvit)
+        #expect(frontside == .frontsideThreeSixtyShuvit)
+        #expect(BuiltInTrickID.backsideShuvit.rawValue == "backside-shuvit-180")
+        #expect(BuiltInTrickID.frontsideShuvit.rawValue == "frontside-shuvit-180")
     }
 
     @Test("pure Y rotation is a Flip, not a Phone Flip")

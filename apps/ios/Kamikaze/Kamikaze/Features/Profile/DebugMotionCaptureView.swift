@@ -3,8 +3,8 @@ import SwiftUI
 
 struct DebugMotionCaptureView: View {
     private enum LabMode: String, CaseIterable {
+        case library = "PICK A TRICK"
         case guided = "GUIDED"
-        case free = "FREE"
     }
 
     private struct GuidedStep: Identifiable {
@@ -14,18 +14,24 @@ struct DebugMotionCaptureView: View {
         let prompt: String
     }
 
+    private struct TrickShelf: Identifiable {
+        let id: String
+        let subtitle: String
+        let tricks: [DebugTrickID]
+    }
+
     @Environment(\.scenePhase) private var scenePhase
     @State private var recorder = DebugMotionRecorder()
     @State private var expectedTrickID = DebugTrickID.phoneFlip
     @State private var gripHand = GripHand.right
     @State private var caseState = DebugPhoneCaseState.unknown
-    @State private var labMode = LabMode.guided
+    @State private var labMode = LabMode.library
     @State private var guidedIndex = 0
 
     private let guidedSteps: [GuidedStep] = {
         let tricks: [DebugTrickID] = [
             .flip, .reverseFlip, .phoneFlip, .reversePhoneFlip,
-            .backsideShuvit, .frontsideShuvit,
+            .backsideThreeSixtyShuvit, .frontsideThreeSixtyShuvit,
         ]
         let variations: [(DebugMotionCaptureCondition, String)] = [
             (.standard, "LAND IT AT YOUR NATURAL HEIGHT AND SPEED"),
@@ -37,6 +43,35 @@ struct DebugMotionCaptureView: View {
             .enumerated()
             .map { GuidedStep(id: $0.offset, trick: $0.element.0, condition: $0.element.1, prompt: $0.element.2) }
     }()
+
+    private let trickShelves: [TrickShelf] = [
+        TrickShelf(
+            id: "FLIP FAMILY",
+            subtitle: "ONE ROTATION · PHYSICALLY VALIDATED",
+            tricks: [.flip, .reverseFlip, .phoneFlip, .reversePhoneFlip]
+        ),
+        TrickShelf(
+            id: "SHUVIT FAMILY",
+            subtitle: "180° BASE · 360° FULL ROTATION",
+            tricks: [
+                .backsideShuvit, .frontsideShuvit,
+                .backsideThreeSixtyShuvit, .frontsideThreeSixtyShuvit,
+            ]
+        ),
+        TrickShelf(
+            id: "DOUBLE FAMILY",
+            subtitle: "TWO ROTATIONS · NEEDS LABELLED EVIDENCE",
+            tricks: [
+                .doubleFlip, .doubleReverseFlip,
+                .doublePhoneFlip, .doubleReversePhoneFlip,
+            ]
+        ),
+        TrickShelf(
+            id: "CONTROL",
+            subtitle: "NO ROTATION OR NO VALID TRICK",
+            tricks: [.straightAir, .unknown]
+        ),
+    ]
 
     var body: some View {
         ZStack {
@@ -209,12 +244,37 @@ struct DebugMotionCaptureView: View {
                     ProgressView(value: Double(guidedIndex + 1), total: Double(guidedSteps.count))
                         .tint(KamikazeTheme.volt)
                 } else {
-                    Picker("Expected trick", selection: $expectedTrickID) {
-                        ForEach(DebugTrickID.allCases, id: \.self) { trick in
-                            Text(trick.title).tag(trick)
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(expectedTrickID.title)
+                            .font(.system(size: 25, weight: .black, design: .rounded))
+                        Spacer()
+                        Text("\(selectedCaptureCount) SAVED")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.volt)
+                    }
+                    Text(trickReadiness(expectedTrickID))
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(trickNeedsEvidence(expectedTrickID)
+                            ? KamikazeTheme.hazard
+                            : KamikazeTheme.muted)
+                    ForEach(trickShelves) { shelf in
+                        VStack(alignment: .leading, spacing: 9) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(shelf.id)
+                                    .font(.system(size: 10, weight: .black, design: .monospaced))
+                                Spacer()
+                                Text(shelf.subtitle)
+                                    .font(.system(size: 7, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(KamikazeTheme.muted)
+                                    .multilineTextAlignment(.trailing)
+                            }
+                            LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 9) {
+                                ForEach(shelf.tricks, id: \.self) { trick in
+                                    trickButton(trick)
+                                }
+                            }
                         }
                     }
-                    .pickerStyle(.menu)
                 }
                 Picker("Grip hand", selection: $gripHand) {
                     Text("RIGHT").tag(GripHand.right)
@@ -232,6 +292,83 @@ struct DebugMotionCaptureView: View {
                     .foregroundStyle(KamikazeTheme.muted)
             }
             .padding(18)
+        }
+    }
+
+    private var selectedCaptureCount: Int {
+        recorder.labelledDatasetExport?.countsByTrick[expectedTrickID, default: 0] ?? 0
+    }
+
+    private func trickButton(_ trick: DebugTrickID) -> some View {
+        let selected = expectedTrickID == trick
+        return Button {
+            expectedTrickID = trick
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(rotationHint(trick))
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .foregroundStyle(selected ? Color.black.opacity(0.65) : KamikazeTheme.muted)
+                    Spacer()
+                    if trickNeedsEvidence(trick) {
+                        Circle()
+                            .fill(selected ? Color.black.opacity(0.55) : KamikazeTheme.hazard)
+                            .frame(width: 6, height: 6)
+                    }
+                }
+                Text(trick.title)
+                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .foregroundStyle(selected ? Color.black : KamikazeTheme.frost)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.78)
+                    .frame(maxWidth: .infinity, minHeight: 30, alignment: .bottomLeading)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
+            .background(
+                selected ? KamikazeTheme.volt : .white.opacity(0.06),
+                in: RoundedRectangle(cornerRadius: 17)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 17)
+                    .stroke(.white.opacity(selected ? 0.34 : 0.09))
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Select \(trick.title)")
+    }
+
+    private func trickNeedsEvidence(_ trick: DebugTrickID) -> Bool {
+        switch trick {
+        case .doubleFlip, .doubleReverseFlip, .doublePhoneFlip, .doubleReversePhoneFlip,
+             .backsideShuvit, .frontsideShuvit:
+            true
+        default:
+            false
+        }
+    }
+
+    private func trickReadiness(_ trick: DebugTrickID) -> String {
+        switch trick {
+        case .unknown:
+            "CONTROL LABEL · EXCLUDED FROM TRICK RECOGNITION"
+        default:
+            trickNeedsEvidence(trick)
+                ? "COLLECT 3–5 CLEAN LANDED EXAMPLES + MISSES BEFORE DETECTION"
+                : "AVAILABLE IN THE CURRENT PHYSICAL CATALOG"
+        }
+    }
+
+    private func rotationHint(_ trick: DebugTrickID) -> String {
+        switch trick {
+        case .flip, .reverseFlip: "FLIP · 360°"
+        case .doubleFlip, .doubleReverseFlip: "FLIP · 720°"
+        case .phoneFlip, .reversePhoneFlip: "COMPOUND · ×1"
+        case .doublePhoneFlip, .doubleReversePhoneFlip: "COMPOUND · ×2"
+        case .backsideShuvit, .frontsideShuvit: "SHUV · 180°"
+        case .backsideThreeSixtyShuvit, .frontsideThreeSixtyShuvit: "SHUV · 360°"
+        case .straightAir: "AIR · 0°"
+        case .unknown: "CONTROL"
         }
     }
 

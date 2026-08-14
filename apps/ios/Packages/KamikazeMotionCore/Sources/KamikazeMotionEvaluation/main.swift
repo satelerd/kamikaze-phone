@@ -79,6 +79,7 @@ private enum MotionEvaluationCommand {
             let attempt = segmentedAttempt(from: item.capture)
             let result = matcher.match(attempt: attempt, catalog: catalog)
             let predicted = result.candidates.first?.definition.id.rawValue ?? "unknown"
+            let expected = normalizedID(item.label.expectedTrickID)
             let fit = result.candidates.first?.presentationFit ?? 0
             let secondFit = result.candidates.dropFirst().first?.presentationFit ?? 0
             let margin = fit - secondFit
@@ -87,7 +88,7 @@ private enum MotionEvaluationCommand {
             print([
                 item.capture.attempt.id,
                 item.label.outcome,
-                item.label.expectedTrickID,
+                expected,
                 result.status.rawValue,
                 predicted,
                 String(format: "%.3f", fit),
@@ -101,10 +102,10 @@ private enum MotionEvaluationCommand {
                 landedCount += 1
                 let normalizedPrediction = normalizedID(predicted)
                 if result.status == .recognized,
-                   normalizedPrediction == item.label.expectedTrickID {
+                   normalizedPrediction == expected {
                     landedCorrect += 1
                 }
-                confusion["\(item.label.expectedTrickID)->\(normalizedPrediction)", default: 0] += 1
+                confusion["\(expected)->\(normalizedPrediction)", default: 0] += 1
             } else if item.label.outcome == "missed" {
                 missedCount += 1
                 if result.status != .recognized { missedAbstained += 1 }
@@ -187,6 +188,8 @@ private enum MotionEvaluationCommand {
         switch id {
         case "front-flip": return "flip"
         case "back-flip": return "reverse-flip"
+        case "backside-shuvit": return "backside-360-shuvit"
+        case "frontside-shuvit": return "frontside-360-shuvit"
         default: return id
         }
     }
