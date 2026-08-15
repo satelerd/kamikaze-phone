@@ -29,4 +29,15 @@ enum AppTab: String, Hashable, CaseIterable {
         case .profile: "person.crop.circle"
         }
     }
+
+    /// The field's resting accent while this tab is frontmost and no run is
+    /// in progress.
+    var ambientAccent: Color {
+        switch self {
+        case .play: KamikazeTheme.ion
+        case .practice: KamikazeTheme.hazard
+        case .locker: KamikazeTheme.ion
+        case .profile: KamikazeTheme.volt
+        }
+    }
 }

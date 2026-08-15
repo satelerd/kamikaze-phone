@@ -24,9 +24,11 @@ struct PracticeLevelView: View {
         }
     }
 
+    @Environment(ExperienceCoordinator.self) private var experience
+
     var body: some View {
         ZStack {
-            KineticBackground(accent: accent)
+            ExperienceFieldBackground()
             VStack(spacing: 14) {
                 HStack {
                     SectionKicker(text: kicker)
@@ -91,7 +93,16 @@ struct PracticeLevelView: View {
             run.start()
             await progressModel.refresh()
         }
-        .onDisappear { run.stop() }
+        .onDisappear {
+            run.stop()
+            experience.report(phase: .idle)
+        }
+        .onChange(of: run.phase) { _, phase in
+            experience.report(phase: phase.experiencePhase)
+        }
+        .onChange(of: run.gyroDps) { _, gyroDps in
+            experience.reportMotion(gyroDps: gyroDps)
+        }
         .fullScreenCover(item: Binding(
             get: { run.result },
             set: { if $0 == nil { run.dismissResult() } }

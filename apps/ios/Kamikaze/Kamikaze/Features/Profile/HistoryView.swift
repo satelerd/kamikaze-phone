@@ -67,7 +67,7 @@ struct HistoryView: View {
 
     var body: some View {
         ZStack {
-            KineticBackground(accent: KamikazeTheme.ion)
+            ExperienceFieldBackground(ambient: KamikazeTheme.ion)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     SectionKicker(text: "HISTORY / \(filtered.count) OF \(model.totalCount)")

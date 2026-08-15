@@ -13,6 +13,18 @@ enum NativeRunPhase: Equatable {
     case result
     case unknown
     case failed(String)
+
+    /// Reduction for the shared experience system.
+    var experiencePhase: ExperiencePhase {
+        switch self {
+        case .ready: .idle
+        case .armed: .armed
+        case .motion: .motion
+        case .settling: .settling
+        case .result: .landed
+        case .unknown, .failed: .review
+        }
+    }
 }
 
 nonisolated enum AttemptInterpretationSource: String, Equatable, Sendable {

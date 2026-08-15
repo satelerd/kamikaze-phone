@@ -11,7 +11,7 @@ struct LockerView: View {
 
     var body: some View {
         ZStack {
-            KineticBackground(accent: skins.first(where: { $0.0 == selectedSkin })?.1 ?? KamikazeTheme.ion)
+            ExperienceFieldBackground(ambient: KamikazeTheme.ion)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     SectionKicker(text: "LOCKER / YOUR PHONE, YOUR DECK")

@@ -12,7 +12,7 @@ struct ProfileView: View {
 
     var body: some View {
         ZStack {
-            KineticBackground(accent: KamikazeTheme.volt)
+            ExperienceFieldBackground(ambient: KamikazeTheme.volt)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     SectionKicker(text: "PLAYER / LOCAL PROFILE")

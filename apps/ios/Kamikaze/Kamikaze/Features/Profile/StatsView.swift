@@ -23,7 +23,7 @@ struct StatsView: View {
 
     var body: some View {
         ZStack {
-            KineticBackground(accent: KamikazeTheme.volt)
+            ExperienceFieldBackground(ambient: KamikazeTheme.volt)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     SectionKicker(text: "STATS / FROM SAVED EVIDENCE")

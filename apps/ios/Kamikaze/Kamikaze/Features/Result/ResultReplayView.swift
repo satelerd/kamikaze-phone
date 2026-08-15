@@ -43,7 +43,14 @@ struct ResultReplayView: View {
 
     var body: some View {
         ZStack {
-            KineticBackground(accent: accent)
+            // Replay contexts derive the field deterministically from the
+            // recorded attempt: playhead drives time, recorded rotation
+            // drives energy. The same attempt always looks the same.
+            SlipstreamField(
+                accent: accent,
+                energy: min(1, replay.displayFrame.gyroDps / ExperienceCoordinator.fullScaleGyroDps),
+                timeOverride: replay.playheadMs / 1_000
+            )
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack {

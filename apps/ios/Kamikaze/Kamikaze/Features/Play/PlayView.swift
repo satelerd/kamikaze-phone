@@ -3,6 +3,7 @@ import SwiftUI
 struct PlayView: View {
     @State private var run = NativeRunModel()
     @Namespace private var glassNamespace
+    @Environment(ExperienceCoordinator.self) private var experience
 
     private var active: Bool {
         switch run.phase {
@@ -13,14 +14,23 @@ struct PlayView: View {
 
     var body: some View {
         ZStack {
-            KineticBackground(accent: accent)
+            ExperienceFieldBackground()
             GlassCluster(spacing: 14) {
                 playContent
             }
         }
         .toolbar(.hidden, for: .navigationBar)
         .task { run.start() }
-        .onDisappear { run.stop() }
+        .onDisappear {
+            run.stop()
+            experience.report(phase: .idle)
+        }
+        .onChange(of: run.phase) { _, phase in
+            experience.report(phase: phase.experiencePhase)
+        }
+        .onChange(of: run.gyroDps) { _, gyroDps in
+            experience.reportMotion(gyroDps: gyroDps)
+        }
         .fullScreenCover(item: Binding(
             get: { run.result },
             set: { if $0 == nil { run.dismissResult() } }

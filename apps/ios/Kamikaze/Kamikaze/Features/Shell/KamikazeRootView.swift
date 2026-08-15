@@ -3,6 +3,8 @@ import SwiftUI
 struct KamikazeRootView: View {
     @AppStorage("onboardingComplete") private var onboardingComplete = false
     @State private var selectedTab = AppTab.initialTab
+    @State private var experience = ExperienceCoordinator()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         if onboardingComplete {
@@ -20,8 +22,16 @@ struct KamikazeRootView: View {
                     NavigationStack { ProfileView(onReplayOnboarding: { onboardingComplete = false }) }
                 }
             }
+            .environment(experience)
             .tint(KamikazeTheme.volt)
             .preferredColorScheme(.dark)
+            .onAppear { experience.setReduceEffects(reduceMotion) }
+            .onChange(of: reduceMotion) { _, reduced in
+                experience.setReduceEffects(reduced)
+            }
+            .onChange(of: selectedTab) { _, tab in
+                experience.setAmbient(accent: tab.ambientAccent)
+            }
         } else {
             OnboardingView(onComplete: { onboardingComplete = true })
                 .preferredColorScheme(.dark)

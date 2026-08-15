@@ -9,14 +9,34 @@ enum KamikazeTheme {
     static let volt = Color(red: 0.84, green: 1.00, blue: 0.29)
 }
 
+/// Compatibility wrapper for presentation contexts (onboarding, covers,
+/// sheets) that want the field with a fixed accent and no live energy.
 struct KineticBackground: View {
     let accent: Color
+
+    var body: some View {
+        SlipstreamField(accent: accent)
+    }
+}
+
+/// Slipstream Field v2: one MeshGradient-based field whose drift, speed and
+/// halo respond to smoothed motion energy. In replay contexts a deterministic
+/// time override derived from the playhead replaces the wall clock, so the
+/// same attempt always produces the same field.
+struct SlipstreamField: View {
+    let accent: Color
+    /// Smoothed 0...1 from `ExperienceCoordinator`. Never raw sensor values.
+    var energy: Double = 0
+    /// Deterministic seconds for replay-driven fields; nil uses the clock.
+    var timeOverride: Double? = nil
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion)) { timeline in
-            let time = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || timeOverride != nil)) { timeline in
+            let clock = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
+            let time = timeOverride ?? clock
 
             ZStack {
                 KamikazeTheme.pitch
@@ -36,7 +56,7 @@ struct KineticBackground: View {
                     let shortEdge = min(proxy.size.width, proxy.size.height)
 
                     Circle()
-                        .fill(accent.opacity(reduceTransparency ? 0.07 : 0.20))
+                        .fill(accent.opacity(reduceTransparency ? 0.07 : 0.20 + 0.24 * energy))
                         .frame(width: shortEdge * 0.86, height: shortEdge * 0.86)
                         .blur(radius: 72)
                         .offset(
@@ -87,9 +107,13 @@ struct KineticBackground: View {
     }
 
     private func meshPoints(at time: TimeInterval) -> [SIMD2<Float>] {
-        let horizontal = Float(sin(time * 0.19)) * 0.055
-        let vertical = Float(cos(time * 0.14)) * 0.06
-        let counter = Float(sin(time * 0.09 + 1.7)) * 0.035
+        // Rotation energy opens the field: faster drift and wider shear while
+        // the phone is actually moving, quiet when it is not.
+        let drive = Float(1 + energy * 1.6)
+        let speed = 1 + energy * 2.2
+        let horizontal = Float(sin(time * 0.19 * speed)) * 0.055 * drive
+        let vertical = Float(cos(time * 0.14 * speed)) * 0.06 * drive
+        let counter = Float(sin(time * 0.09 * speed + 1.7)) * 0.035 * drive
 
         return [
             [0, 0], [0.5 + counter, 0], [1, 0],

@@ -40,7 +40,7 @@ struct PracticeView: View {
 
     var body: some View {
         ZStack {
-            KineticBackground(accent: KamikazeTheme.hazard)
+            ExperienceFieldBackground(ambient: KamikazeTheme.hazard)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     SectionKicker(text: "PRACTICE / SKILL LADDER")
