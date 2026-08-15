@@ -59,21 +59,25 @@ struct PracticeLevelView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                GlassSurface(role: .stage, cornerRadius: 42) {
-                    ZStack {
-                        Circle().fill(accent.opacity(0.13)).overlay(Circle().stroke(.white.opacity(0.13))).padding(10)
-                        if showsTarget {
-                            // Mathematical demonstration of the trick — always
-                            // labelled TARGET, never presented as measurement.
-                            ReplayPhoneScene(controller: targetReplay, accent: KamikazeTheme.volt)
-                            Text("TARGET / MATHEMATICAL")
-                                .font(.system(size: 8, weight: .black, design: .monospaced))
-                                .foregroundStyle(KamikazeTheme.volt)
-                                .padding(10)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                        } else {
-                            LivePhoneScene(attitude: run.relativeAttitude, accent: accent)
-                        }
+                ZStack {
+                    if showsTarget {
+                        // Mathematical demonstration on a clearly different
+                        // DEMO phone — never the player's own configuration.
+                        ReplayPhoneScene(
+                            controller: targetReplay,
+                            accent: KamikazeTheme.volt,
+                            appearanceOverride: .demo
+                        )
+                        Text("DEMO PHONE · TARGET MOTION")
+                            .font(.system(size: 9, weight: .black, design: .monospaced))
+                            .foregroundStyle(Color.black)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(KamikazeTheme.volt, in: Capsule())
+                            .padding(10)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    } else {
+                        LivePhoneScene(attitude: run.relativeAttitude, accent: accent)
                     }
                 }
                 .frame(maxHeight: 380)
@@ -123,10 +127,15 @@ struct PracticeLevelView: View {
             await progressModel.refresh()
         }
         .onChange(of: targetReplay.state) { _, state in
-            // The demonstration loops while the level is at rest.
+            // The demonstration loops while at rest, with a beat between
+            // repetitions so each rep reads as its own throw.
             if state == .ended, showsTarget {
-                targetReplay.seek(toProgress: 0)
-                targetReplay.play()
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(900))
+                    guard showsTarget, targetReplay.state == .ended else { return }
+                    targetReplay.seek(toProgress: 0)
+                    targetReplay.play()
+                }
             }
         }
         .onDisappear {

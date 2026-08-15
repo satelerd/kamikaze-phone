@@ -11,6 +11,9 @@ struct ReplayPhoneScene: View {
     /// plays the idealized motion phase-locked to the measured playhead. It
     /// tucks inside the measured phone when the player is on target.
     var targetFrames: [ReplayFrame]? = nil
+    /// Fixed appearance for demo/target contexts; nil renders the player's
+    /// equipped (or previewed) phone.
+    var appearanceOverride: PhoneAppearance? = nil
 
     @Environment(AppearanceStore.self) private var appearance
     @State private var previousDragTranslation = CGSize.zero
@@ -19,11 +22,12 @@ struct ReplayPhoneScene: View {
     var body: some View {
         RealityView { content in
             let phone = PhoneModelFactory.makePhone(
-                appearance: appearance.effective,
+                appearance: appearanceOverride ?? appearance.effective,
                 accent: UIColor(accent)
             )
             phone.name = "replay-phone"
             content.add(phone)
+            content.add(PhoneModelFactory.makeLightRig())
 
             if targetFrames?.isEmpty == false {
                 let ghost = PhoneModelFactory.makePhone(
@@ -82,7 +86,7 @@ struct ReplayPhoneScene: View {
         .simultaneousGesture(magnifyGesture, including: .all)
         .accessibilityLabel(targetFrames == nil ? "Replay 3D phone" : "Replay 3D phone with target ghost")
         .accessibilityHint("Drag to orbit the camera. Pinch to zoom.")
-        .id(appearance.effective)
+        .id(appearanceOverride ?? appearance.effective)
     }
 
     private var dragGesture: some Gesture {

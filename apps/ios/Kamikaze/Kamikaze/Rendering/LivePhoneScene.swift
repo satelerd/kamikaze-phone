@@ -39,6 +39,7 @@ struct LivePhoneScene: View {
             )
             phone.name = "phone"
             content.add(phone)
+            content.add(PhoneModelFactory.makeLightRig())
 
             let camera = PerspectiveCamera()
             camera.name = "camera"

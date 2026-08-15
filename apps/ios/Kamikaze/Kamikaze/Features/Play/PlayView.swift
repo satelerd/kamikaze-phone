@@ -61,13 +61,9 @@ struct PlayView: View {
 
                 Spacer(minLength: 8)
 
-                GlassSurface(role: .stage, cornerRadius: 42) {
-                    ZStack {
-                        Circle().fill(accent.opacity(0.13)).overlay(Circle().stroke(.white.opacity(0.13))).padding(10)
-                        LivePhoneScene(attitude: run.relativeAttitude, accent: accent)
-                    }
-                }
-                .frame(maxHeight: 430)
+                // The phone floats directly over the field — no stage boxes.
+                LivePhoneScene(attitude: run.relativeAttitude, accent: accent)
+                    .frame(maxHeight: 430)
 
                 GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
                     HStack(spacing: 18) {

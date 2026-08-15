@@ -23,18 +23,30 @@ struct ProfileView: View {
                         stat("\(model.metrics.landedCount)", "LANDED")
                         stat(model.metrics.highFitPercent.map(String.init) ?? "—", "HIGH FIT")
                     }
-                    if !model.allSummaries.isEmpty {
+                    NavigationLink {
+                        StatsView(model: model)
+                    } label: {
                         GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
-                            MotionTapeView(summaries: model.allSummaries) { attemptID in
-                                Task {
-                                    if let result = await model.openAttempt(id: attemptID) {
-                                        selectedAttempt = result
-                                    }
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Text("ACTIVITY")
+                                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                        .foregroundStyle(KamikazeTheme.muted)
+                                    Spacer()
+                                    Text("\(PlayerStatsEngine(summaries: model.allSummaries).activeDayCount) ACTIVE DAYS")
+                                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                        .foregroundStyle(KamikazeTheme.muted)
                                 }
+                                ActivityFieldView(
+                                    engine: PlayerStatsEngine(summaries: model.allSummaries),
+                                    weeks: 10,
+                                    cellSize: 20
+                                )
                             }
                             .padding(14)
                         }
                     }
+                    .buttonStyle(.plain)
                     recentCard
                     HStack(spacing: 10) {
                         NavigationLink {

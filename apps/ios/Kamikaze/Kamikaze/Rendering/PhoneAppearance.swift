@@ -133,6 +133,16 @@ nonisolated struct PhoneAppearance: Codable, Hashable, Sendable {
 
     static let `default` = PhoneAppearance()
 
+    /// The demonstration phone used by Practice targets: deliberately NOT a
+    /// configurable combination, so the demo never looks like the player's
+    /// own phone.
+    static let demo = PhoneAppearance(
+        formFactor: .standard,
+        bodyID: "body-frost",
+        edgeID: "edge-volt",
+        screenID: "screen-frost"
+    )
+
     var body: CosmeticOption { CosmeticCatalog.body(id: bodyID) ?? CosmeticCatalog.bodies[0] }
     var edge: CosmeticOption { CosmeticCatalog.edge(id: edgeID) ?? CosmeticCatalog.edges[0] }
     var screen: CosmeticOption { CosmeticCatalog.screen(id: screenID) ?? CosmeticCatalog.screens[0] }

@@ -134,10 +134,12 @@ private struct AdaptiveGlassButtonModifier: ViewModifier {
                 .buttonStyle(.borderedProminent)
                 .tint(prominent ? tint : KamikazeTheme.pitch)
         } else if #available(iOS 26, *) {
+            // Prominent CTAs are tinted GLASS, not a solid capsule: the field
+            // behind must stay visible through every button.
             if prominent {
-                content.buttonStyle(.glassProminent).tint(tint)
-            } else {
                 content.buttonStyle(.glass).tint(tint)
+            } else {
+                content.buttonStyle(.glass).tint(tint.opacity(0.85))
             }
         } else {
             if prominent {

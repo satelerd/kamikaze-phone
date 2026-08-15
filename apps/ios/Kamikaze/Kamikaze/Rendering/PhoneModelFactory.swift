@@ -2,8 +2,9 @@ import RealityKit
 import UIKit
 
 /// One authored phone shell for every scene — live, replay, target and Setup.
-/// Parts are named, the pivot is the body center, and materials are
-/// physically based so the same asset reads correctly in every field state.
+/// Parts are named, the pivot is the body center, and materials are kept to
+/// the set validated on the physical device so the asset reads identically in
+/// every render path.
 enum PhoneModelFactory {
     static func makePhone(appearance: PhoneAppearance, accent: UIColor) -> Entity {
         let shape = DeviceShapeDefinition.shape(for: appearance.formFactor)
@@ -14,11 +15,11 @@ enum PhoneModelFactory {
         let bodyColor = uiColor(appearance.body.color)
         let screenColor = appearance.usesLiveScreen ? accent : uiColor(appearance.screen.color)
 
-        // Frame: the metal rail that wraps the phone.
-        var frameMaterial = PhysicallyBasedMaterial()
-        frameMaterial.baseColor = .init(tint: edgeColor)
-        frameMaterial.metallic = 1.0
-        frameMaterial.roughness = 0.34
+        // Materials are deliberately conservative: SimpleMaterial was
+        // physically validated on-device by the first native build, while a
+        // PhysicallyBasedMaterial set rendered black there (no IBL). The
+        // screen is unlit so state stays readable under any lighting.
+        let frameMaterial = SimpleMaterial(color: edgeColor, roughness: 0.35, isMetallic: true)
         let frame = ModelEntity(
             mesh: .generateBox(
                 width: shape.width,
@@ -32,12 +33,7 @@ enum PhoneModelFactory {
         root.addChild(frame)
 
         // Back glass: the finish the player customizes.
-        var backMaterial = PhysicallyBasedMaterial()
-        backMaterial.baseColor = .init(tint: bodyColor)
-        backMaterial.metallic = 0.55
-        backMaterial.roughness = 0.30
-        backMaterial.clearcoat = .init(floatLiteral: 1.0)
-        backMaterial.clearcoatRoughness = .init(floatLiteral: 0.12)
+        let backMaterial = SimpleMaterial(color: bodyColor, roughness: 0.28, isMetallic: true)
         let back = ModelEntity(
             mesh: .generateBox(
                 width: shape.width * 0.965,
@@ -51,13 +47,8 @@ enum PhoneModelFactory {
         back.position.z = -shape.depth * 0.46
         root.addChild(back)
 
-        // Screen: emissive so state reads even against a dark field.
-        var screenMaterial = PhysicallyBasedMaterial()
-        screenMaterial.baseColor = .init(tint: screenColor.withAlphaComponent(0.9))
-        screenMaterial.roughness = 0.14
-        screenMaterial.metallic = 0.0
-        screenMaterial.emissiveColor = .init(color: screenColor)
-        screenMaterial.emissiveIntensity = appearance.usesLiveScreen ? 1.6 : 1.1
+        // Screen: unlit so it glows identically in every render path.
+        let screenMaterial = UnlitMaterial(color: screenColor.withAlphaComponent(0.92))
         let screen = ModelEntity(
             mesh: .generateBox(
                 width: shape.width * 0.9,
@@ -108,10 +99,7 @@ enum PhoneModelFactory {
         let island = Entity()
         island.name = "phone-camera-island"
 
-        var islandMaterial = PhysicallyBasedMaterial()
-        islandMaterial.baseColor = .init(tint: edgeColor)
-        islandMaterial.metallic = 0.85
-        islandMaterial.roughness = 0.40
+        let islandMaterial = SimpleMaterial(color: edgeColor, roughness: 0.4, isMetallic: true)
         let islandSize = shape.width * 0.34
         let plate = ModelEntity(
             mesh: .generateBox(
@@ -125,11 +113,7 @@ enum PhoneModelFactory {
         plate.name = "phone-camera-plate"
         island.addChild(plate)
 
-        var lensMaterial = PhysicallyBasedMaterial()
-        lensMaterial.baseColor = .init(tint: UIColor(white: 0.04, alpha: 1))
-        lensMaterial.metallic = 0.2
-        lensMaterial.roughness = 0.05
-        lensMaterial.clearcoat = .init(floatLiteral: 1.0)
+        let lensMaterial = SimpleMaterial(color: UIColor(white: 0.05, alpha: 1), roughness: 0.08, isMetallic: false)
 
         let lensRadius = islandSize * 0.17
         let offsets: [SIMD2<Float>] = shape.cameraLensCount >= 3
@@ -150,6 +134,30 @@ enum PhoneModelFactory {
             island.addChild(lens)
         }
         return island
+    }
+
+    /// Deterministic scene lighting: virtual-camera RealityViews provide no
+    /// environment on device, so every phone scene adds this rig alongside
+    /// the phone (never as its child — lights must not spin with the trick).
+    /// Key from the viewer's upper front, fill from behind so the back glass
+    /// never collapses to black.
+    static func makeLightRig() -> Entity {
+        let rig = Entity()
+        rig.name = "phone-light-rig"
+
+        let key = Entity()
+        key.name = "phone-light-key"
+        key.components.set(DirectionalLightComponent(color: .white, intensity: 2600))
+        key.orientation = simd_quatf(angle: -.pi / 5, axis: SIMD3(1, 0.35, 0))
+        rig.addChild(key)
+
+        let fill = Entity()
+        fill.name = "phone-light-fill"
+        fill.components.set(DirectionalLightComponent(color: .white, intensity: 900))
+        fill.orientation = simd_quatf(angle: .pi * 0.82, axis: SIMD3(0.25, 1, 0))
+        rig.addChild(fill)
+
+        return rig
     }
 
     private static func uiColor(_ value: CosmeticOption.ColorValue) -> UIColor {
