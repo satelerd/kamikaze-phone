@@ -22,6 +22,10 @@ struct ResultReplayView: View {
     @State private var showsCorrection = false
     @State private var isConfirming = false
     @State private var showsDeleteConfirmation = false
+    /// Low-passed recorded energy for the field: raw per-frame gyro reads
+    /// jumpy; the field must stay smooth.
+    @State private var fieldEnergy: Double = 0
+    @AppStorage(BetaFlags.verticalArc) private var verticalArc = false
     @Environment(FeedbackCoordinator.self) private var feedback
 
     init(
@@ -58,7 +62,7 @@ struct ResultReplayView: View {
             // drives energy. The same attempt always looks the same.
             SlipstreamField(
                 accent: accent,
-                energy: min(1, replay.displayFrame.gyroDps / ExperienceCoordinator.fullScaleGyroDps),
+                energy: fieldEnergy,
                 timeOverride: replay.playheadMs / 1_000
             )
             ScrollView {
@@ -100,7 +104,12 @@ struct ResultReplayView: View {
                         practiceBanner(target: practiceTarget)
                     }
 
-                    ReplayPhoneView(controller: replay, accent: accent, targetFrames: targetFrames)
+                    ReplayPhoneView(
+                        controller: replay,
+                        accent: accent,
+                        targetFrames: targetFrames,
+                        estimatedArcHeight: verticalArc ? estimatedArcHeight : nil
+                    )
 
                     if let practiceTarget, displayedResult.humanReview == nil {
                         practiceConfirmRow(target: practiceTarget)
@@ -140,6 +149,10 @@ struct ResultReplayView: View {
             }
         }
         .onAppear { replay.play() }
+        .onChange(of: replay.playheadMs) { _, _ in
+            let raw = min(1, replay.displayFrame.gyroDps / ExperienceCoordinator.fullScaleGyroDps)
+            fieldEnergy = min(1, max(0, fieldEnergy * 0.92 + raw * 0.5 * 0.08))
+        }
         .confirmationDialog(
             "Delete this attempt?",
             isPresented: $showsDeleteConfirmation,
@@ -161,6 +174,15 @@ struct ResultReplayView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
+    }
+
+    /// Ballistic peak from motion duration (h = g·t²/8), scaled into the
+    /// scene and capped so the phone stays framed. Estimated, never measured.
+    private var estimatedArcHeight: Float {
+        let boundaries = displayedResult.capture.attempt.boundaries
+        let t = max(0, boundaries.motionEndS - boundaries.motionStartS)
+        let physicalPeak = 9.81 * t * t / 8
+        return Float(min(0.28, physicalPeak * 0.30))
     }
 
     private var accent: Color {

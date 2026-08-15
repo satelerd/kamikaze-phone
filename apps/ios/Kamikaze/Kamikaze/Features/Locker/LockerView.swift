@@ -11,7 +11,6 @@ struct LockerView: View {
         case body = "BODY"
         case edge = "EDGE"
         case screen = "SCREEN"
-        case field = "FIELD"
 
         var id: String { rawValue }
     }
@@ -20,9 +19,6 @@ struct LockerView: View {
     @Environment(FeedbackCoordinator.self) private var feedback
     @State private var category = Category.body
     @State private var progressModel = PracticeModel()
-    /// Field prototypes apply instantly app-wide; they are comparison tools,
-    /// not economy items, so there is no equip step.
-    @AppStorage(FieldStyle.storageKey) private var fieldStyleRaw = FieldStyle.default.rawValue
 
     var body: some View {
         ZStack {
@@ -140,32 +136,6 @@ struct LockerView: View {
                 selectedID: store.effective.screenID
             ) { option in
                 store.previewChange { $0.screenID = option.id }
-            }
-        case .field:
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(FieldStyle.allCases) { candidate in
-                        Button {
-                            fieldStyleRaw = candidate.rawValue
-                        } label: {
-                            GlassSurface(role: .interactiveCard, cornerRadius: 20) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(candidate.displayName)
-                                        .font(.system(size: 12, weight: .black, design: .rounded))
-                                    Text(candidate.blurb)
-                                        .font(.system(size: 7, weight: .bold, design: .monospaced))
-                                        .foregroundStyle(KamikazeTheme.muted)
-                                    Text(fieldStyleRaw == candidate.rawValue ? "ACTIVE" : "TRY IT")
-                                        .font(.system(size: 7, weight: .bold, design: .monospaced))
-                                        .foregroundStyle(fieldStyleRaw == candidate.rawValue ? KamikazeTheme.volt : KamikazeTheme.muted)
-                                }
-                                .frame(width: 130, alignment: .leading)
-                                .padding(12)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
             }
         }
     }

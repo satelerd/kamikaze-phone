@@ -40,12 +40,6 @@ struct PracticeLevelView: View {
                 HStack {
                     SectionKicker(text: kicker)
                     Spacer()
-                    Button("ZERO POSE", systemImage: "scope") {
-                        run.zeroPose()
-                        feedback.play(.zeroed)
-                    }
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .adaptiveGlassButton()
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -81,7 +75,11 @@ struct PracticeLevelView: View {
                         LivePhoneScene(
                             attitude: run.relativeAttitude,
                             accent: accent,
-                            initialZoom: 0.55
+                            initialZoom: 0.55,
+                            onLevel: {
+                                run.zeroPose()
+                                feedback.play(.zeroed)
+                            }
                         )
                     }
                 }

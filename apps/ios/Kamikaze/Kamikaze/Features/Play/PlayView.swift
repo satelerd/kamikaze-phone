@@ -51,12 +51,6 @@ struct PlayView: View {
                 HStack {
                     SectionKicker(text: kicker)
                     Spacer()
-                    Button("ZERO POSE", systemImage: "scope") {
-                        run.zeroPose()
-                        feedback.play(.zeroed)
-                    }
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .adaptiveGlassButton()
                 }
 
                 Spacer(minLength: 8)
@@ -65,7 +59,11 @@ struct PlayView: View {
                 LivePhoneScene(
                     attitude: run.relativeAttitude,
                     accent: accent,
-                    initialZoom: 0.5
+                    initialZoom: 0.5,
+                    onLevel: {
+                        run.zeroPose()
+                        feedback.play(.zeroed)
+                    }
                 )
                 .frame(maxHeight: 480)
 

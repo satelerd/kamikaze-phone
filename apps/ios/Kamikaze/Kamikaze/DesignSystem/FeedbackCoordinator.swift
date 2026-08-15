@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreHaptics
 import Foundation
 import Observation
@@ -16,9 +17,10 @@ nonisolated enum FeedbackCue: Equatable, Sendable {
     case cosmeticUnlocked
 }
 
-/// One interruption-safe haptic owner (X6). Sound is a declared slot — the
-/// original kinetic-foley kit is authored separately — so this coordinator
-/// currently speaks through the Taptic Engine only.
+/// One interruption-safe feedback owner (X6): haptics through the Taptic
+/// Engine and a v0 kinetic-foley sound kit (synthesized in-repo; original by
+/// construction). Audio uses the ambient category, so the silent switch and
+/// other apps' audio are respected.
 ///
 /// Contamination rule: the Taptic Engine is visible to the accelerometer, so
 /// while the evidence window is active NO cue plays, ever. That gate stays in
@@ -29,6 +31,7 @@ nonisolated enum FeedbackCue: Equatable, Sendable {
 final class FeedbackCoordinator {
     private enum Key {
         static let haptics = "feedbackHapticsEnabled"
+        static let sound = "feedbackSoundEnabled"
     }
 
     /// True from the moment capture is armed until the capture closes.
@@ -39,12 +42,19 @@ final class FeedbackCoordinator {
         didSet { UserDefaults.standard.set(hapticsEnabled, forKey: Key.haptics) }
     }
 
+    var soundEnabled: Bool {
+        didSet { UserDefaults.standard.set(soundEnabled, forKey: Key.sound) }
+    }
+
     private var engine: CHHapticEngine?
     private var engineStarted = false
     private let supportsHaptics: Bool
+    private var players: [String: AVAudioPlayer] = [:]
+    private var audioSessionConfigured = false
 
     init() {
         hapticsEnabled = UserDefaults.standard.object(forKey: Key.haptics) as? Bool ?? true
+        soundEnabled = UserDefaults.standard.object(forKey: Key.sound) as? Bool ?? true
         supportsHaptics = CHHapticEngine.capabilitiesForHardware().supportsHaptics
     }
 
@@ -59,16 +69,55 @@ final class FeedbackCoordinator {
     }
 
     func play(_ cue: FeedbackCue) {
-        guard canPlay() else { return }
-        do {
-            try startEngineIfNeeded()
-            guard let engine else { return }
-            let pattern = try Self.pattern(for: cue)
-            let player = try engine.makePlayer(with: pattern)
-            try player.start(atTime: CHHapticTimeImmediate)
-        } catch {
-            // Unsupported or interrupted haptic hardware degrades silently;
-            // visual state already carries the same meaning.
+        // The contamination gate covers BOTH senses: the speaker can reach
+        // the sensors just like the Taptic Engine.
+        guard !evidenceWindowActive else { return }
+        if hapticsEnabled, supportsHaptics {
+            do {
+                try startEngineIfNeeded()
+                if let engine {
+                    let pattern = try Self.pattern(for: cue)
+                    let player = try engine.makePlayer(with: pattern)
+                    try player.start(atTime: CHHapticTimeImmediate)
+                }
+            } catch {
+                // Unsupported or interrupted haptic hardware degrades
+                // silently; visual state already carries the same meaning.
+            }
+        }
+        if soundEnabled {
+            playSound(for: cue)
+        }
+    }
+
+    private func playSound(for cue: FeedbackCue) {
+        guard let name = Self.soundName(for: cue) else { return }
+        if !audioSessionConfigured {
+            try? AVAudioSession.sharedInstance().setCategory(.ambient, options: [.mixWithOthers])
+            audioSessionConfigured = true
+        }
+        if players[name] == nil,
+           let url = Bundle.main.url(forResource: name, withExtension: "wav") {
+            players[name] = try? AVAudioPlayer(contentsOf: url)
+            players[name]?.prepareToPlay()
+        }
+        guard let player = players[name] else { return }
+        player.currentTime = 0
+        player.play()
+    }
+
+    /// v0 kit mapping. Files live in Resources/Sounds, synthesized by script.
+    nonisolated static func soundName(for cue: FeedbackCue) -> String? {
+        switch cue {
+        case .zeroed: "cue-zeroed"
+        case .armed: "cue-armed"
+        case .cancelled: "cue-cancelled"
+        case .catchResolved: "cue-catch"
+        case .landed: "cue-landed"
+        case .missed: "cue-missed"
+        case .needsReview: "cue-review"
+        case .levelMastered: "cue-mastered"
+        case .cosmeticUnlocked: "cue-unlocked"
         }
     }
 

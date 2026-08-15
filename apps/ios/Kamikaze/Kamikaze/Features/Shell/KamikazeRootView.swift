@@ -20,6 +20,9 @@ struct KamikazeRootView: View {
                 Tab(AppTab.locker.title, systemImage: AppTab.locker.symbol, value: AppTab.locker) {
                     NavigationStack { LockerView() }
                 }
+                Tab(AppTab.beta.title, systemImage: AppTab.beta.symbol, value: AppTab.beta) {
+                    NavigationStack { BetaView() }
+                }
                 Tab(AppTab.profile.title, systemImage: AppTab.profile.symbol, value: AppTab.profile) {
                     NavigationStack { ProfileView(onReplayOnboarding: { onboardingComplete = false }) }
                 }

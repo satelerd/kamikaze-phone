@@ -7,7 +7,6 @@ struct ProfileView: View {
     let onReplayOnboarding: () -> Void
     @State private var model = ProfileModel()
     @State private var selectedAttempt: NativeRunResult?
-    @Environment(FeedbackCoordinator.self) private var feedback
     @State private var isEditingName = false
     @State private var draftName = ""
 
@@ -54,8 +53,6 @@ struct ProfileView: View {
                                 settingsRow("RIDER NAME", value: model.profileStore.name)
                             }
                             .buttonStyle(.plain)
-                            Divider()
-                            hapticsRow
                             Divider()
                             settingsRow("GRIP HAND", value: "RIGHT")
                             Divider()
@@ -231,15 +228,6 @@ struct ProfileView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(15)
         }
-    }
-
-    private var hapticsRow: some View {
-        @Bindable var feedback = feedback
-        return Toggle(isOn: $feedback.hapticsEnabled) {
-            Text("HAPTICS").font(.system(size: 11, weight: .bold, design: .rounded))
-        }
-        .tint(KamikazeTheme.volt)
-        .frame(minHeight: 54)
     }
 
     private func settingsRow(_ title: String, value: String) -> some View {

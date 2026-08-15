@@ -2,20 +2,23 @@ import KamikazeMotionCore
 import RealityKit
 import SwiftUI
 
-/// The 3D scene is orientation-only. A phone remains at the origin because
-/// motion samples do not make a truthful enough position trajectory.
+/// The 3D scene is orientation-first. Vertical translation is OFF by default:
+/// when the beta "estimated arc" experiment is enabled, the phone follows a
+/// ballistic arc derived from motion duration — clearly labelled ESTIMATED,
+/// never presented as measured position.
 struct ReplayPhoneScene: View {
     @Bindable var controller: ReplayController
     let accent: Color
     /// Mathematical TARGET frames. When present, a translucent ghost phone
-    /// plays the idealized motion phase-locked to the measured playhead. It
-    /// tucks inside the measured phone when the player is on target.
+    /// plays the idealized motion phase-locked to the measured playhead.
     var targetFrames: [ReplayFrame]? = nil
     /// Fixed appearance for demo/target contexts; nil renders the player's
     /// equipped (or previewed) phone.
     var appearanceOverride: PhoneAppearance? = nil
     /// Screen stamp for demo phones (e.g. "IDEAL").
     var screenLabel: String? = nil
+    /// Peak arc height in scene meters when the beta experiment is on.
+    var estimatedArcHeight: Float? = nil
 
     @Environment(AppearanceStore.self) private var appearance
     @State private var previousDragTranslation = CGSize.zero
@@ -23,13 +26,13 @@ struct ReplayPhoneScene: View {
 
     var body: some View {
         RealityView { content in
-            let phone = PhoneModelFactory.makePhone(
+            PhoneSceneRefresher.refreshPhone(
+                in: &content,
+                named: "replay-phone",
                 appearance: appearanceOverride ?? appearance.effective,
                 accent: UIColor(accent),
                 screenLabel: screenLabel
             )
-            phone.name = "replay-phone"
-            content.add(phone)
             content.add(PhoneModelFactory.makeLightRig())
 
             if targetFrames?.isEmpty == false {
@@ -51,14 +54,32 @@ struct ReplayPhoneScene: View {
             content.add(camera)
             content.camera = .virtual
         } update: { content in
-            guard let phone = content.entities.first(where: { $0.name == "replay-phone" }),
-                  let camera = content.entities.first(where: { $0.name == "replay-camera" }) else { return }
-
-            let attitude = controller.displayFrame.quaternion
-            phone.orientation = simd_quatf(
-                ix: Float(attitude.x), iy: Float(attitude.y), iz: Float(attitude.z), r: Float(attitude.w)
+            let phone = PhoneSceneRefresher.refreshPhone(
+                in: &content,
+                named: "replay-phone",
+                appearance: appearanceOverride ?? appearance.effective,
+                accent: UIColor(accent),
+                screenLabel: screenLabel
             )
-            phone.position = .zero
+            guard let camera = content.entities.first(where: { $0.name == "replay-camera" }) else { return }
+
+            let frame = controller.displayFrame
+            phone?.orientation = simd_quatf(
+                ix: Float(frame.quaternion.x),
+                iy: Float(frame.quaternion.y),
+                iz: Float(frame.quaternion.z),
+                r: Float(frame.quaternion.w)
+            )
+            // Ballistic vertical arc (beta): y = 4h·p·(1−p) over the motion
+            // window. Estimated presentation, not measured evidence.
+            let arcY: Float
+            if let estimatedArcHeight {
+                let p = Float(min(1, max(0, frame.progress)))
+                arcY = 4 * estimatedArcHeight * p * (1 - p)
+            } else {
+                arcY = 0
+            }
+            phone?.position = SIMD3(0, arcY, 0)
 
             if let targetFrames, !targetFrames.isEmpty,
                let ghost = content.entities.first(where: { $0.name == "target-ghost" }) {
@@ -73,7 +94,7 @@ struct ReplayPhoneScene: View {
                     iz: Float(ghostFrame.quaternion.z),
                     r: Float(ghostFrame.quaternion.w)
                 )
-                ghost.position = .zero
+                ghost.position = SIMD3(0, arcY, 0)
             }
 
             let rig = controller.camera
@@ -92,7 +113,6 @@ struct ReplayPhoneScene: View {
         .simultaneousGesture(magnifyGesture, including: .all)
         .accessibilityLabel(targetFrames == nil ? "Replay 3D phone" : "Replay 3D phone with target ghost")
         .accessibilityHint("Drag to orbit the camera. Pinch to zoom.")
-        .id(appearanceOverride ?? appearance.effective)
     }
 
     private var dragGesture: some Gesture {
@@ -116,7 +136,6 @@ struct ReplayPhoneScene: View {
             }
             .onEnded { _ in magnifyOrigin = 1 }
     }
-
 }
 
 /// A reusable stage with transport and camera/reference controls. Screens may
@@ -125,39 +144,65 @@ struct ReplayPhoneView: View {
     @Bindable var controller: ReplayController
     let accent: Color
     let targetFrames: [ReplayFrame]?
+    let estimatedArcHeight: Float?
 
     init(
         controller: ReplayController,
         accent: Color = .blue,
-        targetFrames: [ReplayFrame]? = nil
+        targetFrames: [ReplayFrame]? = nil,
+        estimatedArcHeight: Float? = nil
     ) {
         self.controller = controller
         self.accent = accent
         self.targetFrames = targetFrames
+        self.estimatedArcHeight = estimatedArcHeight
     }
 
     var body: some View {
         GlassCluster(spacing: 12) {
             VStack(spacing: 12) {
                 ZStack(alignment: .bottomTrailing) {
-                    ReplayPhoneScene(controller: controller, accent: accent, targetFrames: targetFrames)
-                        .frame(minHeight: 300)
-                        .background(.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    ReplayPhoneScene(
+                        controller: controller,
+                        accent: accent,
+                        targetFrames: targetFrames,
+                        estimatedArcHeight: estimatedArcHeight
+                    )
+                    .frame(minHeight: 380)
 
-                    if targetFrames != nil {
-                        Text("GHOST = TARGET")
-                            .font(.system(size: 8, weight: .black, design: .monospaced))
-                            .foregroundStyle(KamikazeTheme.volt)
-                            .padding(8)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    VStack(alignment: .leading, spacing: 4) {
+                        if targetFrames != nil {
+                            Text("GHOST = TARGET")
+                                .font(.system(size: 8, weight: .black, design: .monospaced))
+                                .foregroundStyle(KamikazeTheme.volt)
+                        }
+                        if estimatedArcHeight != nil {
+                            Text("EST. ARC — BETA")
+                                .font(.system(size: 8, weight: .black, design: .monospaced))
+                                .foregroundStyle(KamikazeTheme.hazard)
+                        }
                     }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
                     HStack(spacing: 8) {
-                        Button("Reset camera", systemImage: "view.3d") { controller.resetCamera() }
-                            .labelStyle(.iconOnly)
-                            .adaptiveGlassButton()
-                        Button("Zero pose", systemImage: "scope") { controller.zeroPose() }
-                            .labelStyle(.iconOnly)
-                            .adaptiveGlassButton()
+                        Button {
+                            controller.zeroPose()
+                        } label: {
+                            Label("LEVEL", systemImage: "level")
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        }
+                        .adaptiveGlassButton()
+                        .accessibilityHint("Sets the visible orientation reference at the playhead")
+
+                        Button {
+                            controller.resetCamera()
+                        } label: {
+                            Label("CAMERA", systemImage: "camera")
+                                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        }
+                        .adaptiveGlassButton()
+                        .accessibilityHint("Resets the viewing camera")
                     }
                     .padding(12)
                 }
