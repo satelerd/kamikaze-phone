@@ -13,9 +13,9 @@ based on `origin/ios/capture-segmentation` (`15a3b4a`). It executes existing pla
 - `xcodebuild` Debug build for iPhone 17 Pro Simulator succeeds; the app installs,
   launches, and renders onboarding, Play (expected `SENSOR ERROR` in Simulator),
   Practice, Locker and Me.
-- `KamikazeUITests` pass (3 tests). Note: the shared `Kamikaze` scheme's test action
-  does **not** include the `KamikazeTests` unit bundle; run it explicitly with
-  `-only-testing:KamikazeTests`.
+- The shared `Kamikaze` scheme's test action runs BOTH bundles (verified:
+  63/63 across KamikazeTests + KamikazeUITests). `-only-testing:KamikazeTests`
+  remains the fast loop for unit-only iterations.
 - iPhone 15 Plus "SAT" (`iPhone15,5`, CoreDevice `CC541726-5B60-5FD5-B914-0D230282A9C3`)
   is paired and `available` from the mini.
 - Known packaging issue: `swift test` for `KamikazeMotionApple` fails standalone on
@@ -27,13 +27,19 @@ based on `origin/ios/capture-segmentation` (`15a3b4a`). It executes existing pla
 ```sh
 xcodebuild -project apps/ios/Kamikaze/Kamikaze.xcodeproj -scheme Kamikaze \
   -configuration Debug -destination platform=iOS,id=<device-id> \
-  -allowProvisioningUpdates build
+  DEVELOPMENT_TEAM=U6FHW3K5AY -allowProvisioningUpdates build
+# DEVELOPMENT_TEAM is required: the committed pbxproj deliberately carries no
+# team, so CLI builds must pass Daniel's Personal Team explicitly.
 xcrun devicectl device install app --device <device-id> <path/to/Kamikaze.app>
 xcrun devicectl device process launch --device <device-id> tech.sateler.kamikazephone.dev
 ```
 
 - Signing: Personal Team (`Apple Development — mini-sat`). Free profiles expire after
-  **7 days**; the 2026-08-12 install expires ~2026-08-19. Reinstalling refreshes it.
+  **7 days**; the sprint-final install on 2026-08-15 expires ~2026-08-22.
+  Reinstalling refreshes the clock.
+- DerivedData has three sibling `Kamikaze-*` directories from earlier sessions.
+  Always pick build products by newest mtime — a naive `find | head -1` once
+  installed Codex's 2026-08-12 binary and produced a false-negative visual check.
 - Bundle ID `tech.sateler.kamikazephone.dev` stays constant so the on-device history
   (62 captures) survives every reinstall.
 - Simulator validates UI only. Every sensor-behavior change needs a physical session
@@ -60,10 +66,15 @@ Practice mastery (P3), reward ledger (G5), choreography (X5) and integration pas
 
 ## Physical checkpoints Daniel is needed for
 
-1. Device smoke test after slice 2 (first gameplay-affecting build).
-2. Device test of History/pagination with the real 62-attempt history (slice 3).
-3. Contamination bench before any capture-window haptic/audio cue ships (slice 8):
-   stationary phone, 20 repetitions per cue, gyro/accel baseline vs. peak comparison.
+All eight slices shipped to the iPhone together on 2026-08-15. Outstanding:
+
+1. Device smoke test of the full sprint build: G1 migration over the real
+   62-attempt history (first open of Me re-analyzes any stale records from
+   raw — by design, and surfaced in the UI if anything fails), Practice runs,
+   Setup preview/equip, haptic cues outside the capture window.
+2. Contamination bench before any capture-window haptic/audio cue is enabled:
+   stationary phone, 20 repetitions per cue, gyro/accel baseline vs. peak
+   comparison. Until then the evidence-window gate stays hard-closed.
 
 ## Git protocol
 

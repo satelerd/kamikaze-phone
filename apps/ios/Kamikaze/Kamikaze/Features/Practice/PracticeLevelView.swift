@@ -10,11 +10,17 @@ struct PracticeLevelView: View {
 
     @State private var run: NativeRunModel
     @State private var progressModel = PracticeModel()
+    /// Mathematical target animation, looped while the level is at rest.
+    @State private var targetReplay: ReplayController
 
     init(node: PracticeTrickNode, pair: PracticePair) {
         self.node = node
         self.pair = pair
         _run = State(initialValue: NativeRunModel(expectedTrickID: node.trickID))
+        let definition = TrickCatalog.provisional(gripHand: .right)
+            .definitions.first { $0.id == node.trickID }
+        let frames = definition.map { TargetMotionGenerator.frames(for: $0) } ?? []
+        _targetReplay = State(initialValue: ReplayController(frames: frames))
     }
 
     private var active: Bool {
@@ -56,7 +62,18 @@ struct PracticeLevelView: View {
                 GlassSurface(role: .stage, cornerRadius: 42) {
                     ZStack {
                         Circle().fill(accent.opacity(0.13)).overlay(Circle().stroke(.white.opacity(0.13))).padding(10)
-                        LivePhoneScene(attitude: run.relativeAttitude, accent: accent)
+                        if showsTarget {
+                            // Mathematical demonstration of the trick — always
+                            // labelled TARGET, never presented as measurement.
+                            ReplayPhoneScene(controller: targetReplay, accent: KamikazeTheme.volt)
+                            Text("TARGET / MATHEMATICAL")
+                                .font(.system(size: 8, weight: .black, design: .monospaced))
+                                .foregroundStyle(KamikazeTheme.volt)
+                                .padding(10)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        } else {
+                            LivePhoneScene(attitude: run.relativeAttitude, accent: accent)
+                        }
                     }
                 }
                 .frame(maxHeight: 380)
@@ -102,7 +119,15 @@ struct PracticeLevelView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             run.start()
+            targetReplay.play()
             await progressModel.refresh()
+        }
+        .onChange(of: targetReplay.state) { _, state in
+            // The demonstration loops while the level is at rest.
+            if state == .ended, showsTarget {
+                targetReplay.seek(toProgress: 0)
+                targetReplay.play()
+            }
         }
         .onDisappear {
             run.stop()
@@ -139,6 +164,13 @@ struct PracticeLevelView: View {
 
     private var reps: Int {
         progressModel.progress.qualifyingReps(for: node.trickID)
+    }
+
+    /// The target demo owns the stage only while the level is at rest; from
+    /// ARMED onward the live pose is the hero.
+    private var showsTarget: Bool {
+        if case .ready = run.phase { return targetReplay.hasReplay }
+        return false
     }
 
     /// Same ordering rule as Play: armed tick before the window opens,

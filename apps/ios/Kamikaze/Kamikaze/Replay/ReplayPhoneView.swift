@@ -7,6 +7,10 @@ import SwiftUI
 struct ReplayPhoneScene: View {
     @Bindable var controller: ReplayController
     let accent: Color
+    /// Mathematical TARGET frames. When present, a translucent ghost phone
+    /// plays the idealized motion phase-locked to the measured playhead. It
+    /// tucks inside the measured phone when the player is on target.
+    var targetFrames: [ReplayFrame]? = nil
 
     @Environment(AppearanceStore.self) private var appearance
     @State private var previousDragTranslation = CGSize.zero
@@ -20,6 +24,17 @@ struct ReplayPhoneScene: View {
             )
             phone.name = "replay-phone"
             content.add(phone)
+
+            if targetFrames?.isEmpty == false {
+                let ghost = PhoneModelFactory.makePhone(
+                    appearance: appearance.effective,
+                    accent: UIColor(KamikazeTheme.volt)
+                )
+                ghost.name = "target-ghost"
+                ghost.scale = SIMD3(repeating: 0.97)
+                ghost.components.set(OpacityComponent(opacity: 0.32))
+                content.add(ghost)
+            }
 
             let camera = PerspectiveCamera()
             camera.name = "replay-camera"
@@ -35,6 +50,22 @@ struct ReplayPhoneScene: View {
             )
             phone.position = .zero
 
+            if let targetFrames, !targetFrames.isEmpty,
+               let ghost = content.entities.first(where: { $0.name == "target-ghost" }) {
+                // Phase-locked: the ghost follows the measured PROGRESS, so
+                // target and measured stay comparable even when their
+                // durations differ.
+                let targetDuration = targetFrames.last?.timestampMs ?? 0
+                let ghostFrame = ReplayBuilder.sample(targetFrames, at: controller.progress * targetDuration)
+                ghost.orientation = simd_quatf(
+                    ix: Float(ghostFrame.quaternion.x),
+                    iy: Float(ghostFrame.quaternion.y),
+                    iz: Float(ghostFrame.quaternion.z),
+                    r: Float(ghostFrame.quaternion.w)
+                )
+                ghost.position = .zero
+            }
+
             let rig = controller.camera
             let distance = Float(rig.distance)
             let yaw = Float(rig.azimuth)
@@ -49,7 +80,7 @@ struct ReplayPhoneScene: View {
         .contentShape(Rectangle())
         .highPriorityGesture(dragGesture, including: .all)
         .simultaneousGesture(magnifyGesture, including: .all)
-        .accessibilityLabel("Replay 3D phone")
+        .accessibilityLabel(targetFrames == nil ? "Replay 3D phone" : "Replay 3D phone with target ghost")
         .accessibilityHint("Drag to orbit the camera. Pinch to zoom.")
         .id(appearance.effective)
     }
@@ -83,20 +114,33 @@ struct ReplayPhoneScene: View {
 struct ReplayPhoneView: View {
     @Bindable var controller: ReplayController
     let accent: Color
+    let targetFrames: [ReplayFrame]?
 
-    init(controller: ReplayController, accent: Color = .blue) {
+    init(
+        controller: ReplayController,
+        accent: Color = .blue,
+        targetFrames: [ReplayFrame]? = nil
+    ) {
         self.controller = controller
         self.accent = accent
+        self.targetFrames = targetFrames
     }
 
     var body: some View {
         GlassCluster(spacing: 12) {
             VStack(spacing: 12) {
                 ZStack(alignment: .bottomTrailing) {
-                    ReplayPhoneScene(controller: controller, accent: accent)
+                    ReplayPhoneScene(controller: controller, accent: accent, targetFrames: targetFrames)
                         .frame(minHeight: 300)
                         .background(.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
 
+                    if targetFrames != nil {
+                        Text("GHOST = TARGET")
+                            .font(.system(size: 8, weight: .black, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.volt)
+                            .padding(8)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    }
                     HStack(spacing: 8) {
                         Button("Reset camera", systemImage: "view.3d") { controller.resetCamera() }
                             .labelStyle(.iconOnly)

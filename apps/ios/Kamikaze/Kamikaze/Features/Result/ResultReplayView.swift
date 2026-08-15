@@ -13,6 +13,10 @@ struct ResultReplayView: View {
     /// Saved-attempt contexts (History, Recent) pass this to allow permanent
     /// deletion. The immediate Play result does not.
     let onDelete: (() async -> Void)?
+    /// Mathematical target frames for the practice ghost overlay; nil outside
+    /// practice mode or for tricks without a validated definition.
+    private let targetFrames: [ReplayFrame]?
+    private let targetDefinition: TrickDefinition?
     @State private var displayedResult: NativeRunResult
     @State private var replay: ReplayController
     @State private var showsCorrection = false
@@ -35,6 +39,11 @@ struct ResultReplayView: View {
         self.onClose = onClose
         self.onReview = onReview
         self.onDelete = onDelete
+        let definition = practiceTarget.flatMap { target in
+            TrickCatalog.provisional(gripHand: .right).definitions.first { $0.id == target }
+        }
+        targetDefinition = definition
+        targetFrames = definition.map { TargetMotionGenerator.frames(for: $0) }
         _displayedResult = State(initialValue: result)
         _replay = State(initialValue: ReplayController(
             payload: result.capture.samplePayload,
@@ -91,7 +100,7 @@ struct ResultReplayView: View {
                         practiceBanner(target: practiceTarget)
                     }
 
-                    ReplayPhoneView(controller: replay, accent: accent)
+                    ReplayPhoneView(controller: replay, accent: accent, targetFrames: targetFrames)
 
                     if let practiceTarget, displayedResult.humanReview == nil {
                         practiceConfirmRow(target: practiceTarget)
@@ -164,19 +173,29 @@ struct ResultReplayView: View {
     private func practiceBanner(target: BuiltInTrickID) -> some View {
         let measured = displayedResult.evaluation.identity.trickID
         let onTarget = measured == target
+        let coachCue = targetDefinition.flatMap {
+            PracticeCoach.primaryCue(features: displayedResult.match.features, definition: $0)
+        }
         return GlassSurface(role: .contentPanel, cornerRadius: 20) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("TARGET")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundStyle(KamikazeTheme.muted)
-                    Text(target.displayName)
-                        .font(.system(size: 13, weight: .black, design: .rounded))
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("TARGET")
+                            .font(.system(size: 8, weight: .bold, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.muted)
+                        Text(target.displayName)
+                            .font(.system(size: 13, weight: .black, design: .rounded))
+                    }
+                    Spacer()
+                    Text(onTarget ? "ON TARGET" : (measured == nil ? "NOT RECOGNIZED" : "DIFFERENT TRICK"))
+                        .font(.system(size: 11, weight: .black, design: .monospaced))
+                        .foregroundStyle(onTarget ? KamikazeTheme.volt : KamikazeTheme.hazard)
                 }
-                Spacer()
-                Text(onTarget ? "ON TARGET" : (measured == nil ? "NOT RECOGNIZED" : "DIFFERENT TRICK"))
-                    .font(.system(size: 11, weight: .black, design: .monospaced))
-                    .foregroundStyle(onTarget ? KamikazeTheme.volt : KamikazeTheme.hazard)
+                if let coachCue {
+                    Text("COACH  ·  \(coachCue)")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.hazard)
+                }
             }
             .padding(16)
         }
