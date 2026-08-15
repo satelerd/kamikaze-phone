@@ -35,14 +35,24 @@ struct ProfileView: View {
                         }
                     }
                     recentCard
-                    NavigationLink {
-                        HistoryView(model: model)
-                    } label: {
-                        Text("ALL HISTORY  ·  \(model.totalCount)")
-                            .font(.system(size: 13, weight: .black, design: .rounded))
-                            .frame(maxWidth: .infinity, minHeight: 54)
+                    HStack(spacing: 10) {
+                        NavigationLink {
+                            HistoryView(model: model)
+                        } label: {
+                            Text("ALL HISTORY  ·  \(model.totalCount)")
+                                .font(.system(size: 12, weight: .black, design: .rounded))
+                                .frame(maxWidth: .infinity, minHeight: 54)
+                        }
+                        .adaptiveGlassButton(tint: KamikazeTheme.ion)
+                        NavigationLink {
+                            StatsView(model: model)
+                        } label: {
+                            Text("ALL STATS")
+                                .font(.system(size: 12, weight: .black, design: .rounded))
+                                .frame(maxWidth: .infinity, minHeight: 54)
+                        }
+                        .adaptiveGlassButton(tint: KamikazeTheme.ion)
                     }
-                    .adaptiveGlassButton(tint: KamikazeTheme.ion)
                     feedbackExportSection
                     Text("SETTINGS").font(.system(size: 14, weight: .bold, design: .rounded))
                     GlassSurface {
