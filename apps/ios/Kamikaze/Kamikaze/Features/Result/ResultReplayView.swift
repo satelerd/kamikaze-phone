@@ -3,21 +3,28 @@ import SwiftUI
 
 struct ResultReplayView: View {
     let primaryTitle: String
+    /// Practice target. When set, the result compares the measured identity
+    /// against it and offers one-tap landed/missed confirmation for the
+    /// target trick. The replay and correction flow are identical to Play.
+    let practiceTarget: BuiltInTrickID?
     let onAgain: () -> Void
     let onClose: () -> Void
     let onReview: (HumanAttemptReview) async -> NativeRunResult?
     @State private var displayedResult: NativeRunResult
     @State private var replay: ReplayController
     @State private var showsCorrection = false
+    @State private var isConfirming = false
 
     init(
         result: NativeRunResult,
         primaryTitle: String = "THROW AGAIN",
+        practiceTarget: BuiltInTrickID? = nil,
         onAgain: @escaping () -> Void,
         onClose: @escaping () -> Void,
         onReview: @escaping (HumanAttemptReview) async -> NativeRunResult?
     ) {
         self.primaryTitle = primaryTitle
+        self.practiceTarget = practiceTarget
         self.onAgain = onAgain
         self.onClose = onClose
         self.onReview = onReview
@@ -61,7 +68,15 @@ struct ResultReplayView: View {
                             .foregroundStyle(KamikazeTheme.hazard)
                     }
 
+                    if let practiceTarget {
+                        practiceBanner(target: practiceTarget)
+                    }
+
                     ReplayPhoneView(controller: replay, accent: accent)
+
+                    if let practiceTarget, displayedResult.humanReview == nil {
+                        practiceConfirmRow(target: practiceTarget)
+                    }
 
                     Button(displayedResult.humanReview == nil ? "NOT QUITE?" : "EDIT HUMAN LABEL") {
                         showsCorrection = true
@@ -113,6 +128,59 @@ struct ResultReplayView: View {
             return outcome == .landed ? KamikazeTheme.volt : KamikazeTheme.hazard
         }
         return displayedResult.match.status == .recognized ? KamikazeTheme.volt : KamikazeTheme.hazard
+    }
+
+    private func practiceBanner(target: BuiltInTrickID) -> some View {
+        let measured = displayedResult.evaluation.identity.trickID
+        let onTarget = measured == target
+        return GlassSurface(level: .regular, cornerRadius: 20) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("TARGET")
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.muted)
+                    Text(target.displayName)
+                        .font(.system(size: 13, weight: .black, design: .rounded))
+                }
+                Spacer()
+                Text(onTarget ? "ON TARGET" : (measured == nil ? "NOT RECOGNIZED" : "DIFFERENT TRICK"))
+                    .font(.system(size: 11, weight: .black, design: .monospaced))
+                    .foregroundStyle(onTarget ? KamikazeTheme.volt : KamikazeTheme.hazard)
+            }
+            .padding(16)
+        }
+    }
+
+    /// One-tap ground truth for the attempted target. Both paths store a
+    /// normal `HumanAttemptReview`; `NOT QUITE?` remains for anything else.
+    private func practiceConfirmRow(target: BuiltInTrickID) -> some View {
+        HStack(spacing: 10) {
+            Button("LANDED IT") {
+                confirm(HumanAttemptReview(trickID: target, outcome: .landed))
+            }
+            .font(.system(size: 13, weight: .black, design: .rounded))
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.volt)
+
+            Button("MISSED") {
+                confirm(HumanAttemptReview(trickID: target, outcome: .missed))
+            }
+            .font(.system(size: 13, weight: .black, design: .rounded))
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .adaptiveGlassButton(tint: KamikazeTheme.hazard)
+        }
+        .disabled(isConfirming)
+    }
+
+    private func confirm(_ review: HumanAttemptReview) {
+        guard !isConfirming else { return }
+        isConfirming = true
+        Task {
+            if let updated = await onReview(review) {
+                displayedResult = updated
+            }
+            isConfirming = false
+        }
     }
 
     private func stat(_ label: String, _ value: String) -> some View {
