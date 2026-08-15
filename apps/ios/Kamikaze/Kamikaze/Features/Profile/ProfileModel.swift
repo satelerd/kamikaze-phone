@@ -44,34 +44,11 @@ final class ProfileModel {
         )
     }
 
-    var recognizedCount: Int {
-        allSummaries.count(where: \.isRecognized)
-    }
+    let profileStore = PlayerProfileStore()
 
-    var confirmedLandedCount: Int {
-        allSummaries.count(where: \.hasConfirmedLanding)
-    }
-
-    var highFit: Int? {
-        allSummaries
-            .filter(\.isRecognized)
-            .compactMap(\.fit)
-            .max()
-            .map { Int(($0 * 100).rounded()) }
-    }
-
-    var bestRun: Int {
-        var best = 0
-        var current = 0
-        for summary in allSummaries.reversed() {
-            if summary.isRecognized {
-                current += 1
-                best = max(best, current)
-            } else {
-                current = 0
-            }
-        }
-        return best
+    /// Every displayed number reduces through one tested definition set.
+    var metrics: PlayerMetrics {
+        PlayerMetrics(summaries: allSummaries)
     }
 
     var hasMore: Bool { visible.count < totalCount }
@@ -162,6 +139,27 @@ final class ProfileModel {
         } catch {
             loadError = error.localizedDescription
             return nil
+        }
+    }
+
+    /// Deletion is one transaction: metadata+raw first (after which the
+    /// attempt no longer exists to any reader), then interpretation, then the
+    /// summary. Progression and statistics refresh deterministically because
+    /// they derive from the summaries that remain.
+    func deleteAttempt(id: String) async -> Bool {
+        do {
+            try await attemptRepository.delete(id: id)
+            try await analysisRepository.delete(attemptID: id)
+            try await summaryRepository.remove(attemptID: id)
+            allSummaries.removeAll { $0.attemptID == id }
+            visible.removeAll { $0.attemptID == id }
+            totalCount = max(0, totalCount - 1)
+            reviewedCount = allSummaries.count { $0.humanOutcome != nil }
+            feedbackExportURL = nil
+            return true
+        } catch {
+            loadError = error.localizedDescription
+            return false
         }
     }
 

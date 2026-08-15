@@ -21,6 +21,10 @@ private actor CountingSampleStore: SampleStore {
         loadCount += 1
         return try await backing.load(reference: reference)
     }
+
+    func remove(reference: RawSampleReferenceV3) async throws {
+        try await backing.remove(reference: reference)
+    }
 }
 
 struct AttemptSummaryTests {

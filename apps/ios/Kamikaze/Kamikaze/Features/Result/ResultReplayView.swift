@@ -10,10 +10,14 @@ struct ResultReplayView: View {
     let onAgain: () -> Void
     let onClose: () -> Void
     let onReview: (HumanAttemptReview) async -> NativeRunResult?
+    /// Saved-attempt contexts (History, Recent) pass this to allow permanent
+    /// deletion. The immediate Play result does not.
+    let onDelete: (() async -> Void)?
     @State private var displayedResult: NativeRunResult
     @State private var replay: ReplayController
     @State private var showsCorrection = false
     @State private var isConfirming = false
+    @State private var showsDeleteConfirmation = false
 
     init(
         result: NativeRunResult,
@@ -21,13 +25,15 @@ struct ResultReplayView: View {
         practiceTarget: BuiltInTrickID? = nil,
         onAgain: @escaping () -> Void,
         onClose: @escaping () -> Void,
-        onReview: @escaping (HumanAttemptReview) async -> NativeRunResult?
+        onReview: @escaping (HumanAttemptReview) async -> NativeRunResult?,
+        onDelete: (() async -> Void)? = nil
     ) {
         self.primaryTitle = primaryTitle
         self.practiceTarget = practiceTarget
         self.onAgain = onAgain
         self.onClose = onClose
         self.onReview = onReview
+        self.onDelete = onDelete
         _displayedResult = State(initialValue: result)
         _replay = State(initialValue: ReplayController(
             payload: result.capture.samplePayload,
@@ -45,6 +51,11 @@ struct ResultReplayView: View {
                             ? "DETECTOR / MEASURED"
                             : "HUMAN LABEL / MEASURED")
                         Spacer()
+                        if onDelete != nil {
+                            Button("Delete", systemImage: "trash") { showsDeleteConfirmation = true }
+                                .labelStyle(.iconOnly)
+                                .adaptiveGlassButton(tint: KamikazeTheme.hazard)
+                        }
                         Button("Close", systemImage: "xmark") { onClose() }
                             .labelStyle(.iconOnly)
                             .adaptiveGlassButton()
@@ -112,6 +123,18 @@ struct ResultReplayView: View {
             }
         }
         .onAppear { replay.play() }
+        .confirmationDialog(
+            "Delete this attempt?",
+            isPresented: $showsDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete raw evidence and analysis", role: .destructive) {
+                Task { await onDelete?() }
+            }
+            Button("Keep it", role: .cancel) {}
+        } message: {
+            Text("This permanently removes the sensor evidence, its analysis and its summary. Statistics and practice progress update immediately.")
+        }
         .sheet(isPresented: $showsCorrection) {
             ResultCorrectionView(result: displayedResult) { review in
                 guard let updated = await onReview(review) else { return false }

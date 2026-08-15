@@ -12,12 +12,17 @@ protocol SampleStore: Sendable {
     ) async throws
 
     func load(reference: RawSampleReferenceV3) async throws -> MotionSamplePayloadV3
+
+    func remove(reference: RawSampleReferenceV3) async throws
 }
 
 protocol AttemptRepository: Sendable {
     func save(_ capture: MotionCaptureV3) async throws
     func load(id: String) async throws -> MotionCaptureV3
     func list() async throws -> [MotionAttemptV3]
+    /// Permanently removes the attempt's metadata and raw payload. Deleting a
+    /// missing attempt is a no-op, so the transaction is safely retryable.
+    func delete(id: String) async throws
 }
 
 nonisolated enum AttemptPersistenceError: Error, Equatable, Sendable {
@@ -67,6 +72,16 @@ actor FileSampleStore: SampleStore {
         let target = try url(for: reference.relativePath)
         let data = try CapturePersistenceCodec.encode(payload)
         try AtomicFileWriter.write(data, to: target)
+    }
+
+    func remove(reference: RawSampleReferenceV3) throws {
+        let target = try url(for: reference.relativePath)
+        guard FileManager.default.fileExists(atPath: target.path) else { return }
+        do {
+            try FileManager.default.removeItem(at: target)
+        } catch {
+            throw AttemptPersistenceError.ioFailure
+        }
     }
 
     func load(reference: RawSampleReferenceV3) throws -> MotionSamplePayloadV3 {
@@ -186,6 +201,17 @@ actor FileAttemptRepository: AttemptRepository {
             if $0.recordedAtISO8601 == $1.recordedAtISO8601 { return $0.id > $1.id }
             return $0.recordedAtISO8601 > $1.recordedAtISO8601
         }
+    }
+
+    func delete(id: String) async throws {
+        var entries = try readIndex()
+        guard let attempt = entries.first(where: { $0.id == id }) else { return }
+        // Index first: once the metadata entry is gone the attempt no longer
+        // exists to any reader, and an interrupted payload removal only leaves
+        // an unreachable file behind.
+        entries.removeAll { $0.id == id }
+        try writeIndex(entries)
+        try await sampleStore.remove(reference: attempt.rawSamples)
     }
 
     private func readIndex() throws -> [MotionAttemptV3] {

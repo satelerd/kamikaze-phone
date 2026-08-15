@@ -2,9 +2,13 @@ import KamikazeMotionCore
 import SwiftUI
 
 struct ProfileView: View {
+    static let recentLimit = 6
+
     let onReplayOnboarding: () -> Void
     @State private var model = ProfileModel()
     @State private var selectedAttempt: NativeRunResult?
+    @State private var isEditingName = false
+    @State private var draftName = ""
 
     var body: some View {
         ZStack {
@@ -12,74 +16,45 @@ struct ProfileView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     SectionKicker(text: "PLAYER / LOCAL PROFILE")
-                    Text("SAT")
-                        .font(.system(size: 54, weight: .black, design: .rounded))
-                        .tracking(-2)
+                    identityHeader
                     HStack(spacing: 10) {
-                        stat("\(model.recognizedCount)", "RECOGNIZED")
-                        stat("\(model.bestRun)", "BEST RUN")
-                        stat(model.highFit.map(String.init) ?? "—", "HIGH FIT")
+                        stat("\(model.metrics.currentStreak)", "CURRENT STREAK")
+                        stat("\(model.metrics.landedCount)", "LANDED")
+                        stat(model.metrics.highFitPercent.map(String.init) ?? "—", "HIGH FIT")
                     }
-                    GlassSurface {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Text("RECENT").font(.system(size: 12, weight: .bold, design: .monospaced))
-                                Spacer()
-                                Text("\(model.totalCount) SAVED")
-                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(KamikazeTheme.muted)
-                            }
-                            if model.isLoading && model.visible.isEmpty {
-                                ProgressView().frame(maxWidth: .infinity, minHeight: 120)
-                            } else if let loadError = model.loadError, model.visible.isEmpty {
-                                ContentUnavailableView("Could not load attempts", systemImage: "exclamationmark.triangle", description: Text(loadError))
-                                    .frame(maxWidth: .infinity, minHeight: 170)
-                            } else if model.visible.isEmpty {
-                                ContentUnavailableView("No attempts yet", systemImage: "waveform.path.ecg", description: Text("Your first native run will appear here."))
-                                    .frame(maxWidth: .infinity, minHeight: 170)
-                            } else {
-                                ForEach(model.visible) { summary in
-                                    Button {
-                                        Task {
-                                            if let result = await model.openAttempt(id: summary.attemptID) {
-                                                selectedAttempt = result
-                                            }
-                                        }
-                                    } label: {
-                                        recentRow(summary)
+                    if !model.allSummaries.isEmpty {
+                        GlassSurface(level: .subtle, cornerRadius: 20) {
+                            MotionTapeView(summaries: model.allSummaries) { attemptID in
+                                Task {
+                                    if let result = await model.openAttempt(id: attemptID) {
+                                        selectedAttempt = result
                                     }
-                                    .buttonStyle(.plain)
-                                    .disabled(model.isOpeningAttempt)
-                                    if summary.id != model.visible.last?.id { Divider() }
-                                }
-                                if model.hasMore {
-                                    Button {
-                                        Task { await model.loadMore() }
-                                    } label: {
-                                        if model.isLoadingMore {
-                                            ProgressView().frame(maxWidth: .infinity, minHeight: 44)
-                                        } else {
-                                            Text("LOAD MORE  ·  \(model.totalCount - model.visible.count) LEFT")
-                                                .font(.system(size: 11, weight: .black, design: .monospaced))
-                                                .frame(maxWidth: .infinity, minHeight: 44)
-                                        }
-                                    }
-                                    .buttonStyle(.plain)
-                                    .foregroundStyle(KamikazeTheme.volt)
                                 }
                             }
+                            .padding(14)
                         }
-                        .padding(18)
                     }
-                    if let loadError = model.loadError, !model.visible.isEmpty {
-                        Text(loadError)
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundStyle(KamikazeTheme.hazard)
+                    recentCard
+                    NavigationLink {
+                        HistoryView(model: model)
+                    } label: {
+                        Text("ALL HISTORY  ·  \(model.totalCount)")
+                            .font(.system(size: 13, weight: .black, design: .rounded))
+                            .frame(maxWidth: .infinity, minHeight: 54)
                     }
+                    .adaptiveGlassButton(tint: KamikazeTheme.ion)
                     feedbackExportSection
                     Text("SETTINGS").font(.system(size: 14, weight: .bold, design: .rounded))
                     GlassSurface {
                         VStack(spacing: 0) {
+                            Button {
+                                draftName = model.profileStore.name
+                                isEditingName = true
+                            } label: {
+                                settingsRow("RIDER NAME", value: model.profileStore.name)
+                            }
+                            .buttonStyle(.plain)
+                            Divider()
                             settingsRow("GRIP HAND", value: "RIGHT")
                             Divider()
                             Button(action: onReplayOnboarding) { settingsRow("REPLAY HOW TO PLAY", value: "→") }
@@ -97,6 +72,13 @@ struct ProfileView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .onAppear { Task { await model.refresh() } }
+        .alert("Rider name", isPresented: $isEditingName) {
+            TextField("Name", text: $draftName)
+            Button("Save") { model.profileStore.rename(to: draftName) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Shown only on this phone.")
+        }
         .fullScreenCover(item: $selectedAttempt) { attempt in
             ResultReplayView(
                 result: attempt,
@@ -111,8 +93,72 @@ struct ProfileView: View {
                     ) else { return nil }
                     selectedAttempt = updated
                     return updated
+                },
+                onDelete: {
+                    if await model.deleteAttempt(id: attempt.id) {
+                        selectedAttempt = nil
+                    }
                 }
             )
+        }
+    }
+
+    private var identityHeader: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                draftName = model.profileStore.name
+                isEditingName = true
+            } label: {
+                Text(model.profileStore.name)
+                    .font(.system(size: 54, weight: .black, design: .rounded))
+                    .tracking(-2)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+            }
+            .buttonStyle(.plain)
+            Text(model.profileStore.joinedLabel)
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundStyle(KamikazeTheme.muted)
+        }
+    }
+
+    private var recentCard: some View {
+        GlassSurface {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("RECENT").font(.system(size: 12, weight: .bold, design: .monospaced))
+                    Spacer()
+                    Text("\(model.totalCount) SAVED")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.muted)
+                }
+                if model.isLoading && model.visible.isEmpty {
+                    ProgressView().frame(maxWidth: .infinity, minHeight: 120)
+                } else if let loadError = model.loadError, model.visible.isEmpty {
+                    ContentUnavailableView("Could not load attempts", systemImage: "exclamationmark.triangle", description: Text(loadError))
+                        .frame(maxWidth: .infinity, minHeight: 170)
+                } else if model.visible.isEmpty {
+                    ContentUnavailableView("No attempts yet", systemImage: "waveform.path.ecg", description: Text("Your first native run will appear here."))
+                        .frame(maxWidth: .infinity, minHeight: 170)
+                } else {
+                    let recent = model.visible.prefix(Self.recentLimit)
+                    ForEach(recent) { summary in
+                        Button {
+                            Task {
+                                if let result = await model.openAttempt(id: summary.attemptID) {
+                                    selectedAttempt = result
+                                }
+                            }
+                        } label: {
+                            recentRow(summary)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(model.isOpeningAttempt)
+                        if summary.id != recent.last?.id { Divider() }
+                    }
+                }
+            }
+            .padding(18)
         }
     }
 
