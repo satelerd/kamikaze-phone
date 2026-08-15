@@ -16,6 +16,7 @@ struct LockerView: View {
     }
 
     @Environment(AppearanceStore.self) private var store
+    @Environment(FeedbackCoordinator.self) private var feedback
     @State private var category = Category.body
     @State private var progressModel = PracticeModel()
 
@@ -77,6 +78,7 @@ struct LockerView: View {
             HStack(spacing: 10) {
                 Button("EQUIP") {
                     store.equipPreview()
+                    feedback.play(.cosmeticUnlocked)
                 }
                 .font(.system(size: 15, weight: .black, design: .rounded))
                 .frame(maxWidth: .infinity, minHeight: 56)

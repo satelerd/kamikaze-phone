@@ -4,6 +4,7 @@ struct PlayView: View {
     @State private var run = NativeRunModel()
     @Namespace private var glassNamespace
     @Environment(ExperienceCoordinator.self) private var experience
+    @Environment(FeedbackCoordinator.self) private var feedback
 
     private var active: Bool {
         switch run.phase {
@@ -27,6 +28,7 @@ struct PlayView: View {
         }
         .onChange(of: run.phase) { _, phase in
             experience.report(phase: phase.experiencePhase)
+            reactToPhase(phase)
         }
         .onChange(of: run.gyroDps) { _, gyroDps in
             experience.reportMotion(gyroDps: gyroDps)
@@ -49,7 +51,10 @@ struct PlayView: View {
                 HStack {
                     SectionKicker(text: kicker)
                     Spacer()
-                    Button("ZERO POSE", systemImage: "scope") { run.zeroPose() }
+                    Button("ZERO POSE", systemImage: "scope") {
+                        run.zeroPose()
+                        feedback.play(.zeroed)
+                    }
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
                         .adaptiveGlassButton()
                 }
@@ -80,7 +85,14 @@ struct PlayView: View {
                 }
                 .multilineTextAlignment(.center)
 
-                Button { active ? run.cancel() : run.arm() } label: {
+                Button {
+                    if active {
+                        run.cancel()
+                        feedback.play(.cancelled)
+                    } else {
+                        run.arm()
+                    }
+                } label: {
                     Text(active ? "CANCEL SESSION" : "START SESSION")
                         .font(.system(size: 18, weight: .black, design: .rounded))
                         .frame(maxWidth: .infinity, minHeight: 72)
@@ -101,6 +113,26 @@ struct PlayView: View {
         case .result: KamikazeTheme.volt
         case .unknown, .failed: KamikazeTheme.hazard
         case .ready, .armed: KamikazeTheme.ion
+        }
+    }
+
+    /// Cue ordering matters: the armed tick fires BEFORE the evidence window
+    /// opens; catch/result cues fire only after the capture has closed.
+    private func reactToPhase(_ phase: NativeRunPhase) {
+        switch phase {
+        case .armed:
+            feedback.play(.armed)
+            feedback.evidenceWindowActive = true
+        case .motion, .settling:
+            feedback.evidenceWindowActive = true
+        case .result:
+            feedback.evidenceWindowActive = false
+            feedback.play(.catchResolved)
+        case .unknown:
+            feedback.evidenceWindowActive = false
+            feedback.play(.needsReview)
+        case .ready, .failed:
+            feedback.evidenceWindowActive = false
         }
     }
 

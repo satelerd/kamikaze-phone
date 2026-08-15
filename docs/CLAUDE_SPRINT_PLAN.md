@@ -52,8 +52,8 @@ when it changes player-facing behavior.
 | 4 | Stats engine + Overview/Tricks/Records | G3 | **DONE** (`93872e1`) | Deterministic reductions over summaries |
 | 5 | Glass role hierarchy | X2 | **DONE** (`2625e42`) | `GlassEffectContainer`, roles, morphing IDs, one fallback boundary |
 | 6 | Slipstream Field v2 + X1 ExperienceState | X1/X3 | **DONE** | One field at the app shell, phase/energy-driven |
-| 7 | Phone Studio + Setup prototype | X4/G4 | pending | Shared `PhoneModelFactory`, quality 15 Plus-class asset, live appearance propagation |
-| 8 | Feedback engine scaffold | X6 | pending | Coordinator + AHAP cues authored; capture-window cues stay disabled until the physical contamination bench passes |
+| 7 | Phone Studio + Setup prototype | X4/G4 | **DONE** (`8699341`) | Shared `PhoneModelFactory`, quality 15 Plus-class asset, live appearance propagation |
+| 8 | Feedback engine scaffold | X6 | **DONE** — capture-window cues hard-gated until the physical bench | Coordinator + AHAP cues authored; capture-window cues stay disabled until the physical contamination bench passes |
 
 Practice mastery (P3), reward ledger (G5), choreography (X5) and integration passes
 (X7) follow if the sprint reaches them.

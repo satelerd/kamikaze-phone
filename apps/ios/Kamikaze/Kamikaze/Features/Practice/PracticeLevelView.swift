@@ -25,6 +25,7 @@ struct PracticeLevelView: View {
     }
 
     @Environment(ExperienceCoordinator.self) private var experience
+    @Environment(FeedbackCoordinator.self) private var feedback
 
     var body: some View {
         ZStack {
@@ -33,7 +34,10 @@ struct PracticeLevelView: View {
                 HStack {
                     SectionKicker(text: kicker)
                     Spacer()
-                    Button("ZERO POSE", systemImage: "scope") { run.zeroPose() }
+                    Button("ZERO POSE", systemImage: "scope") {
+                        run.zeroPose()
+                        feedback.play(.zeroed)
+                    }
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
                         .adaptiveGlassButton()
                 }
@@ -77,7 +81,14 @@ struct PracticeLevelView: View {
                 }
                 .multilineTextAlignment(.center)
 
-                Button { active ? run.cancel() : run.arm() } label: {
+                Button {
+                    if active {
+                        run.cancel()
+                        feedback.play(.cancelled)
+                    } else {
+                        run.arm()
+                    }
+                } label: {
                     Text(active ? "CANCEL" : "START PRACTICE")
                         .font(.system(size: 17, weight: .black, design: .rounded))
                         .frame(maxWidth: .infinity, minHeight: 66)
@@ -99,6 +110,7 @@ struct PracticeLevelView: View {
         }
         .onChange(of: run.phase) { _, phase in
             experience.report(phase: phase.experiencePhase)
+            reactToPhase(phase)
         }
         .onChange(of: run.gyroDps) { _, gyroDps in
             experience.reportMotion(gyroDps: gyroDps)
@@ -127,6 +139,26 @@ struct PracticeLevelView: View {
 
     private var reps: Int {
         progressModel.progress.qualifyingReps(for: node.trickID)
+    }
+
+    /// Same ordering rule as Play: armed tick before the window opens,
+    /// result cues only after capture closure.
+    private func reactToPhase(_ phase: NativeRunPhase) {
+        switch phase {
+        case .armed:
+            feedback.play(.armed)
+            feedback.evidenceWindowActive = true
+        case .motion, .settling:
+            feedback.evidenceWindowActive = true
+        case .result:
+            feedback.evidenceWindowActive = false
+            feedback.play(.catchResolved)
+        case .unknown:
+            feedback.evidenceWindowActive = false
+            feedback.play(.needsReview)
+        case .ready, .failed:
+            feedback.evidenceWindowActive = false
+        }
     }
 
     private var accent: Color {

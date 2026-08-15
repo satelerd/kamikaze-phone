@@ -18,6 +18,7 @@ struct ResultReplayView: View {
     @State private var showsCorrection = false
     @State private var isConfirming = false
     @State private var showsDeleteConfirmation = false
+    @Environment(FeedbackCoordinator.self) private var feedback
 
     init(
         result: NativeRunResult,
@@ -208,6 +209,15 @@ struct ResultReplayView: View {
         Task {
             if let updated = await onReview(review) {
                 displayedResult = updated
+                switch review.outcome {
+                case .landed:
+                    let fit = updated.displayedFitValue ?? 0
+                    feedback.play(.landed(scoreBand: fit >= 0.9 ? 2 : (fit >= 0.75 ? 1 : 0)))
+                case .missed:
+                    feedback.play(.missed)
+                case .unclear, .noAttempt:
+                    break
+                }
             }
             isConfirming = false
         }
