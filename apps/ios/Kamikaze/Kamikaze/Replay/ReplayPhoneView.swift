@@ -14,6 +14,8 @@ struct ReplayPhoneScene: View {
     /// Fixed appearance for demo/target contexts; nil renders the player's
     /// equipped (or previewed) phone.
     var appearanceOverride: PhoneAppearance? = nil
+    /// Screen stamp for demo phones (e.g. "IDEAL").
+    var screenLabel: String? = nil
 
     @Environment(AppearanceStore.self) private var appearance
     @State private var previousDragTranslation = CGSize.zero
@@ -23,16 +25,20 @@ struct ReplayPhoneScene: View {
         RealityView { content in
             let phone = PhoneModelFactory.makePhone(
                 appearance: appearanceOverride ?? appearance.effective,
-                accent: UIColor(accent)
+                accent: UIColor(accent),
+                screenLabel: screenLabel
             )
             phone.name = "replay-phone"
             content.add(phone)
             content.add(PhoneModelFactory.makeLightRig())
 
             if targetFrames?.isEmpty == false {
+                // The ghost IS the demo phone: distinct body and a stamped
+                // IDEAL screen, never the player's configuration.
                 let ghost = PhoneModelFactory.makePhone(
-                    appearance: appearance.effective,
-                    accent: UIColor(KamikazeTheme.volt)
+                    appearance: .demo,
+                    accent: UIColor(KamikazeTheme.volt),
+                    screenLabel: "IDEAL"
                 )
                 ghost.name = "target-ghost"
                 ghost.scale = SIMD3(repeating: 0.97)

@@ -9,41 +9,29 @@ enum KamikazeTheme {
     static let volt = Color(red: 0.84, green: 1.00, blue: 0.29)
 }
 
-/// Field prototypes, selectable from Setup so styles can be compared on the
-/// physical device. Shared rules for every style: only the current semantic
-/// accent is used (no fixed second color bleeding into results), energy
-/// modulates amplitude and intensity — never a wave's phase — and accent
-/// changes cross-fade instead of snapping.
+/// Field prototypes, selectable from Setup for on-device comparison.
 enum FieldStyle: String, CaseIterable, Identifiable {
-    /// Defined diagonal light beams. Hard-edged shapes give Liquid Glass
-    /// something real to refract.
-    case beams
-    /// A low glow and a sharp horizon line.
-    case horizon
-    /// One defined ring of light behind the stage.
-    case halo
+    /// Metal shader: abstract current-lines with defined edges in a single
+    /// accent. GPU per-pixel work — no blurred layers to composite.
+    case flux
     /// The original MeshGradient field, single-accent and phase-stable.
     case slipstream
 
     static let storageKey = "fieldStyle"
-    static let `default` = FieldStyle.beams
+    static let `default` = FieldStyle.flux
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .beams: "BEAMS"
-        case .horizon: "HORIZON"
-        case .halo: "HALO"
+        case .flux: "FLUX"
         case .slipstream: "SLIPSTREAM"
         }
     }
 
     var blurb: String {
         switch self {
-        case .beams: "DEFINED LIGHT, GLASS-FRIENDLY"
-        case .horizon: "LOW GLOW + SHARP LINE"
-        case .halo: "ONE QUIET RING"
+        case .flux: "SHADER CURRENTS, GLASS-FRIENDLY"
         case .slipstream: "THE ORIGINAL SOFT FIELD"
         }
     }
@@ -68,6 +56,8 @@ struct SlipstreamField: View {
     var energy: Double = 0
     /// Deterministic seconds for replay-driven fields; nil uses the clock.
     var timeOverride: Double? = nil
+    /// Offscreen screens pause their field so stacked tabs cost nothing.
+    var paused: Bool = false
 
     @AppStorage(FieldStyle.storageKey) private var styleRaw = FieldStyle.default.rawValue
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -78,19 +68,18 @@ struct SlipstreamField: View {
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: reduceMotion || timeOverride != nil)) { timeline in
+        TimelineView(.animation(
+            minimumInterval: 1 / 30,
+            paused: reduceMotion || timeOverride != nil || paused
+        )) { timeline in
             let clock = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
             let time = timeOverride ?? clock
 
             ZStack {
                 KamikazeTheme.pitch
                 switch style {
-                case .beams:
-                    BeamsField(accent: accent, energy: energy, time: time, quiet: reduceTransparency)
-                case .horizon:
-                    HorizonField(accent: accent, energy: energy, time: time, quiet: reduceTransparency)
-                case .halo:
-                    HaloField(accent: accent, energy: energy, time: time, quiet: reduceTransparency)
+                case .flux:
+                    FluxField(accent: accent, energy: energy, time: time, quiet: reduceTransparency)
                 case .slipstream:
                     MeshField(accent: accent, energy: energy, time: time, quiet: reduceTransparency)
                 }
@@ -100,16 +89,14 @@ struct SlipstreamField: View {
                     endPoint: .bottom
                 )
             }
-            // Semantic accent changes (ready → motion → landed) cross-fade.
-            .animation(.easeInOut(duration: 0.6), value: accent)
         }
         .ignoresSafeArea()
     }
 }
 
-/// Three defined diagonal beams drifting slowly. Amplitude and opacity follow
-/// energy; phase never jumps.
-private struct BeamsField: View {
+/// Shader-driven abstract currents. All the work happens per-pixel on the
+/// GPU; the view itself is a single rectangle.
+private struct FluxField: View {
     let accent: Color
     let energy: Double
     let time: Double
@@ -117,95 +104,19 @@ private struct BeamsField: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let width = proxy.size.width
-            let height = proxy.size.height
-            let baseOpacity = quiet ? 0.05 : 0.13 + 0.20 * energy
-
-            ZStack {
-                beam(width: width * 0.30, height: height * 1.7)
-                    .opacity(baseOpacity)
-                    .offset(x: width * (-0.22 + 0.05 * sin(time * 0.11)), y: 0)
-                beam(width: width * 0.16, height: height * 1.7)
-                    .opacity(baseOpacity * 0.8)
-                    .offset(x: width * (0.16 + 0.06 * sin(time * 0.08 + 1.9)), y: 0)
-                beam(width: width * 0.09, height: height * 1.7)
-                    .opacity(baseOpacity * 0.65)
-                    .offset(x: width * (0.42 + 0.04 * sin(time * 0.14 + 3.4)), y: 0)
-            }
-            .rotationEffect(.degrees(-24))
-            .position(x: width / 2, y: height / 2)
+            Rectangle()
+                .fill(.black)
+                .colorEffect(ShaderLibrary.fluxField(
+                    .float2(Float(proxy.size.width), Float(proxy.size.height)),
+                    // Wall-clock seconds are ~8e8: far beyond float32 phase
+                    // precision, which flattens every sin() in the shader.
+                    // A modulo keeps the phase exact; one wrap per ~17 min.
+                    .float(Float(time.truncatingRemainder(dividingBy: 1_000))),
+                    .float(Float(quiet ? 0 : energy)),
+                    .color(accent)
+                ))
         }
-    }
-
-    private func beam(width: CGFloat, height: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: width / 2, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [accent.opacity(0.9), accent.opacity(0.35)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .frame(width: width, height: height)
-            .blur(radius: 1.5)
-    }
-}
-
-/// A low radial glow under the stage plus one sharp horizon line.
-private struct HorizonField: View {
-    let accent: Color
-    let energy: Double
-    let time: Double
-    let quiet: Bool
-
-    var body: some View {
-        GeometryReader { proxy in
-            let width = proxy.size.width
-            let height = proxy.size.height
-            let horizonY = height * 0.62
-            let glow = quiet ? 0.06 : 0.16 + 0.22 * energy
-
-            ZStack {
-                RadialGradient(
-                    colors: [accent.opacity(glow), accent.opacity(glow * 0.35), .clear],
-                    center: UnitPoint(x: 0.5, y: horizonY / height),
-                    startRadius: 10,
-                    endRadius: width * (0.62 + 0.05 * sin(time * 0.10))
-                )
-                Rectangle()
-                    .fill(accent.opacity(quiet ? 0.25 : 0.55 + 0.30 * energy))
-                    .frame(height: 1.5)
-                    .position(x: width / 2, y: horizonY)
-                Rectangle()
-                    .fill(accent.opacity(quiet ? 0.08 : 0.16))
-                    .frame(height: 0.75)
-                    .position(x: width / 2, y: horizonY + 10 + 2 * sin(time * 0.22))
-            }
-        }
-    }
-}
-
-/// One defined ring behind the stage. The quietest prototype.
-private struct HaloField: View {
-    let accent: Color
-    let energy: Double
-    let time: Double
-    let quiet: Bool
-
-    var body: some View {
-        GeometryReader { proxy in
-            let shortEdge = min(proxy.size.width, proxy.size.height)
-            let diameter = shortEdge * (0.78 + 0.05 * energy + 0.015 * sin(time * 0.16))
-
-            Circle()
-                .stroke(
-                    accent.opacity(quiet ? 0.15 : 0.32 + 0.30 * energy),
-                    lineWidth: 10 + 8 * energy
-                )
-                .frame(width: diameter, height: diameter)
-                .blur(radius: 5)
-                .position(x: proxy.size.width / 2, y: proxy.size.height * 0.40)
-        }
+        .opacity(quiet ? 0.35 : 1)
     }
 }
 

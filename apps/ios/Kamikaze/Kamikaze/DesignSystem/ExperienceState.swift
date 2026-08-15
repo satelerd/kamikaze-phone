@@ -111,15 +111,23 @@ final class ExperienceCoordinator {
 struct ExperienceFieldBackground: View {
     @Environment(ExperienceCoordinator.self) private var experience
     var ambient: Color?
+    /// Tab stacks keep every screen alive; only the visible one may animate
+    /// its field, or four fields burn frames for one viewport.
+    @State private var isVisible = false
 
     var body: some View {
-        if experience.fieldDisabled {
-            KamikazeTheme.pitch.ignoresSafeArea()
-        } else {
-            SlipstreamField(
-                accent: experience.fieldAccent(ambient: ambient),
-                energy: experience.state.reduceEffects ? 0 : experience.state.motionEnergy
-            )
+        Group {
+            if experience.fieldDisabled {
+                KamikazeTheme.pitch.ignoresSafeArea()
+            } else {
+                SlipstreamField(
+                    accent: experience.fieldAccent(ambient: ambient),
+                    energy: experience.state.reduceEffects ? 0 : experience.state.motionEnergy,
+                    paused: !isVisible
+                )
+            }
         }
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
     }
 }

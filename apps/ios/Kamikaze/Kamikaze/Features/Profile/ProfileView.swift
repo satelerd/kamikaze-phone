@@ -23,30 +23,7 @@ struct ProfileView: View {
                         stat("\(model.metrics.landedCount)", "LANDED")
                         stat(model.metrics.highFitPercent.map(String.init) ?? "—", "HIGH FIT")
                     }
-                    NavigationLink {
-                        StatsView(model: model)
-                    } label: {
-                        GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack {
-                                    Text("ACTIVITY")
-                                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                        .foregroundStyle(KamikazeTheme.muted)
-                                    Spacer()
-                                    Text("\(PlayerStatsEngine(summaries: model.allSummaries).activeDayCount) ACTIVE DAYS")
-                                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                        .foregroundStyle(KamikazeTheme.muted)
-                                }
-                                ActivityFieldView(
-                                    engine: PlayerStatsEngine(summaries: model.allSummaries),
-                                    weeks: 10,
-                                    cellSize: 20
-                                )
-                            }
-                            .padding(14)
-                        }
-                    }
-                    .buttonStyle(.plain)
+                    activityCard
                     recentCard
                     HStack(spacing: 10) {
                         NavigationLink {
@@ -126,6 +103,31 @@ struct ProfileView: View {
                 }
             )
         }
+    }
+
+    /// One engine build per render, shared by the label and the grid.
+    private var activityCard: some View {
+        let engine = PlayerStatsEngine(summaries: model.allSummaries)
+        return NavigationLink {
+            StatsView(model: model)
+        } label: {
+            GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("ACTIVITY")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.muted)
+                        Spacer()
+                        Text("\(engine.activeDayCount) ACTIVE DAYS")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.muted)
+                    }
+                    ActivityFieldView(engine: engine, weeks: 10, cellSize: 20)
+                }
+                .padding(14)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private var identityHeader: some View {

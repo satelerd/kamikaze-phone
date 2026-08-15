@@ -66,7 +66,8 @@ struct PracticeLevelView: View {
                         ReplayPhoneScene(
                             controller: targetReplay,
                             accent: KamikazeTheme.volt,
-                            appearanceOverride: .demo
+                            appearanceOverride: .demo,
+                            screenLabel: "IDEAL"
                         )
                         Text("DEMO PHONE · TARGET MOTION")
                             .font(.system(size: 9, weight: .black, design: .monospaced))
@@ -77,7 +78,11 @@ struct PracticeLevelView: View {
                             .padding(10)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     } else {
-                        LivePhoneScene(attitude: run.relativeAttitude, accent: accent)
+                        LivePhoneScene(
+                            attitude: run.relativeAttitude,
+                            accent: accent,
+                            initialZoom: 0.55
+                        )
                     }
                 }
                 .frame(maxHeight: 380)

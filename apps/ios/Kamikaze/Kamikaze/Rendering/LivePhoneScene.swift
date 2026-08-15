@@ -13,20 +13,25 @@ struct LivePhoneScene: View {
     @Environment(AppearanceStore.self) private var appearance
     @State private var orbitYaw: Double
     @State private var orbitPitch: Double
-    @State private var zoom = 0.72
+    @State private var zoom: Double
+
+    let initialZoom: Double
 
     init(
         attitude: Quaternion,
         accent: Color,
         initialYaw: Double = 0,
-        initialPitch: Double = 0
+        initialPitch: Double = 0,
+        initialZoom: Double = 0.72
     ) {
         self.attitude = attitude
         self.accent = accent
         self.initialYaw = initialYaw
         self.initialPitch = initialPitch
+        self.initialZoom = initialZoom
         _orbitYaw = State(initialValue: initialYaw)
         _orbitPitch = State(initialValue: initialPitch)
+        _zoom = State(initialValue: initialZoom)
     }
     @State private var dragOrigin: (yaw: Double, pitch: Double)?
     @State private var magnifyOrigin: Double?
@@ -94,7 +99,7 @@ struct LivePhoneScene: View {
                 withAnimation(.snappy) {
                     orbitYaw = initialYaw
                     orbitPitch = initialPitch
-                    zoom = 0.72
+                    zoom = initialZoom
                 }
             }
             .labelStyle(.iconOnly)

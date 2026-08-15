@@ -6,7 +6,11 @@ import UIKit
 /// the set validated on the physical device so the asset reads identically in
 /// every render path.
 enum PhoneModelFactory {
-    static func makePhone(appearance: PhoneAppearance, accent: UIColor) -> Entity {
+    static func makePhone(
+        appearance: PhoneAppearance,
+        accent: UIColor,
+        screenLabel: String? = nil
+    ) -> Entity {
         let shape = DeviceShapeDefinition.shape(for: appearance.formFactor)
         let root = Entity()
         root.name = "phone-root"
@@ -47,8 +51,15 @@ enum PhoneModelFactory {
         back.position.z = -shape.depth * 0.46
         root.addChild(back)
 
-        // Screen: unlit so it glows identically in every render path.
-        let screenMaterial = UnlitMaterial(color: screenColor.withAlphaComponent(0.92))
+        // Screen: unlit so it glows identically in every render path. Demo
+        // phones stamp a label on it so they can never be mistaken for the
+        // player's own device.
+        let screenMaterial: UnlitMaterial
+        if let screenLabel, let labelled = labelledScreenMaterial(text: screenLabel) {
+            screenMaterial = labelled
+        } else {
+            screenMaterial = UnlitMaterial(color: screenColor.withAlphaComponent(0.92))
+        }
         let screen = ModelEntity(
             mesh: .generateBox(
                 width: shape.width * 0.9,
@@ -158,6 +169,47 @@ enum PhoneModelFactory {
         rig.addChild(fill)
 
         return rig
+    }
+
+    /// Renders the label into a screen texture: pitch glass with the word in
+    /// Volt, so the demo phone announces itself from any distance.
+    private static func labelledScreenMaterial(text: String) -> UnlitMaterial? {
+        let size = CGSize(width: 512, height: 1024)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { context in
+            UIColor(red: 0.05, green: 0.06, blue: 0.05, alpha: 1).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+
+            let volt = UIColor(red: 0.84, green: 1.0, blue: 0.29, alpha: 1)
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .center
+            let title: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 118, weight: .black),
+                .foregroundColor: volt,
+                .paragraphStyle: paragraph,
+            ]
+            (text as NSString).draw(
+                in: CGRect(x: 0, y: size.height * 0.42, width: size.width, height: 160),
+                withAttributes: title
+            )
+            let caption: [NSAttributedString.Key: Any] = [
+                .font: UIFont.monospacedSystemFont(ofSize: 34, weight: .bold),
+                .foregroundColor: volt.withAlphaComponent(0.55),
+                .paragraphStyle: paragraph,
+            ]
+            ("TARGET MOTION" as NSString).draw(
+                in: CGRect(x: 0, y: size.height * 0.56, width: size.width, height: 60),
+                withAttributes: caption
+            )
+        }
+        guard let cgImage = image.cgImage,
+              let resource = try? TextureResource(
+                  image: cgImage,
+                  options: .init(semantic: .color)
+              ) else { return nil }
+        var material = UnlitMaterial()
+        material.color = .init(tint: .white, texture: .init(resource))
+        return material
     }
 
     private static func uiColor(_ value: CosmeticOption.ColorValue) -> UIColor {

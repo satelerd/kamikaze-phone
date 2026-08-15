@@ -62,8 +62,12 @@ struct PlayView: View {
                 Spacer(minLength: 8)
 
                 // The phone floats directly over the field — no stage boxes.
-                LivePhoneScene(attitude: run.relativeAttitude, accent: accent)
-                    .frame(maxHeight: 430)
+                LivePhoneScene(
+                    attitude: run.relativeAttitude,
+                    accent: accent,
+                    initialZoom: 0.5
+                )
+                .frame(maxHeight: 480)
 
                 GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
                     HStack(spacing: 18) {
