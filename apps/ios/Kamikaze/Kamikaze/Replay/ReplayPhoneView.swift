@@ -101,49 +101,62 @@ struct ReplayPhoneView: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            ZStack(alignment: .bottomTrailing) {
-                ReplayPhoneScene(controller: controller, accent: accent)
-                    .frame(minHeight: 300)
-                    .background(.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        GlassCluster(spacing: 12) {
+            VStack(spacing: 12) {
+                ZStack(alignment: .bottomTrailing) {
+                    ReplayPhoneScene(controller: controller, accent: accent)
+                        .frame(minHeight: 300)
+                        .background(.black.opacity(0.16), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
 
-                HStack(spacing: 8) {
-                    Button("Reset camera", systemImage: "view.3d") { controller.resetCamera() }
-                        .labelStyle(.iconOnly)
-                    Button("Zero pose", systemImage: "scope") { controller.zeroPose() }
-                        .labelStyle(.iconOnly)
-                }
-                .buttonStyle(.bordered)
-                .padding(12)
-            }
-
-            HStack(spacing: 12) {
-                Button {
-                    controller.togglePlayback()
-                } label: {
-                    Image(systemName: controller.state == .playing ? "pause.fill" : "play.fill")
-                }
-                .accessibilityLabel(controller.state == .playing ? "Pause replay" : "Play replay")
-                .buttonStyle(.borderedProminent)
-                .tint(accent)
-
-                Slider(
-                    value: Binding(
-                        get: { controller.progress },
-                        set: { controller.seek(toProgress: $0) }
-                    ),
-                    in: 0 ... 1
-                )
-                .accessibilityLabel("Replay position")
-
-                Menu(controller.speed.label) {
-                    ForEach(ReplayController.PlaybackSpeed.allCases) { speed in
-                        Button(speed.label) { controller.setSpeed(speed) }
+                    HStack(spacing: 8) {
+                        Button("Reset camera", systemImage: "view.3d") { controller.resetCamera() }
+                            .labelStyle(.iconOnly)
+                            .adaptiveGlassButton()
+                        Button("Zero pose", systemImage: "scope") { controller.zeroPose() }
+                            .labelStyle(.iconOnly)
+                            .adaptiveGlassButton()
                     }
+                    .padding(12)
                 }
-                .font(.system(.caption, design: .monospaced).weight(.bold))
+
+                // One glass surface for the whole playback tool cluster —
+                // never one capsule per control.
+                GlassSurface(role: .transport, cornerRadius: 24) {
+                    HStack(spacing: 12) {
+                        Button {
+                            controller.togglePlayback()
+                        } label: {
+                            Image(systemName: controller.state == .playing ? "pause.fill" : "play.fill")
+                                .font(.system(size: 16, weight: .black))
+                                .foregroundStyle(accent)
+                                .frame(width: 40, height: 40)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(controller.state == .playing ? "Pause replay" : "Play replay")
+
+                        Slider(
+                            value: Binding(
+                                get: { controller.progress },
+                                set: { controller.seek(toProgress: $0) }
+                            ),
+                            in: 0 ... 1
+                        )
+                        .tint(accent)
+                        .accessibilityLabel("Replay position")
+
+                        Menu(controller.speed.label) {
+                            ForEach(ReplayController.PlaybackSpeed.allCases) { speed in
+                                Button(speed.label) { controller.setSpeed(speed) }
+                            }
+                        }
+                        .font(.system(.caption, design: .monospaced).weight(.bold))
+                        .frame(minWidth: 44, minHeight: 40)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                }
             }
-            .padding(.horizontal, 4)
         }
     }
 }

@@ -47,7 +47,7 @@ struct PracticeLevelView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                GlassSurface(level: .subtle, cornerRadius: 42) {
+                GlassSurface(role: .stage, cornerRadius: 42) {
                     ZStack {
                         Circle().fill(accent.opacity(0.13)).overlay(Circle().stroke(.white.opacity(0.13))).padding(10)
                         LivePhoneScene(attitude: run.relativeAttitude, accent: accent)
@@ -55,7 +55,7 @@ struct PracticeLevelView: View {
                 }
                 .frame(maxHeight: 380)
 
-                GlassSurface(level: .subtle, cornerRadius: 20) {
+                GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
                     HStack(spacing: 18) {
                         metric("REPS", "\(min(reps, PracticeProgress.repsToUnlock))/\(PracticeProgress.repsToUnlock)")
                         metric("MOTION", sensorLabel)

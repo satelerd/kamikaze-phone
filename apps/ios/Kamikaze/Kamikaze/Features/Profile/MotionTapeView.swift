@@ -5,11 +5,17 @@ import SwiftUI
 /// attempt. Each mark encodes the attempt's state and opens its replay. It is
 /// drawn from recorded evidence — never a decorative chart.
 struct MotionTapeView: View {
+    /// The tape shows the trailing window of history; older marks live in
+    /// History. Keeps the strip cheap at any archive size.
+    static let markLimit = 180
+
     /// Newest-first, as the summary repository returns.
     let summaries: [AttemptSummaryV1]
     let onSelect: (String) -> Void
 
-    private var chronological: [AttemptSummaryV1] { summaries.reversed() }
+    private var chronological: [AttemptSummaryV1] {
+        summaries.prefix(Self.markLimit).reversed()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -18,7 +24,7 @@ struct MotionTapeView: View {
                 .foregroundStyle(KamikazeTheme.muted)
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .center, spacing: 5) {
+                    LazyHStack(alignment: .center, spacing: 5) {
                         ForEach(chronological) { summary in
                             Button {
                                 onSelect(summary.attemptID)

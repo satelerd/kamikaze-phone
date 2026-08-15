@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PlayView: View {
     @State private var run = NativeRunModel()
+    @Namespace private var glassNamespace
 
     private var active: Bool {
         switch run.phase {
@@ -13,7 +14,28 @@ struct PlayView: View {
     var body: some View {
         ZStack {
             KineticBackground(accent: accent)
-            VStack(spacing: 16) {
+            GlassCluster(spacing: 14) {
+                playContent
+            }
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .task { run.start() }
+        .onDisappear { run.stop() }
+        .fullScreenCover(item: Binding(
+            get: { run.result },
+            set: { if $0 == nil { run.dismissResult() } }
+        )) { result in
+            ResultReplayView(
+                result: result,
+                onAgain: run.dismissResultAndRearm,
+                onClose: run.dismissResult,
+                onReview: run.applyHumanReview
+            )
+        }
+    }
+
+    private var playContent: some View {
+        VStack(spacing: 16) {
                 HStack {
                     SectionKicker(text: kicker)
                     Spacer()
@@ -24,7 +46,7 @@ struct PlayView: View {
 
                 Spacer(minLength: 8)
 
-                GlassSurface(level: .subtle, cornerRadius: 42) {
+                GlassSurface(role: .stage, cornerRadius: 42) {
                     ZStack {
                         Circle().fill(accent.opacity(0.13)).overlay(Circle().stroke(.white.opacity(0.13))).padding(10)
                         LivePhoneScene(attitude: run.relativeAttitude, accent: accent)
@@ -32,7 +54,7 @@ struct PlayView: View {
                 }
                 .frame(maxHeight: 430)
 
-                GlassSurface(level: .subtle, cornerRadius: 20) {
+                GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
                     HStack(spacing: 18) {
                         metric("MOTION", sensorLabel)
                         metric("RATE", run.measuredHz > 0 ? "\(Int(run.measuredHz.rounded())) HZ" : "— HZ")
@@ -54,25 +76,13 @@ struct PlayView: View {
                         .frame(maxWidth: .infinity, minHeight: 72)
                 }
                 .adaptiveGlassButton(prominent: true, tint: active ? KamikazeTheme.hazard : KamikazeTheme.ion)
-            }
-            .padding(.horizontal, 18)
-            .padding(.top, 12)
-            .padding(.bottom, 18)
+                // Stable identity: arming morphs the same surface instead of
+                // replacing the button.
+                .kamikazeGlassID("play-primary-action", in: glassNamespace)
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .task { run.start() }
-        .onDisappear { run.stop() }
-        .fullScreenCover(item: Binding(
-            get: { run.result },
-            set: { if $0 == nil { run.dismissResult() } }
-        )) { result in
-            ResultReplayView(
-                result: result,
-                onAgain: run.dismissResultAndRearm,
-                onClose: run.dismissResult,
-                onReview: run.applyHumanReview
-            )
-        }
+        .padding(.horizontal, 18)
+        .padding(.top, 12)
+        .padding(.bottom, 18)
     }
 
     private var accent: Color {

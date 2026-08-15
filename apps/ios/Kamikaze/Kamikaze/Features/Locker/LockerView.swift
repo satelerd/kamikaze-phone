@@ -18,7 +18,7 @@ struct LockerView: View {
                     Text("BUILD YOUR\nSIGNATURE.")
                         .font(.system(size: 40, weight: .black, design: .rounded))
                         .tracking(-1.8)
-                    GlassSurface(level: .subtle, cornerRadius: 36) {
+                    GlassSurface(role: .stage, cornerRadius: 36) {
                         RoundedRectangle(cornerRadius: 24)
                             .fill((skins.first(where: { $0.0 == selectedSkin })?.1 ?? KamikazeTheme.ion).gradient)
                             .frame(width: 126, height: 260)
@@ -33,7 +33,7 @@ struct LockerView: View {
                             Button {
                                 if cost == 0 { selectedSkin = name }
                             } label: {
-                                GlassSurface(interactive: true, level: selectedSkin == name ? .elevated : .regular, cornerRadius: 22) {
+                                GlassSurface(role: .interactiveCard, cornerRadius: 22) {
                                     VStack(alignment: .leading, spacing: 12) {
                                         RoundedRectangle(cornerRadius: 15).fill(color).frame(height: 82)
                                         Text(name).font(.system(size: 13, weight: .bold, design: .rounded))

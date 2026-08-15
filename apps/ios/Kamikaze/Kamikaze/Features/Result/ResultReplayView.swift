@@ -101,7 +101,7 @@ struct ResultReplayView: View {
                         .frame(maxWidth: .infinity, minHeight: 70)
                         .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.ion)
 
-                    GlassSurface(level: .subtle, cornerRadius: 20) {
+                    GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
                         VStack(spacing: 14) {
                             HStack {
                                 stat("IDENTITY", displayedResult.identityLabel)
@@ -156,7 +156,7 @@ struct ResultReplayView: View {
     private func practiceBanner(target: BuiltInTrickID) -> some View {
         let measured = displayedResult.evaluation.identity.trickID
         let onTarget = measured == target
-        return GlassSurface(level: .regular, cornerRadius: 20) {
+        return GlassSurface(role: .contentPanel, cornerRadius: 20) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("TARGET")
@@ -251,7 +251,7 @@ private struct ResultCorrectionView: View {
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundStyle(KamikazeTheme.muted)
 
-                    GlassSurface(level: .regular, cornerRadius: 24) {
+                    GlassSurface(cornerRadius: 24) {
                         VStack(alignment: .leading, spacing: 14) {
                             Text("OUTCOME")
                                 .font(.system(size: 9, weight: .bold, design: .monospaced))

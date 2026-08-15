@@ -44,16 +44,16 @@ xcrun devicectl device process launch --device <device-id> tech.sateler.kamikaze
 Dependency-ordered; each slice ends green (tests + Simulator) and device-checkpointed
 when it changes player-facing behavior.
 
-| # | Slice | Source plan | Why here |
-|---|---|---|---|
-| 1 | Attempt summaries + pagination | G1 | Unblocks Profile/Stats/Practice; Profile currently decodes every raw payload per refresh |
-| 2 | Honest Practice library + practice run | P1–P2 | Six detector-ready tricks exist; turns the Practice shell into gameplay |
-| 3 | Honest Profile + full History + Motion Tape | G2 | Editable identity, filterable history on summaries, one `AttemptDetail` |
-| 4 | Stats engine + Overview/Tricks/Records | G3 | Deterministic reductions over summaries |
-| 5 | Glass role hierarchy | X2 | `GlassEffectContainer`, roles, morphing IDs, one fallback boundary |
-| 6 | Slipstream Field v2 | X3 | One field at the app shell, phase/energy-driven |
-| 7 | Phone Studio + Setup prototype | X4/G4 | Shared `PhoneModelFactory`, quality 15 Plus-class asset, live appearance propagation |
-| 8 | Feedback engine scaffold | X6 | Coordinator + AHAP cues authored; capture-window cues stay disabled until the physical contamination bench passes |
+| # | Slice | Source plan | Status | Why here |
+|---|---|---|---|---|
+| 1 | Attempt summaries + pagination | G1 | **DONE** (`3aaa576`) | Unblocks Profile/Stats/Practice; Profile previously decoded every raw payload per refresh |
+| 2 | Honest Practice library + practice run | P1–P2 | **DONE** (`80a5f1a`) | Six detector-ready tricks exist; turns the Practice shell into gameplay |
+| 3 | Honest Profile + full History + Motion Tape | G2 | **DONE** (`22b0234`) | Editable identity, filterable history on summaries, one `AttemptDetail`, atomic deletion |
+| 4 | Stats engine + Overview/Tricks/Records | G3 | **DONE** (`93872e1`) | Deterministic reductions over summaries |
+| 5 | Glass role hierarchy | X2 | pending | `GlassEffectContainer`, roles, morphing IDs, one fallback boundary |
+| 6 | Slipstream Field v2 | X3 | pending — requires the X1 `ExperienceState` contract first | One field at the app shell, phase/energy-driven |
+| 7 | Phone Studio + Setup prototype | X4/G4 | pending | Shared `PhoneModelFactory`, quality 15 Plus-class asset, live appearance propagation |
+| 8 | Feedback engine scaffold | X6 | pending | Coordinator + AHAP cues authored; capture-window cues stay disabled until the physical contamination bench passes |
 
 Practice mastery (P3), reward ledger (G5), choreography (X5) and integration passes
 (X7) follow if the sprint reaches them.

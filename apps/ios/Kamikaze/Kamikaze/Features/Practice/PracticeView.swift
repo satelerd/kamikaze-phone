@@ -64,7 +64,7 @@ struct PracticeView: View {
 
     private func pairCard(_ pair: PracticePair) -> some View {
         let unlocked = model.progress.isPairUnlocked(pair)
-        return GlassSurface(level: unlocked ? .regular : .subtle) {
+        return GlassSurface {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 14) {
                     Text(String(format: "%02d", pair.order))

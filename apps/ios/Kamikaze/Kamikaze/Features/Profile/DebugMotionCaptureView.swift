@@ -187,7 +187,7 @@ struct DebugMotionCaptureView: View {
     }
 
     private var sensorStatus: some View {
-        GlassSurface(level: .subtle, cornerRadius: 24) {
+        GlassSurface(role: .instrumentHUD, cornerRadius: 24) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text(recorder.statusText)
@@ -212,7 +212,7 @@ struct DebugMotionCaptureView: View {
     }
 
     private var measurementGuide: some View {
-        GlassSurface(level: .subtle, cornerRadius: 22) {
+        GlassSurface(role: .instrumentHUD, cornerRadius: 22) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("WHAT THIS RECORDS")
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
@@ -226,7 +226,7 @@ struct DebugMotionCaptureView: View {
     }
 
     private var intentionEditor: some View {
-        GlassSurface(level: .regular, cornerRadius: 24) {
+        GlassSurface(cornerRadius: 24) {
             VStack(alignment: .leading, spacing: 14) {
                 Text(labMode == .guided
                     ? "STEP \(guidedIndex + 1) / \(guidedSteps.count)"
@@ -373,7 +373,7 @@ struct DebugMotionCaptureView: View {
     }
 
     private func datasetCard(_ dataset: DebugSavedDatasetExport) -> some View {
-        GlassSurface(level: .elevated, cornerRadius: 24) {
+        GlassSurface(cornerRadius: 24) {
             VStack(alignment: .leading, spacing: 12) {
                 Text("CLASSIFIED DATASET")
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
@@ -395,7 +395,7 @@ struct DebugMotionCaptureView: View {
     }
 
     private func savedCard(_ saved: DebugSavedMotionCapture) -> some View {
-        GlassSurface(level: .regular, cornerRadius: 24) {
+        GlassSurface(cornerRadius: 24) {
             VStack(alignment: .leading, spacing: 12) {
                 Text("CAPTURE VERIFIED + SAVED")
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
@@ -475,7 +475,7 @@ private struct TrickCaptureReviewView: View {
                     ReplayPhoneView(controller: replay, accent: KamikazeTheme.ion)
 
                     if let observation = draft.automaticObservation {
-                        GlassSurface(level: .subtle, cornerRadius: 20) {
+                        GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
                             VStack(alignment: .leading, spacing: 5) {
                                 Text("DETECTOR PROPOSAL · NOT GROUND TRUTH")
                                     .font(.system(size: 9, weight: .bold, design: .monospaced))
@@ -508,7 +508,7 @@ private struct TrickCaptureReviewView: View {
     }
 
     private var labelReview: some View {
-        GlassSurface(level: .regular, cornerRadius: 24) {
+        GlassSurface(cornerRadius: 24) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("2 / HUMAN LABEL")
                     .font(.system(size: 10, weight: .bold, design: .monospaced))

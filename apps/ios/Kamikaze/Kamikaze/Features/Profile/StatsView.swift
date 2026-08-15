@@ -221,7 +221,7 @@ struct StatsView: View {
                     }
                 }
             } label: {
-                GlassSurface(interactive: true) {
+                GlassSurface(role: .interactiveCard) {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(title)

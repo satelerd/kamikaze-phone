@@ -23,7 +23,7 @@ struct ProfileView: View {
                         stat(model.metrics.highFitPercent.map(String.init) ?? "—", "HIGH FIT")
                     }
                     if !model.allSummaries.isEmpty {
-                        GlassSurface(level: .subtle, cornerRadius: 20) {
+                        GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
                             MotionTapeView(summaries: model.allSummaries) { attemptID in
                                 Task {
                                     if let result = await model.openAttempt(id: attemptID) {
