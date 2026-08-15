@@ -11,6 +11,12 @@ already implements these contracts.
 - **History:** let the player find, replay, correct, export or delete any attempt.
 - **Locker:** turn progress into a visible phone identity applied everywhere.
 
+`Locker` is a provisional product name. `Setup` is the leading alternative
+because it describes building a complete skate/phone configuration rather than
+storing inventory. The route and source folder stay named Locker until a UI
+prototype validates the label. The expanded 3D editor and model plan lives in
+`NATIVE_EXPERIENCE_SYSTEM_V1.md`.
+
 The source material is a phone used like a board: grip, motion tape, deck
 graphics, scuffs and kinetic light. The screens should not look like a generic
 fitness dashboard or a conventional ecommerce grid.
@@ -131,7 +137,8 @@ applied live; no tab switch is required.
 └──────────────────────────────────────┘
 ```
 
-Start with a deliberately small appearance grammar:
+Start with a deliberately small appearance grammar, then expand it through the
+shared Phone Studio contract in `NATIVE_EXPERIENCE_SYSTEM_V1.md`:
 
 - **Body:** primary material/color;
 - **Edge:** frame accent;

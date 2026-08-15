@@ -342,6 +342,9 @@ Exit gate:
 
 **Dependency:** stable player loop. Design tokens may be prepared earlier.
 
+Detailed glass, background, motion, audio, haptic and Phone Studio contract:
+`NATIVE_EXPERIENCE_SYSTEM_V1.md`.
+
 Direction: **motion instrument, not a skate dashboard**. The world is nocturnal polycarbonate, cold metal and kinetic light; the phone remains the hero.
 
 Core visual tokens:
@@ -367,11 +370,17 @@ Background: **Slipstream Field**, a slow native MeshGradient plus restrained Can
 
 Deliverables:
 
+- one reduced `ExperienceState` driving field, glass transitions, animation and
+  feedback without publishing raw sensor samples to SwiftUI;
 - glass density scale for navigation, actions and interactive game cards;
 - iOS 26 native Liquid Glass with one iOS 18–25 Material fallback boundary;
+- coordinated `GlassEffectContainer` clusters and stable morph identities;
 - transparent layered bottom navigation with content extending beneath it;
-- state-driven background and halo;
-- coherent transitions, haptics and optional sound;
+- state-driven Slipstream background, optional measured Metal shader and halo;
+- one interruption-safe feedback coordinator with authored AHAP haptics and
+  optional original sound;
+- shared higher-fidelity Phone Studio model used by live, replay, target and
+  the provisionally named Locker/Setup editor;
 - Dynamic Type basics, VoiceOver labels, Reduce Motion and Reduce Transparency;
 - no player-facing FPS clutter; diagnostics live in Workshop.
 
@@ -381,6 +390,8 @@ Exit gate:
 - fallback is intentional and legible;
 - 55+ FPS sustained in Play on the reference phone with diagnostics hidden;
 - background pauses/reduces offscreen and with Reduced Motion;
+- audio/haptic cues do not contaminate motion evidence or false-trigger capture;
+- phone appearance changes propagate immediately to every 3D scene;
 - no important state depends only on color or haptics.
 
 ### Section 9 — Quality, CI and distribution
