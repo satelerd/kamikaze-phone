@@ -8,12 +8,16 @@ struct ReplayPhoneScene: View {
     @Bindable var controller: ReplayController
     let accent: Color
 
+    @Environment(AppearanceStore.self) private var appearance
     @State private var previousDragTranslation = CGSize.zero
     @State private var magnifyOrigin = 1.0
 
     var body: some View {
         RealityView { content in
-            let phone = makePhone()
+            let phone = PhoneModelFactory.makePhone(
+                appearance: appearance.effective,
+                accent: UIColor(accent)
+            )
             phone.name = "replay-phone"
             content.add(phone)
 
@@ -47,6 +51,7 @@ struct ReplayPhoneScene: View {
         .simultaneousGesture(magnifyGesture, including: .all)
         .accessibilityLabel("Replay 3D phone")
         .accessibilityHint("Drag to orbit the camera. Pinch to zoom.")
+        .id(appearance.effective)
     }
 
     private var dragGesture: some Gesture {
@@ -71,22 +76,6 @@ struct ReplayPhoneScene: View {
             .onEnded { _ in magnifyOrigin = 1 }
     }
 
-    private func makePhone() -> Entity {
-        let root = Entity()
-        let body = ModelEntity(
-            mesh: .generateBox(width: 0.132, height: 0.27, depth: 0.016, cornerRadius: 0.026),
-            materials: [SimpleMaterial(color: .black, roughness: 0.24, isMetallic: true)]
-        )
-        root.addChild(body)
-
-        let screen = ModelEntity(
-            mesh: .generateBox(width: 0.119, height: 0.248, depth: 0.002, cornerRadius: 0.019),
-            materials: [SimpleMaterial(color: UIColor(accent).withAlphaComponent(0.84), roughness: 0.16, isMetallic: false)]
-        )
-        screen.position.z = 0.009
-        root.addChild(screen)
-        return root
-    }
 }
 
 /// A reusable stage with transport and camera/reference controls. Screens may

@@ -50,8 +50,8 @@ when it changes player-facing behavior.
 | 2 | Honest Practice library + practice run | P1–P2 | **DONE** (`80a5f1a`) | Six detector-ready tricks exist; turns the Practice shell into gameplay |
 | 3 | Honest Profile + full History + Motion Tape | G2 | **DONE** (`22b0234`) | Editable identity, filterable history on summaries, one `AttemptDetail`, atomic deletion |
 | 4 | Stats engine + Overview/Tricks/Records | G3 | **DONE** (`93872e1`) | Deterministic reductions over summaries |
-| 5 | Glass role hierarchy | X2 | pending | `GlassEffectContainer`, roles, morphing IDs, one fallback boundary |
-| 6 | Slipstream Field v2 | X3 | pending — requires the X1 `ExperienceState` contract first | One field at the app shell, phase/energy-driven |
+| 5 | Glass role hierarchy | X2 | **DONE** (`2625e42`) | `GlassEffectContainer`, roles, morphing IDs, one fallback boundary |
+| 6 | Slipstream Field v2 + X1 ExperienceState | X1/X3 | **DONE** | One field at the app shell, phase/energy-driven |
 | 7 | Phone Studio + Setup prototype | X4/G4 | pending | Shared `PhoneModelFactory`, quality 15 Plus-class asset, live appearance propagation |
 | 8 | Feedback engine scaffold | X6 | pending | Coordinator + AHAP cues authored; capture-window cues stay disabled until the physical contamination bench passes |
 

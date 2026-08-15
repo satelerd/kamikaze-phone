@@ -16,7 +16,9 @@ enum AppTab: String, Hashable, CaseIterable {
         switch self {
         case .play: "PLAY"
         case .practice: "PRACTICE"
-        case .locker: "LOCKER"
+        // Player-facing label prototyped as Setup; routes and source folders
+        // keep the Locker name until the label is validated.
+        case .locker: "SETUP"
         case .profile: "ME"
         }
     }

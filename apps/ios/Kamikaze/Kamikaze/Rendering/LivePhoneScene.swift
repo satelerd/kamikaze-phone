@@ -5,16 +5,38 @@ import SwiftUI
 struct LivePhoneScene: View {
     let attitude: Quaternion
     let accent: Color
+    /// Authored showcase camera, used by Setup so the phone presents its
+    /// depth, frame and camera island instead of a flat front view.
+    var initialYaw = 0.0
+    var initialPitch = 0.0
 
-    @State private var orbitYaw = 0.0
-    @State private var orbitPitch = 0.0
+    @Environment(AppearanceStore.self) private var appearance
+    @State private var orbitYaw: Double
+    @State private var orbitPitch: Double
     @State private var zoom = 0.72
+
+    init(
+        attitude: Quaternion,
+        accent: Color,
+        initialYaw: Double = 0,
+        initialPitch: Double = 0
+    ) {
+        self.attitude = attitude
+        self.accent = accent
+        self.initialYaw = initialYaw
+        self.initialPitch = initialPitch
+        _orbitYaw = State(initialValue: initialYaw)
+        _orbitPitch = State(initialValue: initialPitch)
+    }
     @State private var dragOrigin: (yaw: Double, pitch: Double)?
     @State private var magnifyOrigin: Double?
 
     var body: some View {
         RealityView { content in
-            let phone = makePhone()
+            let phone = PhoneModelFactory.makePhone(
+                appearance: appearance.effective,
+                accent: UIColor(accent)
+            )
             phone.name = "phone"
             content.add(phone)
 
@@ -69,8 +91,8 @@ struct LivePhoneScene: View {
         .overlay(alignment: .bottomTrailing) {
             Button("Reset camera", systemImage: "view.3d") {
                 withAnimation(.snappy) {
-                    orbitYaw = 0
-                    orbitPitch = 0
+                    orbitYaw = initialYaw
+                    orbitPitch = initialPitch
                     zoom = 0.72
                 }
             }
@@ -80,26 +102,7 @@ struct LivePhoneScene: View {
             .accessibilityLabel("Reset camera")
         }
         .accessibilityLabel("Live 3D phone pose")
-    }
-
-    private func makePhone() -> Entity {
-        let root = Entity()
-
-        let bodyMaterial = SimpleMaterial(color: .black, roughness: 0.24, isMetallic: true)
-        let body = ModelEntity(
-            mesh: .generateBox(width: 0.132, height: 0.27, depth: 0.016, cornerRadius: 0.026),
-            materials: [bodyMaterial]
-        )
-        root.addChild(body)
-
-        let screenColor = UIColor(accent).withAlphaComponent(0.84)
-        let screen = ModelEntity(
-            mesh: .generateBox(width: 0.119, height: 0.248, depth: 0.002, cornerRadius: 0.019),
-            materials: [SimpleMaterial(color: screenColor, roughness: 0.16, isMetallic: false)]
-        )
-        screen.position.z = 0.009
-        root.addChild(screen)
-
-        return root
+        // A cosmetic change rebuilds the scene; appearance edits are rare.
+        .id(appearance.effective)
     }
 }

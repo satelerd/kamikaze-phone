@@ -4,6 +4,7 @@ struct KamikazeRootView: View {
     @AppStorage("onboardingComplete") private var onboardingComplete = false
     @State private var selectedTab = AppTab.initialTab
     @State private var experience = ExperienceCoordinator()
+    @State private var appearance = AppearanceStore()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -23,6 +24,7 @@ struct KamikazeRootView: View {
                 }
             }
             .environment(experience)
+            .environment(appearance)
             .tint(KamikazeTheme.volt)
             .preferredColorScheme(.dark)
             .onAppear { experience.setReduceEffects(reduceMotion) }
