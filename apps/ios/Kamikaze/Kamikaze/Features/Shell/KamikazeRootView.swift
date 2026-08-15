@@ -2,7 +2,7 @@ import SwiftUI
 
 struct KamikazeRootView: View {
     @AppStorage("onboardingComplete") private var onboardingComplete = false
-    @State private var selectedTab = AppTab.play
+    @State private var selectedTab = AppTab.initialTab
 
     var body: some View {
         if onboardingComplete {

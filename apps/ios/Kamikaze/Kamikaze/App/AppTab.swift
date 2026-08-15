@@ -1,10 +1,16 @@
 import SwiftUI
 
-enum AppTab: Hashable, CaseIterable {
+enum AppTab: String, Hashable, CaseIterable {
     case play
     case practice
     case locker
     case profile
+
+    /// Debug/testing affordance: launching with `-debugInitialTab profile`
+    /// opens that tab directly (standard UserDefaults argument domain).
+    static var initialTab: AppTab {
+        UserDefaults.standard.string(forKey: "debugInitialTab").flatMap(AppTab.init) ?? .play
+    }
 
     var title: String {
         switch self {

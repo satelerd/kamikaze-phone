@@ -134,6 +134,7 @@ final class NativeRunModel {
     private var activeRunID: String?
     private let repository: FileAttemptRepository
     private let analysisRepository: FileAttemptAnalysisRepository
+    private let summaryRepository: FileAttemptSummaryRepository
     private var lastPaintUptime = 0.0
 
     private(set) var phase: NativeRunPhase = .ready
@@ -159,6 +160,7 @@ final class NativeRunModel {
         let root = AttemptStorageLocation.applicationRoot()
         repository = FileAttemptRepository(rootDirectory: root)
         analysisRepository = FileAttemptAnalysisRepository(rootDirectory: root)
+        summaryRepository = FileAttemptSummaryRepository(rootDirectory: root)
     }
 
     func start() {
@@ -255,10 +257,16 @@ final class NativeRunModel {
         guard let current = result else { return nil }
         let updated = current.replacingHumanReview(review)
         do {
-            try await analysisRepository.save(AttemptAnalysisRecord(
+            let record = AttemptAnalysisRecord(
                 attemptID: current.id,
                 result: current.match,
                 humanReview: review
+            )
+            try await analysisRepository.save(record)
+            try? await summaryRepository.upsert(AttemptSummaryV1(
+                attempt: current.capture.attempt,
+                analysis: record,
+                timezone: .current
             ))
             guard result?.id == current.id else { return nil }
             result = updated
@@ -294,12 +302,20 @@ final class NativeRunModel {
         streamTask = nil
         // Store after result publication: a slow filesystem must never delay
         // the catch/result moment. The raw payload is immutable and complete.
-        Task { [repository, analysisRepository] in
+        Task { [repository, analysisRepository, summaryRepository] in
             do {
                 try await repository.save(completed.capture)
-                try await analysisRepository.save(AttemptAnalysisRecord(
+                let record = AttemptAnalysisRecord(
                     attemptID: completed.capture.attempt.id,
                     result: completed.match
+                )
+                try await analysisRepository.save(record)
+                // Best-effort: the Profile reconciler rebuilds any summary this
+                // write misses, so a failure here never loses evidence.
+                try? await summaryRepository.upsert(AttemptSummaryV1(
+                    attempt: completed.capture.attempt,
+                    analysis: record,
+                    timezone: .current
                 ))
             } catch {
                 // The result remains available in memory. Profile exposes any
