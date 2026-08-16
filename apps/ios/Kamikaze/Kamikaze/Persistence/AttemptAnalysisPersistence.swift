@@ -88,6 +88,7 @@ nonisolated struct AttemptAnalysisRecord: Codable, Equatable, Sendable {
 protocol AttemptAnalysisRepository: Sendable {
     func save(_ record: AttemptAnalysisRecord) async throws
     func load(attemptID: String) async throws -> AttemptAnalysisRecord?
+    func delete(attemptID: String) async throws
 }
 
 actor FileAttemptAnalysisRepository: AttemptAnalysisRepository {
@@ -130,6 +131,19 @@ actor FileAttemptAnalysisRepository: AttemptAnalysisRepository {
             throw AttemptPersistenceError.invalidCapture("Analysis record does not match its attempt.")
         }
         return record
+    }
+
+    func delete(attemptID: String) throws {
+        guard isSafeID(attemptID) else {
+            throw AttemptPersistenceError.invalidCapture("Invalid attempt identifier.")
+        }
+        let target = url(for: attemptID)
+        guard FileManager.default.fileExists(atPath: target.path) else { return }
+        do {
+            try FileManager.default.removeItem(at: target)
+        } catch {
+            throw AttemptPersistenceError.ioFailure
+        }
     }
 
     private func url(for attemptID: String) -> URL {

@@ -36,7 +36,7 @@ final class ReplayController {
         var elevation: Double
         var distance: Double
 
-        static let spectator = Camera(azimuth: -0.48, elevation: 0.22, distance: 0.72)
+        static let spectator = Camera(azimuth: -0.48, elevation: 0.22, distance: 0.34)
     }
 
     private let frames: [ReplayFrame]
@@ -45,7 +45,9 @@ final class ReplayController {
 
     private(set) var state: PlaybackState = .paused
     private(set) var playheadMs: Double = 0
-    var speed: PlaybackSpeed = .normal
+    /// Half speed by default: a real trick resolves in a few hundred ms, so
+    /// 1× replays read as a blink. 0.5× is the study speed.
+    var speed: PlaybackSpeed = .half
     var camera: Camera = .spectator
     private(set) var poseBaseline: Quaternion?
 
@@ -141,7 +143,7 @@ final class ReplayController {
 
     func zoom(magnification: Double) {
         guard magnification.isFinite, magnification > 0 else { return }
-        camera.distance = min(1.2, max(0.38, camera.distance / magnification))
+        camera.distance = min(1.2, max(0.30, camera.distance / magnification))
     }
 
     /// Restores only the spectator camera; it never changes Zero Pose.

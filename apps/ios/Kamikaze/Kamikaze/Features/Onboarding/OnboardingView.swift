@@ -26,7 +26,7 @@ struct OnboardingView: View {
                     ForEach(pages) { item in
                         VStack(alignment: .leading, spacing: 24) {
                             Spacer()
-                            GlassSurface(level: .subtle, cornerRadius: 52) {
+                            GlassSurface(role: .stage, cornerRadius: 52) {
                                 Image(systemName: item.symbol)
                                     .font(.system(size: 62, weight: .light))
                                     .foregroundStyle(item.accent)

@@ -6,11 +6,13 @@ struct ReplayControllerTests {
     @MainActor
     @Test func manualClockAdvancesAtSelectedSpeed() {
         let controller = ReplayController(frames: frames(), clockMode: .manual)
+        // Study speed (0.5×) is the default; tricks resolve too fast for 1×.
+        #expect(controller.speed == .half)
         controller.play()
         controller.advance(by: 100)
-        #expect(controller.playheadMs == 100)
+        #expect(controller.playheadMs == 50)
 
-        controller.setSpeed(.half)
+        controller.setSpeed(.normal)
         controller.advance(by: 100)
         #expect(controller.playheadMs == 150)
     }
@@ -22,7 +24,7 @@ struct ReplayControllerTests {
         controller.advance(by: 100)
         controller.pause()
         controller.advance(by: 400)
-        #expect(controller.playheadMs == 100)
+        #expect(controller.playheadMs == 50)
         #expect(controller.state == .paused)
     }
 

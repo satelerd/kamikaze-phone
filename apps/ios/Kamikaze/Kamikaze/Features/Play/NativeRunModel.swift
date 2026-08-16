@@ -4,6 +4,7 @@ import KamikazeMotionApple
 import KamikazeMotionCore
 import Observation
 import UIKit
+import os
 
 enum NativeRunPhase: Equatable {
     case ready
@@ -13,6 +14,18 @@ enum NativeRunPhase: Equatable {
     case result
     case unknown
     case failed(String)
+
+    /// Reduction for the shared experience system.
+    var experiencePhase: ExperiencePhase {
+        switch self {
+        case .ready: .idle
+        case .armed: .armed
+        case .motion: .motion
+        case .settling: .settling
+        case .result: .landed
+        case .unknown, .failed: .review
+        }
+    }
 }
 
 nonisolated enum AttemptInterpretationSource: String, Equatable, Sendable {
@@ -123,10 +136,16 @@ struct NativeRunResult: Identifiable, Sendable {
 
 /// UI bridge for the native vertical slice. Sensor samples are passed straight
 /// to `RunProcessingEngine`; only already-reduced telemetry crosses back to
-/// the main actor at roughly 20 Hz.
+/// the main actor at roughly 20 Hz. Play uses it without a target; Practice
+/// passes `expectedTrickID` and reads the same result against that target.
 @MainActor
 @Observable
 final class NativeRunModel {
+    /// Practice target. Capture, segmentation and matching are identical to
+    /// Play; the expectation only changes how a result is presented and which
+    /// quick confirmations make sense.
+    let expectedTrickID: BuiltInTrickID?
+
     private let source = CoreMotionSampleSource()
     private let engine = RunProcessingEngine()
     private var streamTask: Task<Void, Never>?
@@ -134,7 +153,18 @@ final class NativeRunModel {
     private var activeRunID: String?
     private let repository: FileAttemptRepository
     private let analysisRepository: FileAttemptAnalysisRepository
-    private var lastPaintUptime = 0.0
+    private let summaryRepository: FileAttemptSummaryRepository
+    private var lastPoseUptime = 0.0
+    private var lastTelemetryUptime = 0.0
+    /// Latest-wins mailbox between the 100 Hz sensor loop and the MainActor.
+    /// Pure pose events overwrite each other here instead of queueing, so a
+    /// busy UI can never back the stream up (which surfaced as the stage
+    /// lagging further and further behind the hand, then looking dead).
+    private struct PendingPose {
+        var event: RunProcessingEvent?
+        var drainScheduled = false
+    }
+    private let pendingPose = OSAllocatedUnfairLock(initialState: PendingPose())
 
     private(set) var phase: NativeRunPhase = .ready
     private(set) var attitude = Quaternion.identity
@@ -155,10 +185,12 @@ final class NativeRunModel {
         }
     }
 
-    init() {
+    init(expectedTrickID: BuiltInTrickID? = nil) {
+        self.expectedTrickID = expectedTrickID
         let root = AttemptStorageLocation.applicationRoot()
         repository = FileAttemptRepository(rootDirectory: root)
         analysisRepository = FileAttemptAnalysisRepository(rootDirectory: root)
+        summaryRepository = FileAttemptSummaryRepository(rootDirectory: root)
     }
 
     func start() {
@@ -177,6 +209,10 @@ final class NativeRunModel {
                 }
             }
             do {
+                // Phase transitions and completion cross to the MainActor
+                // awaited and in order; pure pose updates take the
+                // latest-wins mailbox so this loop never waits on the UI.
+                var forwardedPhase: NativeRunPhase?
                 for try await sample in source.samples(configuration: MotionStreamConfiguration(
                     requestedFrequencyHz: 100,
                     ringBufferDurationS: 0.5,
@@ -184,7 +220,12 @@ final class NativeRunModel {
                 )) {
                     guard !Task.isCancelled else { break }
                     let event = await engine.ingest(sample)
-                    await self?.receive(event)
+                    if event.completed != nil || event.phase != forwardedPhase {
+                        forwardedPhase = event.phase
+                        await self?.receive(event)
+                    } else {
+                        self?.postLatestPose(event)
+                    }
                 }
             } catch is CancellationError {
                 // Expected when Play leaves the view.
@@ -249,16 +290,25 @@ final class NativeRunModel {
     func dismissResult() {
         result = nil
         phase = .ready
+        // The completed run stopped the stream to seal its evidence; bring it
+        // back so the stage keeps tracking the hand after Close.
+        start()
     }
 
     func applyHumanReview(_ review: HumanAttemptReview) async -> NativeRunResult? {
         guard let current = result else { return nil }
         let updated = current.replacingHumanReview(review)
         do {
-            try await analysisRepository.save(AttemptAnalysisRecord(
+            let record = AttemptAnalysisRecord(
                 attemptID: current.id,
                 result: current.match,
                 humanReview: review
+            )
+            try await analysisRepository.save(record)
+            try? await summaryRepository.upsert(AttemptSummaryV1(
+                attempt: current.capture.attempt,
+                analysis: record,
+                timezone: .current
             ))
             guard result?.id == current.id else { return nil }
             result = updated
@@ -268,18 +318,60 @@ final class NativeRunModel {
         }
     }
 
-    private func receive(_ event: RunProcessingEvent) async {
+    /// Sensor-loop side of the mailbox. Nonisolated: it must never hop actors
+    /// itself — it only overwrites the pending event and, at most once per
+    /// drain cycle, schedules the MainActor task that empties the mailbox.
+    nonisolated private func postLatestPose(_ event: RunProcessingEvent) {
+        let schedule = pendingPose.withLock { state -> Bool in
+            state.event = event
+            guard !state.drainScheduled else { return false }
+            state.drainScheduled = true
+            return true
+        }
+        guard schedule else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            while let event = self.takePendingPose() {
+                // Not authoritative: a stale mailbox event must never roll
+                // the phase back behind the awaited transition lane.
+                await self.receive(event, phaseAuthoritative: false)
+            }
+        }
+    }
+
+    nonisolated private func takePendingPose() -> RunProcessingEvent? {
+        pendingPose.withLock { state in
+            guard let event = state.event else {
+                state.drainScheduled = false
+                return nil
+            }
+            state.event = nil
+            return event
+        }
+    }
+
+    private func receive(_ event: RunProcessingEvent, phaseAuthoritative: Bool = true) async {
         let now = ProcessInfo.processInfo.systemUptime
         let belongsToActiveRun = event.runID != nil && event.runID == activeRunID
-        let phaseChanged = belongsToActiveRun && phase != event.phase
-        if phaseChanged || now - lastPaintUptime >= 0.05 {
-            lastPaintUptime = now
+        let phaseChanged = phaseAuthoritative && belongsToActiveRun && phase != event.phase
+        // Two publish gates on purpose. The pose tracks the hand, so it goes
+        // out near display cadence (~50 Hz from the 100 Hz stream) — a single
+        // shared 20 Hz gate here is what made the live stage feel choppy.
+        // Numeric telemetry is for reading, not tracking: 8 Hz keeps digits
+        // legible and spares its observers the high-frequency invalidation.
+        // Only views that read a property re-evaluate, so screens isolate the
+        // pose reads in `LiveRunStage`.
+        if phaseChanged || now - lastPoseUptime >= 1.0 / 60.0 {
+            lastPoseUptime = now
             attitude = event.attitude
+        }
+        if phaseChanged || now - lastTelemetryUptime >= 0.125 {
+            lastTelemetryUptime = now
             measuredHz = event.measuredHz
             gyroDps = event.gyroDps
-            if belongsToActiveRun {
-                phase = event.phase
-            }
+        }
+        if phaseChanged {
+            phase = event.phase
         }
 
         guard belongsToActiveRun, let completed = event.completed else { return }
@@ -294,12 +386,20 @@ final class NativeRunModel {
         streamTask = nil
         // Store after result publication: a slow filesystem must never delay
         // the catch/result moment. The raw payload is immutable and complete.
-        Task { [repository, analysisRepository] in
+        Task { [repository, analysisRepository, summaryRepository] in
             do {
                 try await repository.save(completed.capture)
-                try await analysisRepository.save(AttemptAnalysisRecord(
+                let record = AttemptAnalysisRecord(
                     attemptID: completed.capture.attempt.id,
                     result: completed.match
+                )
+                try await analysisRepository.save(record)
+                // Best-effort: the Profile reconciler rebuilds any summary this
+                // write misses, so a failure here never loses evidence.
+                try? await summaryRepository.upsert(AttemptSummaryV1(
+                    attempt: completed.capture.attempt,
+                    analysis: record,
+                    timezone: .current
                 ))
             } catch {
                 // The result remains available in memory. Profile exposes any
@@ -318,147 +418,5 @@ final class NativeRunModel {
         guard activeStreamID == streamID else { return }
         activeStreamID = nil
         streamTask = nil
-    }
-}
-
-private struct RunProcessingEvent: Sendable {
-    let runID: String?
-    let phase: NativeRunPhase
-    let attitude: Quaternion
-    let measuredHz: Double
-    let gyroDps: Double
-    let completed: RunProcessedAttempt?
-}
-
-private struct RunProcessedAttempt: Sendable {
-    let capture: MotionCaptureV3
-    let match: TrickMatchResult
-}
-
-private actor RunProcessingEngine {
-    private var segmenter = AttemptSegmenter()
-    private let matcher = TrickMatcher()
-    private let catalog = TrickCatalog.provisional(gripHand: .right)
-    private var previousTimestampS: Double?
-    private var measuredHz = 0.0
-    private var activeRunID: String?
-    private var completedCurrentRun = false
-
-    func arm(runID: String) {
-        _ = segmenter.arm(mode: .auto)
-        activeRunID = runID
-        completedCurrentRun = false
-    }
-
-    func cancel(runID: String) {
-        guard activeRunID == runID else { return }
-        cancelAll()
-    }
-
-    func cancelAll() {
-        _ = segmenter.cancel()
-        activeRunID = nil
-        completedCurrentRun = false
-    }
-
-    func ingest(_ sample: MotionSampleV3) -> RunProcessingEvent {
-        if let previousTimestampS {
-            let interval = sample.timestampS - previousTimestampS
-            if interval > 0 {
-                let instantaneous = 1 / interval
-                measuredHz = measuredHz == 0 ? instantaneous : measuredHz * 0.88 + instantaneous * 0.12
-            }
-        }
-        previousTimestampS = sample.timestampS
-
-        let snapshot = segmenter.process(sample)
-        let phase = Self.presentationPhase(snapshot.phase)
-        let completed: RunProcessedAttempt?
-        if let attempt = snapshot.lastAttempt,
-           activeRunID != nil,
-           !completedCurrentRun {
-            completedCurrentRun = true
-            let match = matcher.match(attempt: attempt, catalog: catalog)
-            completed = makeCapture(from: attempt, match: match)
-        } else {
-            completed = nil
-        }
-        return RunProcessingEvent(
-            runID: activeRunID,
-            phase: completed == nil ? phase : Self.resultPhase(match: completed!.match),
-            attitude: sample.fusedAttitude ?? .identity,
-            measuredHz: measuredHz,
-            gyroDps: sample.rotationRateRadS.magnitude * 180 / .pi,
-            completed: completed
-        )
-    }
-
-    private func makeCapture(
-        from segmented: SegmentedAttemptV3,
-        match: TrickMatchResult
-    ) -> RunProcessedAttempt? {
-        let id = UUID().uuidString.lowercased()
-        let payload = MotionSamplePayloadV3(attemptID: id, samples: segmented.samples)
-        guard let encoded = try? canonicalJSON(payload) else { return nil }
-        let rawReference = RawSampleReferenceV3(
-            relativePath: "raw/\(id).samples.v3.json",
-            encoding: .json,
-            payloadSchemaVersion: MotionSchemaV3.version,
-            sampleCount: segmented.samples.count,
-            checksum: SHA256.hash(data: encoded).map { String(format: "%02x", $0) }.joined()
-        )
-        let versions = ProcessingVersionsV3(
-            calibrationProfileID: nil,
-            calibrationVersion: nil,
-            detectorVersion: "attempt-segmenter-v3",
-            analysisVersion: match.policyVersion,
-            scoreVersion: nil
-        )
-        let attempt = MotionAttemptV3(
-            id: id,
-            source: .sensor,
-            recordedAtISO8601: ISO8601DateFormatter().string(from: Date()),
-            captureMode: segmented.captureMode,
-            triggerMode: segmented.trigger == .freefall ? .freefall : .gyro,
-            boundaries: segmented.boundaries,
-            environment: CaptureEnvironmentV3(
-                device: CaptureDeviceMetadataV3(
-                    modelIdentifier: nil,
-                    modelName: "iPhone",
-                    operatingSystemName: "iOS",
-                    operatingSystemVersion: nil,
-                    operatingSystemBuild: nil
-                ),
-                gripHand: .right,
-                orientation: .portrait,
-                referenceFrame: .xArbitraryZVertical,
-                requestedFrequencyHz: 100,
-                measuredFrequencyHz: measuredHz > 0 ? measuredHz : nil
-            ),
-            versions: versions,
-            rawSamples: rawReference,
-            importedExpoAnalysis: nil
-        )
-        return RunProcessedAttempt(capture: MotionCaptureV3(attempt: attempt, samplePayload: payload), match: match)
-    }
-
-    private func canonicalJSON<T: Encodable>(_ value: T) throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        return try encoder.encode(value)
-    }
-
-    private static func presentationPhase(_ phase: AttemptSegmentationPhase) -> NativeRunPhase {
-        switch phase {
-        case .idle: .ready
-        case .armed: .armed
-        case .motion: .motion
-        case .settling: .settling
-        case .complete: .result
-        }
-    }
-
-    private static func resultPhase(match: TrickMatchResult) -> NativeRunPhase {
-        match.status == .unknown || match.status == .invalid ? .unknown : .result
     }
 }

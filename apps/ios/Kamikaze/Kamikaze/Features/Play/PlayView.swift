@@ -1,7 +1,11 @@
+import KamikazeMotionCore
 import SwiftUI
 
 struct PlayView: View {
     @State private var run = NativeRunModel()
+    @Namespace private var glassNamespace
+    @Environment(ExperienceCoordinator.self) private var experience
+    @Environment(FeedbackCoordinator.self) private var feedback
 
     private var active: Bool {
         switch run.phase {
@@ -12,56 +16,21 @@ struct PlayView: View {
 
     var body: some View {
         ZStack {
-            KineticBackground(accent: accent)
-            VStack(spacing: 16) {
-                HStack {
-                    SectionKicker(text: kicker)
-                    Spacer()
-                    Button("ZERO POSE", systemImage: "scope") { run.zeroPose() }
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .adaptiveGlassButton()
-                }
-
-                Spacer(minLength: 8)
-
-                GlassSurface(level: .subtle, cornerRadius: 42) {
-                    ZStack {
-                        Circle().fill(accent.opacity(0.13)).overlay(Circle().stroke(.white.opacity(0.13))).padding(10)
-                        LivePhoneScene(attitude: run.relativeAttitude, accent: accent)
-                    }
-                }
-                .frame(maxHeight: 430)
-
-                GlassSurface(level: .subtle, cornerRadius: 20) {
-                    HStack(spacing: 18) {
-                        metric("MOTION", sensorLabel)
-                        metric("RATE", run.measuredHz > 0 ? "\(Int(run.measuredHz.rounded())) HZ" : "— HZ")
-                        metric("GYRO", "\(Int(run.gyroDps.rounded()))°/S")
-                    }
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 8)
-                }
-
-                VStack(spacing: 6) {
-                    Text(title).font(.system(size: 32, weight: .black, design: .rounded)).tracking(-1.2)
-                    Text(detail).font(.system(size: 13, weight: .medium, design: .rounded)).foregroundStyle(KamikazeTheme.muted)
-                }
-                .multilineTextAlignment(.center)
-
-                Button { active ? run.cancel() : run.arm() } label: {
-                    Text(active ? "CANCEL SESSION" : "START SESSION")
-                        .font(.system(size: 18, weight: .black, design: .rounded))
-                        .frame(maxWidth: .infinity, minHeight: 72)
-                }
-                .adaptiveGlassButton(prominent: true, tint: active ? KamikazeTheme.hazard : KamikazeTheme.ion)
+            ExperienceFieldBackground()
+            GlassCluster(spacing: 14) {
+                playContent
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 12)
-            .padding(.bottom, 18)
         }
         .toolbar(.hidden, for: .navigationBar)
         .task { run.start() }
-        .onDisappear { run.stop() }
+        .onDisappear {
+            run.stop()
+            experience.report(phase: .idle)
+        }
+        .onChange(of: run.phase) { _, phase in
+            experience.report(phase: phase.experiencePhase)
+            reactToPhase(phase)
+        }
         .fullScreenCover(item: Binding(
             get: { run.result },
             set: { if $0 == nil { run.dismissResult() } }
@@ -75,6 +44,51 @@ struct PlayView: View {
         }
     }
 
+    private var playContent: some View {
+        VStack(spacing: 16) {
+                // Same typographic voice as Setup's header. The phase story
+                // moved into the button and the HUD — no status subtitle.
+                Text("KAMIKAZE\nPHONE FLIP")
+                    .font(.system(size: 40, weight: .black, design: .rounded))
+                    .tracking(-1.8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                // The phone floats directly over the field — no stage boxes.
+                LiveRunStage(run: run, accent: accent, initialZoom: 0.33)
+                    .frame(maxHeight: 520)
+
+                RunTelemetryHUD(run: run)
+
+                if case let .failed(message) = run.phase {
+                    Text(message)
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(KamikazeTheme.hazard)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                }
+
+                Button {
+                    if active {
+                        run.cancel()
+                        feedback.play(.cancelled)
+                    } else {
+                        run.arm()
+                    }
+                } label: {
+                    Text(active ? "CANCEL" : "THROW")
+                        .font(.system(size: 26, weight: .black, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 84)
+                }
+                .adaptiveGlassButton(prominent: true, tint: active ? KamikazeTheme.hazard : KamikazeTheme.ion)
+                // Stable identity: arming morphs the same surface instead of
+                // replacing the button.
+                .kamikazeGlassID("play-primary-action", in: glassNamespace)
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 12)
+        .padding(.bottom, 18)
+    }
+
     private var accent: Color {
         switch run.phase {
         case .motion, .settling: KamikazeTheme.hazard
@@ -84,52 +98,28 @@ struct PlayView: View {
         }
     }
 
-    private var kicker: String {
-        switch run.phase {
-        case .ready: "PLAY / READY"
-        case .armed: "SESSION / ARMED"
-        case .motion: "SESSION / MOTION"
-        case .settling: "SESSION / LANDING"
-        case .result: "SESSION / LANDED"
-        case .unknown: "SESSION / REVIEW"
-        case .failed: "SESSION / SENSOR"
+    /// Cue ordering matters: the armed tick fires BEFORE the evidence window
+    /// opens; catch/result cues fire only after the capture has closed.
+    private func reactToPhase(_ phase: NativeRunPhase) {
+        switch phase {
+        case .armed:
+            feedback.play(.armed)
+            feedback.evidenceWindowActive = true
+        case .motion, .settling:
+            feedback.evidenceWindowActive = true
+        case .result:
+            feedback.evidenceWindowActive = false
+            feedback.play(.catchResolved)
+            // `result` is published before `phase` in NativeRunModel, so the
+            // match status is already readable here.
+            feedback.playDetectionSound(success: run.result?.match.status == .recognized)
+        case .unknown:
+            feedback.evidenceWindowActive = false
+            feedback.play(.needsReview)
+            feedback.playDetectionSound(success: false)
+        case .ready, .failed:
+            feedback.evidenceWindowActive = false
         }
     }
 
-    private var title: String {
-        switch run.phase {
-        case .ready: "READY TO FLIP?"
-        case .armed: "THROW WHEN READY"
-        case .motion: "TRICK IN MOTION"
-        case .settling: "HOLD THE CATCH"
-        case .result: "LANDED"
-        case .unknown: "CHECK THE THROW"
-        case let .failed(message): "SENSOR ERROR\n\(message)"
-        }
-    }
-
-    private var detail: String {
-        switch run.phase {
-        case .ready: "A quick spin is enough. You do not need a high throw."
-        case .armed: "The full 100 Hz stream is armed."
-        case .motion: "Rotation captured — catch it and steady the phone."
-        case .settling: "Keep it still for a fraction of a second."
-        case .result: "Opening measured replay."
-        case .unknown: "The evidence is saved for review, not guessed."
-        case .failed: "Reconnect motion access, then try again."
-        }
-    }
-
-    private var sensorLabel: String {
-        if case .failed = run.phase { return "ERROR" }
-        return run.measuredHz > 0 ? "LIVE" : "WAITING"
-    }
-
-    private func metric(_ title: String, _ value: String) -> some View {
-        VStack(spacing: 3) {
-            Text(title).font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(KamikazeTheme.muted)
-            Text(value).font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundStyle(KamikazeTheme.frost)
-        }
-        .frame(maxWidth: .infinity)
-    }
 }

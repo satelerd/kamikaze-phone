@@ -1,7 +1,67 @@
 import Foundation
 
+/// A measured free-fall span inside a replay, detected from total
+/// acceleration (≈0 g while airborne, ≈1 g in the hand). Presentation-layer
+/// physics only — segmentation and the detector never read this.
+public struct FreefallWindow: Equatable, Sendable {
+    public let startMs: Double
+    public let endMs: Double
+
+    public init(startMs: Double, endMs: Double) {
+        self.startMs = startMs
+        self.endMs = endMs
+    }
+
+    public var durationS: Double { max(0, endMs - startMs) / 1_000 }
+    /// Ballistic peak for the measured hang time: h = g·T²/8. Real physics,
+    /// not an estimate — a body in free fall for T seconds rose exactly this.
+    public var peakHeightM: Double { 9.80665 * durationS * durationS / 8 }
+
+    public func contains(_ timestampMs: Double) -> Bool {
+        timestampMs >= startMs && timestampMs <= endMs
+    }
+
+    /// Ballistic height at a playhead, in meters. Zero outside the window.
+    public func heightM(at timestampMs: Double) -> Double {
+        let spanMs = endMs - startMs
+        guard spanMs > 0, contains(timestampMs) else { return 0 }
+        let p = (timestampMs - startMs) / spanMs
+        return 4 * peakHeightM * p * (1 - p)
+    }
+}
+
 public enum ReplayBuilder {
     private static let earthGravity = 9.80665
+
+    /// Finds the longest sustained low-acceleration run — the throw's free
+    /// fall. The threshold is generous because a spinning phone's IMU sits
+    /// off the mass center and reads centripetal acceleration while airborne.
+    public static func freefallWindow(
+        in frames: [ReplayFrame],
+        threshold: Double = 0.55,
+        minimumDurationS: Double = 0.12
+    ) -> FreefallWindow? {
+        var best: FreefallWindow?
+        var runStartMs: Double?
+        var lastInsideMs = 0.0
+        func close() {
+            guard let startMs = runStartMs else { return }
+            runStartMs = nil
+            let candidate = FreefallWindow(startMs: startMs, endMs: lastInsideMs)
+            if candidate.durationS > (best?.durationS ?? 0) { best = candidate }
+        }
+        for frame in frames {
+            if frame.accelG <= threshold {
+                if runStartMs == nil { runStartMs = frame.timestampMs }
+                lastInsideMs = frame.timestampMs
+            } else {
+                close()
+            }
+        }
+        close()
+        guard let found = best, found.durationS >= minimumDurationS else { return nil }
+        return found
+    }
 
     /// Builds truthful native replay poses directly from Core Motion's fused
     /// attitude. Rotation-rate integration remains analysis evidence; it is not

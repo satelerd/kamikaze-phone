@@ -5,109 +5,136 @@ import Observation
 @MainActor
 @Observable
 final class ProfileModel {
+    static let pageSize = 20
+
     private let attemptRepository: FileAttemptRepository
     private let analysisRepository: FileAttemptAnalysisRepository
-    private let matcher = TrickMatcher()
-    private let catalog = TrickCatalog.provisional(gripHand: .right)
+    private let summaryRepository: FileAttemptSummaryRepository
+    private let reconciler: AttemptSummaryReconciler
     private let rootDirectory: URL
 
-    private(set) var recent: [NativeRunResult] = []
+    /// Summary rows the UI has materialized so far, newest first.
+    private(set) var visible: [AttemptSummaryV1] = []
+    private(set) var totalCount = 0
+    /// Full summary index for statistics. Summaries are small; raw sample
+    /// payloads are never decoded to compute these.
+    private(set) var allSummaries: [AttemptSummaryV1] = []
     private(set) var loadError: String?
     private(set) var isLoading = false
+    private(set) var isLoadingMore = false
+    private(set) var isOpeningAttempt = false
+    private(set) var reviewedCount = 0
+
+    private(set) var isExportingFeedback = false
     private(set) var feedbackExportURL: URL?
+    private(set) var feedbackExportError: String?
 
     init(rootDirectory: URL = AttemptStorageLocation.applicationRoot()) {
         self.rootDirectory = rootDirectory
-        attemptRepository = FileAttemptRepository(rootDirectory: rootDirectory)
-        analysisRepository = FileAttemptAnalysisRepository(rootDirectory: rootDirectory)
+        let attempts = FileAttemptRepository(rootDirectory: rootDirectory)
+        let analyses = FileAttemptAnalysisRepository(rootDirectory: rootDirectory)
+        let summaries = FileAttemptSummaryRepository(rootDirectory: rootDirectory)
+        attemptRepository = attempts
+        analysisRepository = analyses
+        summaryRepository = summaries
+        reconciler = AttemptSummaryReconciler(
+            attemptRepository: attempts,
+            analysisRepository: analyses,
+            summaryRepository: summaries
+        )
     }
 
-    var recognizedCount: Int {
-        recent.count { $0.match.status == .recognized }
+    let profileStore = PlayerProfileStore()
+
+    /// Every displayed number reduces through one tested definition set.
+    var metrics: PlayerMetrics {
+        PlayerMetrics(summaries: allSummaries)
     }
 
-    var confirmedLandedCount: Int {
-        recent.count(where: \.hasConfirmedLanding)
-    }
-
-    var highFit: Int? {
-        recent.filter { $0.match.status == .recognized }.map(\.fit).max()
-    }
-
-    var bestRun: Int {
-        var best = 0
-        var current = 0
-        for attempt in recent.reversed() {
-            if attempt.match.status == .recognized {
-                current += 1
-                best = max(best, current)
-            } else {
-                current = 0
-            }
-        }
-        return best
-    }
+    var hasMore: Bool { visible.count < totalCount }
 
     func refresh() async {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
         do {
-            let metadata = try await attemptRepository.list()
-            var loaded: [NativeRunResult] = []
-            loaded.reserveCapacity(metadata.count)
-            for attempt in metadata {
-                let capture = try await attemptRepository.load(id: attempt.id)
-                let stored = try await analysisRepository.load(attemptID: attempt.id)
-                let result: TrickMatchResult
-                if let stored,
-                   stored.schemaVersion == AttemptAnalysisRecord.schemaVersion,
-                   stored.result.policyVersion == TrickMatchingPolicy.provisionalVersion,
-                   stored.result.catalogVersion == catalog.version {
-                    result = stored.result
-                } else {
-                    result = analyzeCurrent(capture)
-                    try await analysisRepository.save(AttemptAnalysisRecord(
-                        attemptID: attempt.id,
-                        result: result,
-                        humanReview: stored?.humanReview
-                    ))
-                }
-                loaded.append(NativeRunResult(
-                    capture: capture,
-                    match: result,
-                    humanReview: stored?.humanReview
-                ))
-            }
-            recent = loaded
-            feedbackExportURL = try PlayerFeedbackExporter.export(
-                results: loaded,
-                rootDirectory: rootDirectory
-            )
-            loadError = nil
+            let report = try await reconciler.reconcile()
+            let summaries = try await summaryRepository.all()
+            allSummaries = summaries
+            totalCount = summaries.count
+            reviewedCount = summaries.count { $0.humanOutcome != nil }
+            let firstPageCount = max(Self.pageSize, min(visible.count, summaries.count))
+            visible = Array(summaries.prefix(firstPageCount))
+            loadError = report.issues.isEmpty
+                ? nil
+                : "\(report.issues.count) attempt(s) could not be summarized. Raw evidence is untouched."
         } catch {
             loadError = error.localizedDescription
         }
     }
 
+    func loadMore() async {
+        guard hasMore, !isLoadingMore else { return }
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+        do {
+            let page = try await summaryRepository.page(offset: visible.count, limit: Self.pageSize)
+            visible.append(contentsOf: page.summaries)
+            totalCount = page.totalCount
+        } catch {
+            loadError = error.localizedDescription
+        }
+    }
+
+    /// Raw samples are decoded here and only here, when one attempt opens.
+    func openAttempt(id: String) async -> NativeRunResult? {
+        guard !isOpeningAttempt else { return nil }
+        isOpeningAttempt = true
+        defer { isOpeningAttempt = false }
+        do {
+            let capture = try await attemptRepository.load(id: id)
+            guard let analysis = try await analysisRepository.load(attemptID: id) else {
+                loadError = "Attempt \(id) has no analysis record."
+                return nil
+            }
+            return NativeRunResult(
+                capture: capture,
+                match: analysis.result,
+                humanReview: analysis.humanReview
+            )
+        } catch {
+            loadError = error.localizedDescription
+            return nil
+        }
+    }
+
     func applyHumanReview(
         attemptID: String,
-        review: HumanAttemptReview
+        review: HumanAttemptReview,
+        current: NativeRunResult
     ) async -> NativeRunResult? {
-        guard let index = recent.firstIndex(where: { $0.id == attemptID }) else { return nil }
-        let current = recent[index]
         let updated = current.replacingHumanReview(review)
         do {
-            try await analysisRepository.save(AttemptAnalysisRecord(
+            let record = AttemptAnalysisRecord(
                 attemptID: attemptID,
                 result: current.match,
                 humanReview: review
-            ))
-            recent[index] = updated
-            feedbackExportURL = try PlayerFeedbackExporter.export(
-                results: recent,
-                rootDirectory: rootDirectory
             )
+            try await analysisRepository.save(record)
+            let summary = AttemptSummaryV1(
+                attempt: updated.capture.attempt,
+                analysis: record,
+                timezone: .current
+            )
+            try await summaryRepository.upsert(summary)
+            if let index = allSummaries.firstIndex(where: { $0.attemptID == attemptID }) {
+                allSummaries[index] = summary
+            }
+            if let index = visible.firstIndex(where: { $0.attemptID == attemptID }) {
+                visible[index] = summary
+            }
+            reviewedCount = allSummaries.count { $0.humanOutcome != nil }
+            feedbackExportURL = nil
             return updated
         } catch {
             loadError = error.localizedDescription
@@ -115,15 +142,55 @@ final class ProfileModel {
         }
     }
 
-    private func analyzeCurrent(_ capture: MotionCaptureV3) -> TrickMatchResult {
-        let trigger: AttemptSegmentationTrigger = capture.attempt.triggerMode == .freefall ? .freefall : .gyro
-        let segmented = SegmentedAttemptV3(
-            captureMode: capture.attempt.captureMode,
-            trigger: trigger,
-            boundaries: capture.attempt.boundaries,
-            samples: capture.samplePayload.samples,
-            timedOut: false
-        )
-        return matcher.match(attempt: segmented, catalog: catalog)
+    /// Deletion is one transaction: metadata+raw first (after which the
+    /// attempt no longer exists to any reader), then interpretation, then the
+    /// summary. Progression and statistics refresh deterministically because
+    /// they derive from the summaries that remain.
+    func deleteAttempt(id: String) async -> Bool {
+        do {
+            try await attemptRepository.delete(id: id)
+            try await analysisRepository.delete(attemptID: id)
+            try await summaryRepository.remove(attemptID: id)
+            allSummaries.removeAll { $0.attemptID == id }
+            visible.removeAll { $0.attemptID == id }
+            totalCount = max(0, totalCount - 1)
+            reviewedCount = allSummaries.count { $0.humanOutcome != nil }
+            feedbackExportURL = nil
+            return true
+        } catch {
+            loadError = error.localizedDescription
+            return false
+        }
+    }
+
+    /// Builds the feedback dataset on demand. Only reviewed attempts load
+    /// their raw payloads; the export is no longer rebuilt on every refresh.
+    func prepareFeedbackExport() async {
+        guard !isExportingFeedback else { return }
+        isExportingFeedback = true
+        feedbackExportError = nil
+        defer { isExportingFeedback = false }
+        do {
+            var reviewed: [NativeRunResult] = []
+            for summary in allSummaries where summary.humanOutcome != nil {
+                let capture = try await attemptRepository.load(id: summary.attemptID)
+                guard let analysis = try await analysisRepository.load(attemptID: summary.attemptID),
+                      analysis.humanReview != nil else { continue }
+                reviewed.append(NativeRunResult(
+                    capture: capture,
+                    match: analysis.result,
+                    humanReview: analysis.humanReview
+                ))
+            }
+            feedbackExportURL = try PlayerFeedbackExporter.export(
+                results: reviewed,
+                rootDirectory: rootDirectory
+            )
+            if feedbackExportURL == nil {
+                feedbackExportError = "No reviewed attempts to export yet."
+            }
+        } catch {
+            feedbackExportError = error.localizedDescription
+        }
     }
 }
