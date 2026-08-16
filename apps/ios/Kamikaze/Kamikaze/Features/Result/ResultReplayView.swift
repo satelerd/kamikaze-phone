@@ -25,7 +25,8 @@ struct ResultReplayView: View {
     @State private var showsCorrection = false
     @State private var isConfirming = false
     @State private var showsDeleteConfirmation = false
-    @AppStorage(BetaFlags.verticalArc) private var verticalArc = false
+    @AppStorage(BetaFlags.verticalArc) private var verticalArc = true
+    @AppStorage(BetaFlags.airBonus) private var airBonusEnabled = true
     @AppStorage(BetaFlags.resultMetric) private var resultMetricRaw = ResultMetricMode.default.rawValue
     @Environment(FeedbackCoordinator.self) private var feedback
 
@@ -116,6 +117,8 @@ struct ResultReplayView: View {
                         arcWindow: verticalArc ? freefall : nil
                     )
 
+                    scoreBreakdownCard
+
                     if let practiceTarget, displayedResult.humanReview == nil {
                         practiceConfirmRow(target: practiceTarget)
                     }
@@ -137,7 +140,7 @@ struct ResultReplayView: View {
                                 stat("DURATION", "\(displayedResult.durationMs) MS")
                                 if let freefall {
                                     stat("AIR", "\(Int((freefall.durationS * 1_000).rounded())) MS")
-                                    stat("PEAK", "\(Int((freefall.peakHeightM * 100).rounded())) CM")
+                                    stat("EST. PEAK", "\(Int((freefall.peakHeightM * 100).rounded())) CM")
                                 }
                                 stat("EVIDENCE", "\(displayedResult.capture.samplePayload.samples.count) SAMPLES")
                             }
@@ -204,7 +207,8 @@ struct ResultReplayView: View {
             let comparison = resultMetric == .compare
                 ? " · FIT \(displayedResult.displayedFit.map(String.init) ?? "—")"
                 : ""
-            return "THROW SCORE · completion, purity, catch stability and flow · \(score.verification.label.lowercased())\(comparison)."
+            let air = airBonusPoints > 0 ? " · +\(airBonusPoints) estimated air" : ""
+            return "THROW SCORE · technique \(score.value)\(air) · \(score.verification.label.lowercased())\(comparison)."
         }
         return "NO SCORE YET · confirm the trick and outcome without changing its raw sensor evidence."
     }
@@ -218,7 +222,88 @@ struct ResultReplayView: View {
         case .legacyFit:
             displayedResult.displayedFit.map(String.init) ?? "—"
         case .gameScore, .compare:
-            displayedResult.evaluation.score.map { String($0.value) } ?? "—"
+            displayedGameScore.map(String.init) ?? "—"
+        }
+    }
+
+    private var displayedGameScore: Int? {
+        guard let base = displayedResult.evaluation.score?.value else { return nil }
+        return min(100, base + airBonusPoints)
+    }
+
+    /// Experimental reward: one point per estimated 5 cm, capped at 10.
+    /// It never mutates the persisted v1 technique score.
+    private var airBonusPoints: Int {
+        guard airBonusEnabled, let freefall else { return 0 }
+        return min(10, max(0, Int((freefall.peakHeightM / 0.05).rounded())))
+    }
+
+    @ViewBuilder
+    private var scoreBreakdownCard: some View {
+        if let score = displayedResult.evaluation.score {
+            GlassSurface(role: .instrumentHUD, cornerRadius: 22) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("SCORE BREAKDOWN")
+                        Spacer()
+                        Text("\(displayedGameScore ?? score.value) / 100")
+                            .foregroundStyle(accent)
+                    }
+                    .font(.system(size: 11, weight: .black, design: .monospaced))
+
+                    scoreRow("COMPLETION", value: score.components.completion, weight: 35,
+                             detail: "required rotation reached")
+                    scoreRow("PURITY", value: score.components.purity, weight: 20,
+                             detail: "rotation stayed on intended axes")
+                    scoreRow("CATCH", value: score.components.stability, weight: 30,
+                             detail: "phone stabilized after capture")
+                    scoreRow("FLOW", value: score.components.flow, weight: 15,
+                             detail: "useful rotation vs extra motion")
+
+                    Divider().overlay(.white.opacity(0.1))
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("AIR · ESTIMATED")
+                                .font(.system(size: 10, weight: .black, design: .monospaced))
+                            Text(freefall.map {
+                                "\(Int(($0.peakHeightM * 100).rounded())) cm from \(Int(($0.durationS * 1_000).rounded())) ms air time"
+                            } ?? "No reliable free-fall window")
+                                .font(.system(size: 9, weight: .medium, design: .rounded))
+                                .foregroundStyle(KamikazeTheme.muted)
+                        }
+                        Spacer()
+                        Text(airBonusEnabled ? "+\(airBonusPoints)" : "OFF")
+                            .font(.system(size: 16, weight: .black, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.volt)
+                    }
+                    Text("Height is inferred from measured air time under a ballistic model; it is not direct vertical tracking. Change AIR BONUS in Beta.")
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundStyle(KamikazeTheme.muted)
+                }
+                .padding(16)
+            }
+        }
+    }
+
+    private func scoreRow(
+        _ title: String,
+        value: Double,
+        weight: Double,
+        detail: String
+    ) -> some View {
+        let points = Int((value * weight).rounded())
+        return HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 10, weight: .black, design: .monospaced))
+                Text("\(Int((value * 100).rounded()))% · \(detail)")
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .foregroundStyle(KamikazeTheme.muted)
+            }
+            Spacer()
+            Text("\(points) / \(Int(weight))")
+                .font(.system(size: 13, weight: .black, design: .monospaced))
+                .foregroundStyle(accent)
         }
     }
 

@@ -88,9 +88,10 @@ struct DebugMotionCaptureView: View {
 
     var body: some View {
         ZStack {
-            KineticBackground(accent: KamikazeTheme.hazard)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+            if recorder.reviewDraft == nil {
+                KineticBackground(accent: KamikazeTheme.hazard)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
                     Text("TEACH THE\nDETECTOR.")
                         .font(.system(size: 38, weight: .black, design: .rounded))
                         .tracking(-1.6)
@@ -137,8 +138,11 @@ struct DebugMotionCaptureView: View {
                             .foregroundStyle(KamikazeTheme.hazard)
                     }
                 }
-                .padding(20)
-                .padding(.bottom, 42)
+                    .padding(20)
+                    .padding(.bottom, 42)
+                }
+            } else {
+                KamikazeTheme.pitch.ignoresSafeArea()
             }
         }
         .navigationTitle("Trick Lab")
@@ -146,6 +150,13 @@ struct DebugMotionCaptureView: View {
         .task { recorder.start() }
         .onDisappear {
             if recorder.reviewDraft == nil { recorder.stop() }
+        }
+        .onChange(of: recorder.reviewDraft?.id) { _, draftID in
+            if draftID == nil {
+                recorder.resumeMonitoringAfterReview()
+            } else {
+                recorder.pauseMonitoringForReview()
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active, recorder.isRecording { recorder.interruptCapture() }
@@ -303,12 +314,14 @@ struct DebugMotionCaptureView: View {
                     Text("LEFT").tag(GripHand.left)
                 }
                 .pickerStyle(.menu)
-                Picker("Phone case", selection: $caseState) {
-                    ForEach(DebugPhoneCaseState.allCases, id: \.self) { value in
-                        Text(value.title).tag(value)
+                if labMode == .library {
+                    Picker("Phone case (optional metadata)", selection: $caseState) {
+                        ForEach(DebugPhoneCaseState.allCases, id: \.self) { value in
+                            Text(value.title).tag(value)
+                        }
                     }
+                    .pickerStyle(.menu)
                 }
-                .pickerStyle(.menu)
                 Text("You will mark LANDED, MISSED, the throw condition and notes after watching the replay.")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(KamikazeTheme.muted)
@@ -477,7 +490,14 @@ private struct TrickCaptureReviewView: View {
 
     var body: some View {
         ZStack {
-            KineticBackground(accent: KamikazeTheme.hazard)
+            KamikazeTheme.pitch.ignoresSafeArea()
+            RadialGradient(
+                colors: [KamikazeTheme.hazard.opacity(0.16), .clear],
+                center: .topTrailing,
+                startRadius: 20,
+                endRadius: 520
+            )
+            .ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {

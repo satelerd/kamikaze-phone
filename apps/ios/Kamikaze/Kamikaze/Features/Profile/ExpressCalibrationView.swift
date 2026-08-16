@@ -311,12 +311,29 @@ struct ExpressCalibrationView: View {
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundStyle(KamikazeTheme.muted)
 
-                    LivePhoneScene(
-                        attitude: model.relativeAttitude,
-                        accent: model.isRecording ? KamikazeTheme.hazard : KamikazeTheme.ion,
-                        initialZoom: 0.48,
-                        onLevel: model.zeroPose
-                    )
+                    TimelineView(.animation(minimumInterval: 1 / 30, paused: model.status == .complete)) { context in
+                        LivePhoneScene(
+                            attitude: model.relativeAttitude,
+                            accent: model.isRecording ? KamikazeTheme.hazard : KamikazeTheme.ion,
+                            initialZoom: 0.48,
+                            ghostAttitude: model.status == .complete
+                                ? nil
+                                : guideAttitude(at: context.date),
+                            onLevel: model.zeroPose
+                        )
+                        .overlay(alignment: .topLeading) {
+                            if model.status != .complete {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("GHOST = MOVEMENT GUIDE")
+                                        .foregroundStyle(KamikazeTheme.volt)
+                                    Text("SOLID = YOUR LIVE PHONE")
+                                        .foregroundStyle(KamikazeTheme.frost)
+                                }
+                                .font(.system(size: 8, weight: .black, design: .monospaced))
+                                .padding(12)
+                            }
+                        }
+                    }
                     .frame(height: 360)
 
                     if model.status == .complete, let profile = model.profile {
@@ -360,14 +377,38 @@ struct ExpressCalibrationView: View {
                 Text(model.currentAxis.instruction)
                     .font(.system(size: 18, weight: .black, design: .rounded))
                 Text(model.isRecording
-                    ? "Move smoothly, hold the final position, then tap STOP."
-                    : "Hold the phone in your normal playing grip, tap START, then make only this movement.")
+                    ? "Follow the translucent phone smoothly, hold at 90°, then tap STOP."
+                    : "Start flat in your playing grip. Watch one ghost loop, tap START, then copy only that movement.")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(KamikazeTheme.muted)
                 ProgressView(value: Double(model.observations.count), total: 3)
                     .tint(KamikazeTheme.volt)
             }
             .padding(18)
+        }
+    }
+
+    /// A slow, repeating 0→90° example. The three poses are defined in the
+    /// visual phone's local width/long-edge/screen axes; sensor mapping is
+    /// still inferred independently from the player's measured raw values.
+    private func guideAttitude(at date: Date) -> Quaternion {
+        let cycle = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 3.0) / 3.0
+        let linear: Double
+        switch cycle {
+        case ..<0.18: linear = 0
+        case ..<0.68: linear = (cycle - 0.18) / 0.50
+        default: linear = 1
+        }
+        let eased = linear * linear * (3 - 2 * linear)
+        let angle = eased * Double.pi / 2
+        let half = angle / 2
+        switch model.currentAxis {
+        case .width:
+            return Quaternion(w: cos(half), x: sin(half), y: 0, z: 0)
+        case .longEdge:
+            return Quaternion(w: cos(half), x: 0, y: -sin(half), z: 0)
+        case .screen:
+            return Quaternion(w: cos(half), x: 0, y: 0, z: -sin(half))
         }
     }
 

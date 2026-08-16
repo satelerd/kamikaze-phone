@@ -9,7 +9,8 @@ struct BetaView: View {
     @AppStorage(FieldStyle.storageKey) private var fieldStyleRaw = FieldStyle.default.rawValue
     @AppStorage(GlassVariant.storageKey) private var glassVariantRaw = GlassVariant.default.rawValue
     @AppStorage(BetaFlags.resultMetric) private var resultMetricRaw = ResultMetricMode.default.rawValue
-    @AppStorage(BetaFlags.verticalArc) private var verticalArc = false
+    @AppStorage(BetaFlags.verticalArc) private var verticalArc = true
+    @AppStorage(BetaFlags.airBonus) private var airBonus = true
     @AppStorage(BetaFlags.fieldDisabled) private var fieldDisabled = false
 
     var body: some View {
@@ -43,9 +44,15 @@ struct BetaView: View {
                     GlassSurface {
                         VStack(spacing: 0) {
                             toggleRow(
-                                "VERTICAL ARC (ESTIMATED)",
-                                detail: "Replay adds a ballistic up/down arc from motion duration. Estimated, not measured.",
+                                "SHOW ESTIMATED AIR ARC",
+                                detail: "Uses measured air time and ballistic physics. Vertical position is not directly measured by the IMU.",
                                 isOn: $verticalArc
+                            )
+                            Divider()
+                            toggleRow(
+                                "AIR BONUS (EXPERIMENTAL)",
+                                detail: "Adds 0–10 result points from estimated peak height. Raw evidence and base score stay unchanged.",
+                                isOn: $airBonus
                             )
                             Divider()
                             toggleRow(
@@ -206,7 +213,8 @@ nonisolated enum ResultMetricMode: String, CaseIterable, Identifiable {
 
 /// AppStorage keys for beta experiments.
 enum BetaFlags {
-    static let verticalArc = "betaVerticalArc"
+    static let verticalArc = "betaEstimatedVerticalArcV2"
+    static let airBonus = "betaEstimatedAirBonusV1"
     static let fieldDisabled = "debugDisableField"
     static let resultMetric = "betaResultMetric"
 }
