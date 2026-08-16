@@ -6,11 +6,24 @@ import UIKit
 /// the set validated on the physical device so the asset reads identically in
 /// every render path.
 enum PhoneModelFactory {
+    /// True when the scanned asset will actually render for this appearance.
+    /// The stamp refresher keys on it so scenes swap procedural → real the
+    /// moment the async load lands.
+    static func usesRealAsset(for appearance: PhoneAppearance) -> Bool {
+        appearance.formFactor == .real && PhoneModelLibrary.shared.realPhone != nil
+    }
+
     static func makePhone(
         appearance: PhoneAppearance,
         accent: UIColor,
         screenLabel: String? = nil
     ) -> Entity {
+        // The scanned asset keeps its own textures; cosmetics do not apply
+        // to it yet. Until the async load finishes (or if it fails), the
+        // procedural PRO MAX body stands in.
+        if appearance.formFactor == .real, let real = PhoneModelLibrary.shared.makeRealPhone() {
+            return real
+        }
         let shape = DeviceShapeDefinition.shape(for: appearance.formFactor)
         let root = Entity()
         root.name = "phone-root"

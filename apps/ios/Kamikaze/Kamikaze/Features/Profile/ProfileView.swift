@@ -15,7 +15,6 @@ struct ProfileView: View {
             ExperienceFieldBackground(ambient: KamikazeTheme.volt)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    SectionKicker(text: "PLAYER / LOCAL PROFILE")
                     identityHeader
                     HStack(spacing: 10) {
                         stat("\(model.metrics.currentStreak)", "CURRENT STREAK")

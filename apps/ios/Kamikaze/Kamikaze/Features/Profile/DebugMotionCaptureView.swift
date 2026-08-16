@@ -78,7 +78,6 @@ struct DebugMotionCaptureView: View {
             KineticBackground(accent: KamikazeTheme.hazard)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    SectionKicker(text: "TRICK LAB / LABELLED EVIDENCE")
                     Text("TEACH THE\nDETECTOR.")
                         .font(.system(size: 38, weight: .black, design: .rounded))
                         .tracking(-1.6)
@@ -459,7 +458,6 @@ private struct TrickCaptureReviewView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
-                        SectionKicker(text: "TRICK LAB / REVIEW")
                         Spacer()
                         Button("Retake", systemImage: "arrow.counterclockwise") {
                             onRetake()

@@ -9,11 +9,15 @@ enum KamikazeTheme {
     static let volt = Color(red: 0.84, green: 1.00, blue: 0.29)
 }
 
-/// Field prototypes, selectable from Setup for on-device comparison.
+/// Field prototypes, selectable from BETA for on-device comparison.
 enum FieldStyle: String, CaseIterable, Identifiable {
     /// Metal shader: abstract current-lines with defined edges in a single
     /// accent. GPU per-pixel work — no blurred layers to composite.
     case flux
+    /// Metal shader: large stained-glass voronoi cells with thin seams.
+    case facets
+    /// Metal shader: stacked color-field strata with crisp drifting edges.
+    case horizon
     /// The original MeshGradient field, single-accent and phase-stable.
     case slipstream
 
@@ -25,6 +29,8 @@ enum FieldStyle: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .flux: "FLUX"
+        case .facets: "FACETS"
+        case .horizon: "HORIZON"
         case .slipstream: "SLIPSTREAM"
         }
     }
@@ -32,6 +38,8 @@ enum FieldStyle: String, CaseIterable, Identifiable {
     var blurb: String {
         switch self {
         case .flux: "SHADER CURRENTS, GLASS-FRIENDLY"
+        case .facets: "STAINED-GLASS CELLS, SLOW DRIFT"
+        case .horizon: "LAYERED COLOR-FIELD STRATA"
         case .slipstream: "THE ORIGINAL SOFT FIELD"
         }
     }
@@ -79,7 +87,11 @@ struct SlipstreamField: View {
                 KamikazeTheme.pitch
                 switch style {
                 case .flux:
-                    FluxField(accent: accent, energy: energy, time: time, quiet: reduceTransparency)
+                    ShaderField(shader: .flux, accent: accent, energy: energy, time: time, quiet: reduceTransparency)
+                case .facets:
+                    ShaderField(shader: .facets, accent: accent, energy: energy, time: time, quiet: reduceTransparency)
+                case .horizon:
+                    ShaderField(shader: .horizon, accent: accent, energy: energy, time: time, quiet: reduceTransparency)
                 case .slipstream:
                     MeshField(accent: accent, energy: energy, time: time, quiet: reduceTransparency)
                 }
@@ -94,9 +106,17 @@ struct SlipstreamField: View {
     }
 }
 
-/// Shader-driven abstract currents. All the work happens per-pixel on the
-/// GPU; the view itself is a single rectangle.
-private struct FluxField: View {
+/// Shader-driven abstract fields. All the work happens per-pixel on the GPU;
+/// the view itself is a single rectangle. One struct serves every Metal
+/// prototype — they share the argument contract.
+private struct ShaderField: View {
+    enum Function {
+        case flux
+        case facets
+        case horizon
+    }
+
+    let shader: Function
     let accent: Color
     let energy: Double
     let time: Double
@@ -106,17 +126,26 @@ private struct FluxField: View {
         GeometryReader { proxy in
             Rectangle()
                 .fill(.black)
-                .colorEffect(ShaderLibrary.fluxField(
-                    .float2(Float(proxy.size.width), Float(proxy.size.height)),
-                    // Wall-clock seconds are ~8e8: far beyond float32 phase
-                    // precision, which flattens every sin() in the shader.
-                    // A modulo keeps the phase exact; one wrap per ~17 min.
-                    .float(Float(time.truncatingRemainder(dividingBy: 1_000))),
-                    .float(Float(quiet ? 0 : energy)),
-                    .color(accent)
-                ))
+                .colorEffect(makeShader(size: proxy.size))
         }
         .opacity(quiet ? 0.35 : 1)
+    }
+
+    private func makeShader(size: CGSize) -> Shader {
+        let arguments: [Shader.Argument] = [
+            .float2(Float(size.width), Float(size.height)),
+            // Wall-clock seconds are ~8e8: far beyond float32 phase
+            // precision, which flattens every sin() in the shader.
+            // A modulo keeps the phase exact; one wrap per ~17 min.
+            .float(Float(time.truncatingRemainder(dividingBy: 1_000))),
+            .float(Float(quiet ? 0 : energy)),
+            .color(accent),
+        ]
+        return switch shader {
+        case .flux: ShaderLibrary.fluxField(arguments[0], arguments[1], arguments[2], arguments[3])
+        case .facets: ShaderLibrary.facetsField(arguments[0], arguments[1], arguments[2], arguments[3])
+        case .horizon: ShaderLibrary.horizonField(arguments[0], arguments[1], arguments[2], arguments[3])
+        }
     }
 }
 

@@ -9,6 +9,9 @@ import SwiftUI
 struct AppearanceStampComponent: Component {
     var appearance: PhoneAppearance
     var accentDescription: String
+    /// Whether this entity was built from the scanned asset. When the async
+    /// asset load lands, the flag mismatch triggers the in-place swap.
+    var usedRealAsset = false
 }
 
 enum PhoneSceneRefresher {
@@ -27,8 +30,10 @@ enum PhoneSceneRefresher {
         let current = content.entities.first(where: { $0.name == name })
         let stamp = current?.components[AppearanceStampComponent.self]
         let accentKey = accent.description
+        let wantsReal = PhoneModelFactory.usesRealAsset(for: appearance)
         if let current, let stamp,
-           stamp.appearance == appearance, stamp.accentDescription == accentKey {
+           stamp.appearance == appearance, stamp.accentDescription == accentKey,
+           stamp.usedRealAsset == wantsReal {
             return current
         }
         let previousOrientation = current?.orientation
@@ -43,7 +48,8 @@ enum PhoneSceneRefresher {
         phone.name = name
         phone.components.set(AppearanceStampComponent(
             appearance: appearance,
-            accentDescription: accentKey
+            accentDescription: accentKey,
+            usedRealAsset: wantsReal
         ))
         if let previousOrientation {
             phone.orientation = previousOrientation
@@ -54,6 +60,15 @@ enum PhoneSceneRefresher {
     }
 }
 
+/// An authored viewing angle for the stage camera. Setup animates between
+/// poses as the player switches cosmetic sections, so the camera frames the
+/// part being edited (screen, body, edge).
+struct StageCameraPose: Equatable {
+    var yaw: Double
+    var pitch: Double
+    var zoom: Double
+}
+
 struct LivePhoneScene: View {
     let attitude: Quaternion
     let accent: Color
@@ -62,6 +77,9 @@ struct LivePhoneScene: View {
     var initialYaw = 0.0
     var initialPitch = 0.0
     let initialZoom: Double
+    /// External camera target. When it changes, the stage animates the orbit
+    /// to the new pose (manual drags still work in between).
+    var cameraPose: StageCameraPose?
     /// When provided, the stage shows the LEVEL control next to CAMERA.
     var onLevel: (() -> Void)?
 
@@ -78,20 +96,25 @@ struct LivePhoneScene: View {
         initialYaw: Double = 0,
         initialPitch: Double = 0,
         initialZoom: Double = 0.72,
+        cameraPose: StageCameraPose? = nil,
         onLevel: (() -> Void)? = nil
     ) {
         self.attitude = attitude
         self.accent = accent
-        self.initialYaw = initialYaw
-        self.initialPitch = initialPitch
-        self.initialZoom = initialZoom
+        self.initialYaw = cameraPose?.yaw ?? initialYaw
+        self.initialPitch = cameraPose?.pitch ?? initialPitch
+        self.initialZoom = cameraPose?.zoom ?? initialZoom
+        self.cameraPose = cameraPose
         self.onLevel = onLevel
-        _orbitYaw = State(initialValue: initialYaw)
-        _orbitPitch = State(initialValue: initialPitch)
-        _zoom = State(initialValue: initialZoom)
+        _orbitYaw = State(initialValue: self.initialYaw)
+        _orbitPitch = State(initialValue: self.initialPitch)
+        _zoom = State(initialValue: self.initialZoom)
     }
 
     var body: some View {
+        // Observation hook: when the scanned asset finishes loading, this
+        // read re-evaluates the view so the update pass can swap the phone.
+        let _ = PhoneModelLibrary.shared.realPhone
         RealityView { content in
             PhoneSceneRefresher.refreshPhone(
                 in: &content,
@@ -131,6 +154,14 @@ struct LivePhoneScene: View {
             }
         }
         .contentShape(Rectangle())
+        .onChange(of: cameraPose) { _, pose in
+            guard let pose else { return }
+            withAnimation(.smooth(duration: 0.55)) {
+                orbitYaw = pose.yaw
+                orbitPitch = pose.pitch
+                zoom = pose.zoom
+            }
+        }
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { value in

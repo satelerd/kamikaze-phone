@@ -38,7 +38,8 @@ final class KamikazeUITests: XCTestCase {
         // sensor error. This test owns onboarding/navigation, not device motion.
         XCTAssertTrue(app.buttons["START SESSION"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.otherElements["Live 3D phone pose"].exists)
-        XCTAssertTrue(app.buttons["ZERO POSE"].exists)
+        // Renamed from ZERO POSE per player feedback (2026-08-15).
+        XCTAssertTrue(app.buttons["LEVEL"].exists)
         XCTAssertTrue(app.tabBars.buttons["PRACTICE"].exists)
     }
 }

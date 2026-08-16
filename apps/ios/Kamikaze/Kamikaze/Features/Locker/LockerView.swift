@@ -19,23 +19,27 @@ struct LockerView: View {
     @Environment(FeedbackCoordinator.self) private var feedback
     @State private var category = Category.body
     @State private var progressModel = PracticeModel()
+    /// The stage mirrors the phone in your hand, exactly like Play.
+    @State private var preview = AttitudePreviewModel()
 
     var body: some View {
         ZStack {
             ExperienceFieldBackground(ambient: KamikazeTheme.ion)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    SectionKicker(text: "SETUP / BUILD YOUR PHONE")
                     Text("YOUR PHONE.\nYOUR BOARD.")
                         .font(.system(size: 40, weight: .black, design: .rounded))
                         .tracking(-1.8)
 
                     GlassSurface(role: .stage, cornerRadius: 36) {
                         LivePhoneScene(
-                            attitude: .identity,
+                            attitude: preview.relativeAttitude,
                             accent: KamikazeTheme.ion,
-                            initialYaw: -2.62,
-                            initialPitch: 0.16
+                            cameraPose: cameraPose,
+                            onLevel: {
+                                preview.zeroPose()
+                                feedback.play(.zeroed)
+                            }
                         )
                         .frame(minHeight: 340)
                     }
@@ -68,8 +72,26 @@ struct LockerView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .onAppear { Task { await progressModel.refresh() } }
-        .onDisappear { store.discardPreview() }
+        .onAppear {
+            preview.start()
+            Task { await progressModel.refresh() }
+        }
+        .onDisappear {
+            preview.stop()
+            store.discardPreview()
+        }
+    }
+
+    /// The camera frames whatever the active section edits: the back for
+    /// BODY, the rim for EDGE, the front for SCREEN, the showcase 3/4 for
+    /// MODEL. The phone itself keeps mirroring the player's hand.
+    private var cameraPose: StageCameraPose {
+        switch category {
+        case .model: StageCameraPose(yaw: -2.62, pitch: 0.16, zoom: 0.70)
+        case .body: StageCameraPose(yaw: .pi, pitch: 0.10, zoom: 0.54)
+        case .edge: StageCameraPose(yaw: .pi / 2, pitch: 0.04, zoom: 0.44)
+        case .screen: StageCameraPose(yaw: 0, pitch: 0.02, zoom: 0.54)
+        }
     }
 
     @ViewBuilder

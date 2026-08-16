@@ -7,6 +7,7 @@ struct BetaView: View {
     @Environment(ExperienceCoordinator.self) private var experience
     @Environment(FeedbackCoordinator.self) private var feedback
     @AppStorage(FieldStyle.storageKey) private var fieldStyleRaw = FieldStyle.default.rawValue
+    @AppStorage(GlassVariant.storageKey) private var glassVariantRaw = GlassVariant.default.rawValue
     @AppStorage(BetaFlags.verticalArc) private var verticalArc = false
     @AppStorage(BetaFlags.fieldDisabled) private var fieldDisabled = false
 
@@ -16,7 +17,6 @@ struct BetaView: View {
             ExperienceFieldBackground(ambient: KamikazeTheme.ion)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    SectionKicker(text: "BETA / EXPERIMENT BENCH")
                     Text("TRY IT.\nBREAK IT. TELL US.")
                         .font(.system(size: 38, weight: .black, design: .rounded))
                         .tracking(-1.6)
@@ -25,39 +25,13 @@ struct BetaView: View {
                         .foregroundStyle(KamikazeTheme.muted)
 
                     GlassSurface {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("FIELD STYLE")
-                                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                .foregroundStyle(KamikazeTheme.muted)
-                                .padding(.top, 14)
-                            ForEach(FieldStyle.allCases) { style in
-                                Button {
-                                    fieldStyleRaw = style.rawValue
-                                } label: {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 3) {
-                                            Text(style.displayName)
-                                                .font(.system(size: 13, weight: .black, design: .rounded))
-                                            Text(style.blurb)
-                                                .font(.system(size: 8, weight: .bold, design: .monospaced))
-                                                .foregroundStyle(KamikazeTheme.muted)
-                                        }
-                                        Spacer()
-                                        Image(systemName: fieldStyleRaw == style.rawValue
-                                            ? "largecircle.fill.circle"
-                                            : "circle")
-                                            .foregroundStyle(fieldStyleRaw == style.rawValue
-                                                ? KamikazeTheme.volt
-                                                : KamikazeTheme.muted)
-                                    }
-                                    .frame(minHeight: 52)
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 10)
+                        optionList(title: "FIELD STYLE", options: FieldStyle.allCases,
+                                   selectedRaw: $fieldStyleRaw)
+                    }
+
+                    GlassSurface {
+                        optionList(title: "LIQUID GLASS", options: GlassVariant.allCases,
+                                   selectedRaw: $glassVariantRaw)
                     }
 
                     GlassSurface {
@@ -69,8 +43,8 @@ struct BetaView: View {
                             )
                             Divider()
                             toggleRow(
-                                "SOUND — V0 KIT",
-                                detail: "Synthesized kinetic foley draft. Silent switch is respected.",
+                                "SOUND",
+                                detail: "Two minimal cues only: detection success and miss.",
                                 isOn: $feedback.soundEnabled
                             )
                             Divider()
@@ -92,18 +66,83 @@ struct BetaView: View {
                         experience.fieldDisabled = disabled
                     }
 
-                    Button("PREVIEW FEEDBACK CUES") {
-                        feedback.play(.landed(scoreBand: 2))
+                    HStack(spacing: 10) {
+                        Button("HEAR SUCCESS") {
+                            feedback.play(.landed(scoreBand: 2))
+                            feedback.playDetectionSound(success: true)
+                        }
+                        .font(.system(size: 12, weight: .black, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .adaptiveGlassButton(tint: KamikazeTheme.volt)
+
+                        Button("HEAR MISS") {
+                            feedback.play(.missed)
+                            feedback.playDetectionSound(success: false)
+                        }
+                        .font(.system(size: 12, weight: .black, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .adaptiveGlassButton(tint: KamikazeTheme.hazard)
                     }
-                    .font(.system(size: 12, weight: .black, design: .rounded))
-                    .frame(maxWidth: .infinity, minHeight: 50)
-                    .adaptiveGlassButton(tint: KamikazeTheme.volt)
+
+                    NavigationLink {
+                        WorkshopView()
+                    } label: {
+                        Label("SENSOR WORKSHOP", systemImage: "waveform.badge.magnifyingglass")
+                            .font(.system(size: 12, weight: .black, design: .rounded))
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                    }
+                    .adaptiveGlassButton(tint: KamikazeTheme.ion)
+
+                    Text("iPhone 3D model by MajdyModels — CC BY 4.0, via Sketchfab.")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.muted)
+                        .padding(.top, 8)
                 }
                 .padding(20)
                 .padding(.bottom, 100)
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private func optionList(
+        title: String,
+        options: [some FieldOption],
+        selectedRaw: Binding<String>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .foregroundStyle(KamikazeTheme.muted)
+                .padding(.top, 14)
+            ForEach(options, id: \.id) { option in
+                Button {
+                    selectedRaw.wrappedValue = option.rawValue
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(option.displayName)
+                                .font(.system(size: 13, weight: .black, design: .rounded))
+                            Text(option.blurb)
+                                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                .foregroundStyle(KamikazeTheme.muted)
+                        }
+                        Spacer()
+                        Image(systemName: selectedRaw.wrappedValue == option.rawValue
+                            ? "largecircle.fill.circle"
+                            : "circle")
+                            .foregroundStyle(selectedRaw.wrappedValue == option.rawValue
+                                ? KamikazeTheme.volt
+                                : KamikazeTheme.muted)
+                    }
+                    .frame(minHeight: 52)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
     }
 
     private func toggleRow(_ title: String, detail: String, isOn: Binding<Bool>) -> some View {
@@ -119,6 +158,17 @@ struct BetaView: View {
         .frame(minHeight: 58)
     }
 }
+
+/// Shared shape of the pickable prototype enums (field styles, glass
+/// variants), so BETA renders them with one list implementation.
+@MainActor
+protocol FieldOption: Identifiable, RawRepresentable where RawValue == String {
+    var displayName: String { get }
+    var blurb: String { get }
+}
+
+extension FieldStyle: @MainActor FieldOption {}
+extension GlassVariant: @MainActor FieldOption {}
 
 /// AppStorage keys for beta experiments.
 enum BetaFlags {

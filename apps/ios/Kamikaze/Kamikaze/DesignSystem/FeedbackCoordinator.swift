@@ -18,9 +18,10 @@ nonisolated enum FeedbackCue: Equatable, Sendable {
 }
 
 /// One interruption-safe feedback owner (X6): haptics through the Taptic
-/// Engine and a v0 kinetic-foley sound kit (synthesized in-repo; original by
-/// construction). Audio uses the ambient category, so the silent switch and
-/// other apps' audio are respected.
+/// Engine, plus exactly TWO sounds — a minimal celebratory chime when a trick
+/// is detected and a quiet falling tone when it is not. Nothing else makes
+/// noise; per-cue foley was tried and rejected. Audio uses the ambient
+/// category, so the silent switch and other apps' audio are respected.
 ///
 /// Contamination rule: the Taptic Engine is visible to the accelerometer, so
 /// while the evidence window is active NO cue plays, ever. That gate stays in
@@ -85,13 +86,16 @@ final class FeedbackCoordinator {
                 // silently; visual state already carries the same meaning.
             }
         }
-        if soundEnabled {
-            playSound(for: cue)
-        }
     }
 
-    private func playSound(for cue: FeedbackCue) {
-        guard let name = Self.soundName(for: cue) else { return }
+    /// The only audible moment in the game: the detector resolving a throw.
+    /// Success is a small rising glass chime; failure a quiet falling tone.
+    func playDetectionSound(success: Bool) {
+        guard !evidenceWindowActive, soundEnabled else { return }
+        playSound(named: success ? "cue-success" : "cue-fail")
+    }
+
+    private func playSound(named name: String) {
         if !audioSessionConfigured {
             try? AVAudioSession.sharedInstance().setCategory(.ambient, options: [.mixWithOthers])
             audioSessionConfigured = true
@@ -104,21 +108,6 @@ final class FeedbackCoordinator {
         guard let player = players[name] else { return }
         player.currentTime = 0
         player.play()
-    }
-
-    /// v0 kit mapping. Files live in Resources/Sounds, synthesized by script.
-    nonisolated static func soundName(for cue: FeedbackCue) -> String? {
-        switch cue {
-        case .zeroed: "cue-zeroed"
-        case .armed: "cue-armed"
-        case .cancelled: "cue-cancelled"
-        case .catchResolved: "cue-catch"
-        case .landed: "cue-landed"
-        case .missed: "cue-missed"
-        case .needsReview: "cue-review"
-        case .levelMastered: "cue-mastered"
-        case .cosmeticUnlocked: "cue-unlocked"
-        }
     }
 
     private func startEngineIfNeeded() throws {

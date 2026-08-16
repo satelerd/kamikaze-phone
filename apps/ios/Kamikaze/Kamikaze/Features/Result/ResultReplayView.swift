@@ -68,9 +68,6 @@ struct ResultReplayView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack {
-                        SectionKicker(text: displayedResult.humanReview == nil
-                            ? "DETECTOR / MEASURED"
-                            : "HUMAN LABEL / MEASURED")
                         Spacer()
                         if onDelete != nil {
                             Button("Delete", systemImage: "trash") { showsDeleteConfirmation = true }
@@ -115,16 +112,9 @@ struct ResultReplayView: View {
                         practiceConfirmRow(target: practiceTarget)
                     }
 
-                    Button(displayedResult.humanReview == nil ? "NOT QUITE?" : "EDIT HUMAN LABEL") {
-                        showsCorrection = true
-                    }
-                    .font(.system(size: 12, weight: .black, design: .rounded))
-                    .frame(maxWidth: .infinity, minHeight: 48)
-                    .adaptiveGlassButton(tint: KamikazeTheme.hazard)
-
                     Button(primaryTitle) { onAgain() }
-                        .font(.system(size: 17, weight: .black, design: .rounded))
-                        .frame(maxWidth: .infinity, minHeight: 70)
+                        .font(.system(size: 19, weight: .black, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 84)
                         .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.ion)
 
                     GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
@@ -143,6 +133,15 @@ struct ResultReplayView: View {
                         .padding(16)
                     }
 
+                    // Deliberately far from THROW AGAIN so a fast re-throw tap
+                    // can never land on the correction flow by accident.
+                    Button(displayedResult.humanReview == nil ? "NOT QUITE?" : "EDIT HUMAN LABEL") {
+                        showsCorrection = true
+                    }
+                    .font(.system(size: 12, weight: .black, design: .rounded))
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .adaptiveGlassButton(tint: KamikazeTheme.hazard)
+                    .padding(.top, 26)
                 }
                 .padding(20)
                 .padding(.bottom, 40)
@@ -301,7 +300,6 @@ private struct ResultCorrectionView: View {
             KineticBackground(accent: KamikazeTheme.hazard)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    SectionKicker(text: "HUMAN FEEDBACK / GROUND TRUTH")
                     Text("WHAT ACTUALLY\nHAPPENED?")
                         .font(.system(size: 34, weight: .black, design: .rounded))
                         .tracking(-1.4)

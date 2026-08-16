@@ -37,11 +37,6 @@ struct PracticeLevelView: View {
         ZStack {
             ExperienceFieldBackground()
             VStack(spacing: 14) {
-                HStack {
-                    SectionKicker(text: kicker)
-                    Spacer()
-                }
-
                 VStack(alignment: .leading, spacing: 6) {
                     Text(node.trickID.displayName)
                         .font(.system(size: 30, weight: .black, design: .rounded))
@@ -197,9 +192,13 @@ struct PracticeLevelView: View {
         case .result:
             feedback.evidenceWindowActive = false
             feedback.play(.catchResolved)
+            // `result` is published before `phase` in NativeRunModel, so the
+            // match status is already readable here.
+            feedback.playDetectionSound(success: run.result?.match.status == .recognized)
         case .unknown:
             feedback.evidenceWindowActive = false
             feedback.play(.needsReview)
+            feedback.playDetectionSound(success: false)
         case .ready, .failed:
             feedback.evidenceWindowActive = false
         }
@@ -211,19 +210,6 @@ struct PracticeLevelView: View {
         case .result: KamikazeTheme.volt
         case .unknown, .failed: KamikazeTheme.hazard
         case .ready, .armed: KamikazeTheme.ion
-        }
-    }
-
-    private var kicker: String {
-        let base = String(format: "PRACTICE %02d", pair.order)
-        switch run.phase {
-        case .ready: return "\(base) / READY"
-        case .armed: return "\(base) / ARMED"
-        case .motion: return "\(base) / MOTION"
-        case .settling: return "\(base) / LANDING"
-        case .result: return "\(base) / LANDED"
-        case .unknown: return "\(base) / REVIEW"
-        case .failed: return "\(base) / SENSOR"
         }
     }
 

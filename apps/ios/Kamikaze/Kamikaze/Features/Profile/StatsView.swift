@@ -26,7 +26,6 @@ struct StatsView: View {
             ExperienceFieldBackground(ambient: KamikazeTheme.volt)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    SectionKicker(text: "STATS / FROM SAVED EVIDENCE")
                     Text("WHAT YOU\nACTUALLY LANDED.")
                         .font(.system(size: 34, weight: .black, design: .rounded))
                         .tracking(-1.5)

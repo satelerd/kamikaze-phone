@@ -43,7 +43,6 @@ struct PracticeView: View {
             ExperienceFieldBackground(ambient: KamikazeTheme.hazard)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
-                    SectionKicker(text: "PRACTICE / SKILL LADDER")
                     Text("BUILD THE\nMUSCLE MEMORY.")
                         .font(.system(size: 40, weight: .black, design: .rounded))
                         .tracking(-1.8)

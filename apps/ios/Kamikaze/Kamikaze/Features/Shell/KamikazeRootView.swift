@@ -32,7 +32,10 @@ struct KamikazeRootView: View {
             .environment(feedback)
             .tint(KamikazeTheme.volt)
             .preferredColorScheme(.dark)
-            .onAppear { experience.setReduceEffects(reduceMotion) }
+            .onAppear {
+                experience.setReduceEffects(reduceMotion)
+                PhoneModelLibrary.shared.preload()
+            }
             .onChange(of: reduceMotion) { _, reduced in
                 experience.setReduceEffects(reduced)
             }

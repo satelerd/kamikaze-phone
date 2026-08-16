@@ -70,7 +70,6 @@ struct HistoryView: View {
             ExperienceFieldBackground(ambient: KamikazeTheme.ion)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 14) {
-                    SectionKicker(text: "HISTORY / \(filtered.count) OF \(model.totalCount)")
                     Text("EVERY THROW,\nON RECORD.")
                         .font(.system(size: 34, weight: .black, design: .rounded))
                         .tracking(-1.5)

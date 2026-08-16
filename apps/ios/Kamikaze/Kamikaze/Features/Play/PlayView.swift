@@ -1,3 +1,4 @@
+import KamikazeMotionCore
 import SwiftUI
 
 struct PlayView: View {
@@ -48,11 +49,6 @@ struct PlayView: View {
 
     private var playContent: some View {
         VStack(spacing: 16) {
-                HStack {
-                    SectionKicker(text: kicker)
-                    Spacer()
-                }
-
                 Spacer(minLength: 8)
 
                 // The phone floats directly over the field — no stage boxes.
@@ -126,23 +122,15 @@ struct PlayView: View {
         case .result:
             feedback.evidenceWindowActive = false
             feedback.play(.catchResolved)
+            // `result` is published before `phase` in NativeRunModel, so the
+            // match status is already readable here.
+            feedback.playDetectionSound(success: run.result?.match.status == .recognized)
         case .unknown:
             feedback.evidenceWindowActive = false
             feedback.play(.needsReview)
+            feedback.playDetectionSound(success: false)
         case .ready, .failed:
             feedback.evidenceWindowActive = false
-        }
-    }
-
-    private var kicker: String {
-        switch run.phase {
-        case .ready: "PLAY / READY"
-        case .armed: "SESSION / ARMED"
-        case .motion: "SESSION / MOTION"
-        case .settling: "SESSION / LANDING"
-        case .result: "SESSION / LANDED"
-        case .unknown: "SESSION / REVIEW"
-        case .failed: "SESSION / SENSOR"
         }
     }
 

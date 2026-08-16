@@ -9,6 +9,10 @@ nonisolated enum PhoneFormFactor: String, Codable, CaseIterable, Equatable, Send
     case standard
     case plus
     case proMax = "pro-max"
+    /// Scanned iPhone 15 Pro Max asset (MajdyModels, CC BY 4.0 via
+    /// Sketchfab). Renders the real geometry; body/edge cosmetics do not
+    /// apply to it yet.
+    case real
 
     var id: String { rawValue }
 
@@ -18,6 +22,7 @@ nonisolated enum PhoneFormFactor: String, Codable, CaseIterable, Equatable, Send
         case .standard: "STANDARD"
         case .plus: "PLUS"
         case .proMax: "PRO MAX"
+        case .real: "REAL 15 PRO"
         }
     }
 }
@@ -41,7 +46,7 @@ nonisolated struct DeviceShapeDefinition: Equatable, Sendable {
             DeviceShapeDefinition(width: 0.1234, height: 0.2554, depth: 0.0156, cornerRadius: 0.024, cameraLensCount: 2)
         case .plus:
             DeviceShapeDefinition(width: 0.1320, height: 0.2730, depth: 0.0156, cornerRadius: 0.026, cameraLensCount: 2)
-        case .proMax:
+        case .proMax, .real:
             DeviceShapeDefinition(width: 0.1340, height: 0.2772, depth: 0.0166, cornerRadius: 0.027, cameraLensCount: 3)
         }
     }

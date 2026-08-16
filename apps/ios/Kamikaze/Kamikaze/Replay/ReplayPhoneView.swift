@@ -25,6 +25,9 @@ struct ReplayPhoneScene: View {
     @State private var magnifyOrigin = 1.0
 
     var body: some View {
+        // Observation hook: when the scanned asset finishes loading, this
+        // read re-evaluates the view so the update pass can swap the phone.
+        let _ = PhoneModelLibrary.shared.realPhone
         RealityView { content in
             PhoneSceneRefresher.refreshPhone(
                 in: &content,
@@ -168,7 +171,7 @@ struct ReplayPhoneView: View {
                         targetFrames: targetFrames,
                         estimatedArcHeight: estimatedArcHeight
                     )
-                    .frame(minHeight: 380)
+                    .frame(minHeight: 430)
 
                     VStack(alignment: .leading, spacing: 4) {
                         if targetFrames != nil {
