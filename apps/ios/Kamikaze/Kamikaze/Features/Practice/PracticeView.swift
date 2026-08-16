@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PracticeView: View {
-    private let levels = ["BACKSIDE SHUVIT", "FRONTSIDE SHUVIT", "PHONE FLIP", "REVERSE PHONE FLIP", "FRONT FLIP", "BACK FLIP"]
+    private let levels = ["BACKSIDE SHUVIT", "FRONTSIDE SHUVIT", "PHONE FLIP", "REVERSE PHONE FLIP", "FLIP", "REVERSE FLIP"]
 
     var body: some View {
         ZStack {

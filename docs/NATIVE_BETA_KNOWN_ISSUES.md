@@ -14,11 +14,11 @@ This checkpoint proves that the native app can stream Core Motion, render the li
 - The current combined-axis rule can confuse a shuvit with a 360/Laser-family trick when Y-axis cross-talk is large. Do not tune this from synthetic data; capture labelled physical shuvits first.
 - Only Phone Flip and Reverse Phone Flip have reviewed real fixtures. Front/Back, both shuvits, Straight Air, misses and normal handling still need physical evidence.
 - The synthetic shuvit test proves low-motion capture closure, not the canonical 180-degree trick definition or physical classification accuracy.
-- Duplicate/decreasing timestamps and sample gaps are not yet represented explicitly in the schema.
+- Schema v3 now represents duplicate/decreasing timestamps, temporal gaps, sequence gaps and missing legacy evidence explicitly. The live capture path does not yet assign sequence/gap flags; that remains a Section 2 gate.
 
 ## Attempt semantics
 
-- Native attempts still use the Expo schema-2 compatibility type. Schema 3 must separate raw and derived values and include device, grip, orientation, calibration and algorithm versions.
+- Play still publishes the Expo schema-2 compatibility attempt from the transitional detector. The pure MotionCore schema-v3 contract and verified v2 importer now exist, but live capture, persistence and versioned analysis have not yet been wired to it.
 - For gyro-triggered low tricks, `releaseTimestampS` includes a pre-trigger handle and `catchTimestampS` follows a quiet window. The displayed value is therefore labelled **motion duration**, not physical airtime.
 - `peakCatchG` now preserves the strongest acceleration in the active window, but the final schema should identify motion end, catch impulse and settled state separately.
 - `confidence` is a rule-fit indicator, not a calibrated probability or game score. The checkpoint UI labels it `CONF`; a versioned ScoreEngine remains future work.

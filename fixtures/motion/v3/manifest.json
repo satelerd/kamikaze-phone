@@ -1,0 +1,70 @@
+{
+  "format": "kpf-motion-fixture-manifest",
+  "manifestSchemaVersion": 1,
+  "datasetSchemaVersion": 3,
+  "vocabularyVersion": 1,
+  "fixtures": [
+    {
+      "id": "iphone15plus-right-phone-flip-001",
+      "file": "fixtures/motion/v2/labelled/iphone15plus-right-phone-flip-001.json",
+      "sha256": "9645219974ae7f74872f8a72d8241dfb94c01238f32fba8a95feeaa5d3dd26ff",
+      "payload": {
+        "format": "kpf-labelled-capture-v1",
+        "attemptSchemaVersion": 2,
+        "sampleCount": 202
+      },
+      "kind": "labelled-attempt",
+      "use": ["migration", "replay", "classification"],
+      "split": "seed",
+      "expected": {
+        "trickId": "phone-flip",
+        "displayName": "PHONE FLIP",
+        "outcome": "recognized"
+      },
+      "provenance": {
+        "runtime": "expo",
+        "deviceModel": "iPhone 15 Plus",
+        "osVersion": "unknown",
+        "gripHand": "right",
+        "screenOrientation": "portrait",
+        "metadataConfidence": "user-confirmed-outside-payload"
+      },
+      "capture": {
+        "mode": "manual",
+        "requestedHz": 100,
+        "caseState": "unknown"
+      }
+    },
+    {
+      "id": "iphone15plus-right-reverse-phone-flip-001",
+      "file": "fixtures/motion/v2/labelled/iphone15plus-right-reverse-phone-flip-001.json",
+      "sha256": "a5bd90e12e3261b12ae315d66b2f6ee96ea749b967f64eb4d627092c6aac6a84",
+      "payload": {
+        "format": "kpf-labelled-capture-v1",
+        "attemptSchemaVersion": 2,
+        "sampleCount": 217
+      },
+      "kind": "labelled-attempt",
+      "use": ["migration", "replay", "classification"],
+      "split": "seed",
+      "expected": {
+        "trickId": "reverse-phone-flip",
+        "displayName": "REVERSE PHONE FLIP",
+        "outcome": "recognized"
+      },
+      "provenance": {
+        "runtime": "expo",
+        "deviceModel": "iPhone 15 Plus",
+        "osVersion": "unknown",
+        "gripHand": "right",
+        "screenOrientation": "portrait",
+        "metadataConfidence": "user-confirmed-outside-payload"
+      },
+      "capture": {
+        "mode": "manual",
+        "requestedHz": 100,
+        "caseState": "unknown"
+      }
+    }
+  ]
+}

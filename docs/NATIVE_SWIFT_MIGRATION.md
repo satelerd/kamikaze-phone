@@ -365,6 +365,9 @@ Exit: improvements are measured by precision/recall per trick, not anecdotes alo
 ### Phase 6 — later expansion
 
 - replay video export with AVFoundation;
+- optional account and authenticated local-first sync;
+- `Camera Run`: sensor-synchronized intro/trick/outro capture, front/rear multicam where supported, editable composition and vertical export;
+- local export remains distinct from any explicit social publication flow;
 - WidgetKit stats/deep-link control and optional Live Activity;
 - TestFlight, privacy material and App Store assets.
 

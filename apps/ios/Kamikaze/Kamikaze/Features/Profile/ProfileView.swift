@@ -1,7 +1,10 @@
+import KamikazeMotionCore
 import SwiftUI
 
 struct ProfileView: View {
     let onReplayOnboarding: () -> Void
+    @State private var model = ProfileModel()
+    @State private var selectedAttempt: NativeRunResult?
 
     var body: some View {
         ZStack {
@@ -13,17 +16,46 @@ struct ProfileView: View {
                         .font(.system(size: 54, weight: .black, design: .rounded))
                         .tracking(-2)
                     HStack(spacing: 10) {
-                        stat("0", "TRICKS")
-                        stat("0", "BEST RUN")
-                        stat("—", "HIGH SCORE")
+                        stat("\(model.recognizedCount)", "RECOGNIZED")
+                        stat("\(model.bestRun)", "BEST RUN")
+                        stat(model.highFit.map(String.init) ?? "—", "HIGH FIT")
                     }
                     GlassSurface {
                         VStack(alignment: .leading, spacing: 14) {
-                            Text("RECENT").font(.system(size: 12, weight: .bold, design: .monospaced))
-                            ContentUnavailableView("No attempts yet", systemImage: "waveform.path.ecg", description: Text("Your first native run will appear here."))
-                                .frame(maxWidth: .infinity, minHeight: 170)
+                            HStack {
+                                Text("RECENT").font(.system(size: 12, weight: .bold, design: .monospaced))
+                                Spacer()
+                                Text("\(model.recent.count) SAVED")
+                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(KamikazeTheme.muted)
+                            }
+                            if model.isLoading && model.recent.isEmpty {
+                                ProgressView().frame(maxWidth: .infinity, minHeight: 120)
+                            } else if let loadError = model.loadError {
+                                ContentUnavailableView("Could not load attempts", systemImage: "exclamationmark.triangle", description: Text(loadError))
+                                    .frame(maxWidth: .infinity, minHeight: 170)
+                            } else if model.recent.isEmpty {
+                                ContentUnavailableView("No attempts yet", systemImage: "waveform.path.ecg", description: Text("Your first native run will appear here."))
+                                    .frame(maxWidth: .infinity, minHeight: 170)
+                            } else {
+                                ForEach(model.recent) { attempt in
+                                    Button { selectedAttempt = attempt } label: {
+                                        recentRow(attempt)
+                                    }
+                                    .buttonStyle(.plain)
+                                    if attempt.id != model.recent.last?.id { Divider() }
+                                }
+                            }
                         }
                         .padding(18)
+                    }
+                    if let feedbackExportURL = model.feedbackExportURL {
+                        ShareLink(item: feedbackExportURL) {
+                            Label("EXPORT PLAYER FEEDBACK", systemImage: "square.and.arrow.up")
+                                .font(.system(size: 13, weight: .black, design: .rounded))
+                                .frame(maxWidth: .infinity, minHeight: 54)
+                        }
+                        .adaptiveGlassButton(tint: KamikazeTheme.volt)
                     }
                     Text("SETTINGS").font(.system(size: 14, weight: .bold, design: .rounded))
                     GlassSurface {
@@ -44,6 +76,23 @@ struct ProfileView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .onAppear { Task { await model.refresh() } }
+        .fullScreenCover(item: $selectedAttempt) { attempt in
+            ResultReplayView(
+                result: attempt,
+                primaryTitle: "BACK TO RECENT",
+                onAgain: { selectedAttempt = nil },
+                onClose: { selectedAttempt = nil },
+                onReview: { review in
+                    guard let updated = await model.applyHumanReview(
+                        attemptID: attempt.id,
+                        review: review
+                    ) else { return nil }
+                    selectedAttempt = updated
+                    return updated
+                }
+            )
+        }
     }
 
     private func stat(_ value: String, _ label: String) -> some View {
@@ -66,12 +115,38 @@ struct ProfileView: View {
         .frame(minHeight: 54)
         .contentShape(Rectangle())
     }
+
+    private func recentRow(_ attempt: NativeRunResult) -> some View {
+        HStack(spacing: 14) {
+            Text(attempt.displayedFit.map(String.init) ?? "—")
+                .font(.system(size: 22, weight: .black, design: .rounded))
+                .foregroundStyle(attempt.match.status == .recognized ? KamikazeTheme.volt : KamikazeTheme.hazard)
+                .frame(width: 52, height: 52)
+                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(attempt.displayName)
+                    .font(.system(size: 14, weight: .black, design: .rounded))
+                Text("\(attempt.durationMs) MS  ·  \(attempt.humanReview?.outcome.displayName ?? attempt.match.status.rawValue.uppercased())")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(KamikazeTheme.muted)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .foregroundStyle(KamikazeTheme.muted)
+        }
+        .contentShape(Rectangle())
+    }
 }
 
 struct WorkshopView: View {
     var body: some View {
         List {
             Section("CALIBRATION") {
+                NavigationLink {
+                    DebugMotionCaptureView()
+                } label: {
+                    Label("Trick Lab", systemImage: "waveform.badge.magnifyingglass")
+                }
                 Label("Express calibration", systemImage: "bolt.fill")
                 Label("Full axis bench", systemImage: "axis.3d")
                 Label("Trick studio", systemImage: "waveform.path")

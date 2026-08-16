@@ -1,6 +1,6 @@
 # Kamikaze: Phone Flip — master development plan
 
-Status: execution started. Section 0 preserves the physically validated detector under `native-beta-device-detector-v0.1.0`; Section 1 is next.
+Status: execution active. Section 0 preserves the physically validated detector under `native-beta-device-detector-v0.1.0`. Section 1 has a schema-v3 foundation, verified immutable Expo-v2 seed fixtures and an iPhone raw-recorder integration in progress.
 
 This is the operating plan for turning the current Swift vertical slice into a complete, trustworthy and polished native beta. It complements `NATIVE_SWIFT_MIGRATION.md` (architecture) and `NATIVE_BETA_EXECUTION.md` (migration decisions).
 
@@ -132,11 +132,12 @@ Deliverables:
 - iPhone recorder/export action for labelled and negative captures;
 - real fixtures for six core tricks, Straight Air, misses and ordinary handling.
 
-Core trick set for this gate:
+Original core trick set for this gate (display names corrected after physical
+review; see `PRACTICE_PROGRESSION_V1.md`):
 
 - Phone Flip / Reverse Phone Flip;
-- Front Flip / Back Flip;
-- Frontside Shuvit / Backside Shuvit;
+- Flip / Reverse Flip;
+- Frontside 360 Shuvit / Backside 360 Shuvit;
 - Straight Air / Unknown.
 
 Dataset target before claiming classification quality:
@@ -239,6 +240,16 @@ Exit gate:
 - hand changes semantics, never raw samples;
 - no fake measured vertical translation. Freefall may use a clearly labelled estimated arc.
 
+Collection-only expansion after the validated v0.2 core:
+
+- Frontside / Backside Shuvit means 180°;
+- the already measured full rotations are explicitly 360 Shuvits;
+- Double Flip, Double Reverse Flip, Double Phone Flip and Double Reverse Phone
+  Flip remain unavailable to automatic recognition until labelled-session and
+  independent-holdout gates pass.
+- Lines are ordered groups of separately segmented attempts, never a new
+  single-trick matcher label.
+
 ### Section 5 — Complete the player loop
 
 **Lead:** Play Experience
@@ -276,7 +287,9 @@ Exit gate:
 
 Deliverables:
 
-- ordered levels: both shuvits, Phone/Reverse, Front/Back;
+- ordered six-stage progression documented in
+  `PRACTICE_PROGRESSION_V1.md`: Shuvit 180 pair, 360 Shuvit pair, Flip pair,
+  Double Flip pair, Phone Flip pair and Double Phone Flip pair;
 - target animation before each attempt;
 - automatic capture by default, manual fallback;
 - target vs measured comparison using the shared replay engine;
@@ -298,13 +311,18 @@ Exit gate:
 
 **Reviewer:** Integrator
 
+Detailed product, metric, data and delivery contract:
+`PROFILE_LOCKER_STATS_V1.md`.
+
 Deliverables:
 
 - real totals, per-trick counts, best score, streak, fastest/longest and most-used trick;
+- a lightweight summary index so Profile does not decode every raw motion file;
 - activity calendar with one documented definition of what a cell counts;
 - expandable/clickable Recent history;
 - deletion/export and local privacy controls;
-- points/rewards computed from versioned saved scores;
+- local rewards recorded idempotently from versioned score/mastery events so a
+  future re-analysis cannot silently rewrite already-awarded currency;
 - selected skin persisted and applied immediately across every phone scene;
 - settings for hand, sound/haptics, diagnostics, reduced effects and onboarding replay;
 - Workshop nested under Me, not primary navigation.
@@ -323,6 +341,9 @@ Exit gate:
 **Reviewer:** Integrator + Quality & Release
 
 **Dependency:** stable player loop. Design tokens may be prepared earlier.
+
+Detailed glass, background, motion, audio, haptic and Phone Studio contract:
+`NATIVE_EXPERIENCE_SYSTEM_V1.md`.
 
 Direction: **motion instrument, not a skate dashboard**. The world is nocturnal polycarbonate, cold metal and kinetic light; the phone remains the hero.
 
@@ -349,11 +370,17 @@ Background: **Slipstream Field**, a slow native MeshGradient plus restrained Can
 
 Deliverables:
 
+- one reduced `ExperienceState` driving field, glass transitions, animation and
+  feedback without publishing raw sensor samples to SwiftUI;
 - glass density scale for navigation, actions and interactive game cards;
 - iOS 26 native Liquid Glass with one iOS 18–25 Material fallback boundary;
+- coordinated `GlassEffectContainer` clusters and stable morph identities;
 - transparent layered bottom navigation with content extending beneath it;
-- state-driven background and halo;
-- coherent transitions, haptics and optional sound;
+- state-driven Slipstream background, optional measured Metal shader and halo;
+- one interruption-safe feedback coordinator with authored AHAP haptics and
+  optional original sound;
+- shared higher-fidelity Phone Studio model used by live, replay, target and
+  the provisionally named Locker/Setup editor;
 - Dynamic Type basics, VoiceOver labels, Reduce Motion and Reduce Transparency;
 - no player-facing FPS clutter; diagnostics live in Workshop.
 
@@ -363,6 +390,8 @@ Exit gate:
 - fallback is intentional and legible;
 - 55+ FPS sustained in Play on the reference phone with diagnostics hidden;
 - background pauses/reduces offscreen and with Reduced Motion;
+- audio/haptic cues do not contaminate motion evidence or false-trigger capture;
+- phone appearance changes propagate immediately to every 3D scene;
 - no important state depends only on color or haptics.
 
 ### Section 9 — Quality, CI and distribution
@@ -393,6 +422,36 @@ Release gate:
 - physical-device matrix recorded;
 - privacy, permissions, accessibility and safety reviewed;
 - internal build changelog and known issues published.
+
+### Section 10 — Identity, social sharing and Camera Runs (post-beta)
+
+**Dependency:** reliable detector, stable attempt schema and ordinary replay export. This section must not delay local gameplay validation.
+
+Product goals:
+
+- optional player account with local-first identity, authenticated sync and explicit conflict/deletion/export behavior;
+- preserve raw attempts locally even when signed out, then attach them to an account only with user consent;
+- export a normal measured replay as a vertical video with trick name, result/FIT, timing and optional 3D replay overlays;
+- add an explicit `Camera Run` mode that shares one monotonic clock across sensor evidence, front/rear camera recordings, result and replay;
+- on compatible devices, evaluate `AVCaptureMultiCamSession`; provide a deliberate single-camera fallback rather than assuming simultaneous cameras exist everywhere;
+- capture an intro, throw and outro, then offer an editable composition using cuts or picture-in-picture, synchronized trick moment, 3D replay and result card;
+- export locally before any publish action; sharing to another person or social network always remains a separate user-confirmed action;
+- design privacy/permission states for microphone, front camera, rear camera, Photos and cloud/account data before implementation.
+
+Non-goals for the first detector beta:
+
+- public feed, followers, comments, rankings or moderation;
+- background camera recording;
+- mandatory account creation;
+- uploading raw motion/video automatically.
+
+Exit gate:
+
+- exported video remains audio/video synchronized through the detected trick moment;
+- unsupported or thermally constrained devices degrade predictably;
+- an offline/signed-out player can still play, save and export locally;
+- account deletion and local/cloud retention semantics are documented and testable;
+- no media or motion evidence is published without an explicit final user action.
 
 ## Execution waves
 

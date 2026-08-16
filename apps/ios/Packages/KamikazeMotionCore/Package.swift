@@ -10,9 +10,14 @@ let package = Package(
     ],
     products: [
         .library(name: "KamikazeMotionCore", targets: ["KamikazeMotionCore"]),
+        .executable(name: "kamikaze-motion-eval", targets: ["KamikazeMotionEvaluation"]),
     ],
     targets: [
         .target(name: "KamikazeMotionCore"),
+        .executableTarget(
+            name: "KamikazeMotionEvaluation",
+            dependencies: ["KamikazeMotionCore"]
+        ),
         .testTarget(name: "KamikazeMotionCoreTests", dependencies: ["KamikazeMotionCore"]),
     ]
 )
