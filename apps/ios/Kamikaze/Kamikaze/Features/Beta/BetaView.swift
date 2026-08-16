@@ -8,6 +8,7 @@ struct BetaView: View {
     @Environment(FeedbackCoordinator.self) private var feedback
     @AppStorage(FieldStyle.storageKey) private var fieldStyleRaw = FieldStyle.default.rawValue
     @AppStorage(GlassVariant.storageKey) private var glassVariantRaw = GlassVariant.default.rawValue
+    @AppStorage(BetaFlags.resultMetric) private var resultMetricRaw = ResultMetricMode.default.rawValue
     @AppStorage(BetaFlags.verticalArc) private var verticalArc = false
     @AppStorage(BetaFlags.fieldDisabled) private var fieldDisabled = false
 
@@ -32,6 +33,11 @@ struct BetaView: View {
                     GlassSurface {
                         optionList(title: "LIQUID GLASS", options: GlassVariant.allCases,
                                    selectedRaw: $glassVariantRaw)
+                    }
+
+                    GlassSurface {
+                        optionList(title: "RESULT METRIC", options: ResultMetricMode.allCases,
+                                   selectedRaw: $resultMetricRaw)
                     }
 
                     GlassSurface {
@@ -169,9 +175,38 @@ protocol FieldOption: Identifiable, RawRepresentable where RawValue == String {
 
 extension FieldStyle: @MainActor FieldOption {}
 extension GlassVariant: @MainActor FieldOption {}
+extension ResultMetricMode: @MainActor FieldOption {}
+
+/// Presentation experiment only. Raw evidence, classifications and both
+/// underlying metrics remain stored, so switching modes is reversible.
+nonisolated enum ResultMetricMode: String, CaseIterable, Identifiable {
+    case gameScore
+    case legacyFit
+    case compare
+
+    static let `default`: Self = .compare
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .gameScore: "GAME SCORE V1"
+        case .legacyFit: "FIT (LEGACY)"
+        case .compare: "COMPARE BOTH"
+        }
+    }
+
+    var blurb: String {
+        switch self {
+        case .gameScore: "Completion, purity, catch stability and flow."
+        case .legacyFit: "Only similarity to the selected trick definition."
+        case .compare: "Score is primary; FIT remains visible beside it."
+        }
+    }
+}
 
 /// AppStorage keys for beta experiments.
 enum BetaFlags {
     static let verticalArc = "betaVerticalArc"
     static let fieldDisabled = "debugDisableField"
+    static let resultMetric = "betaResultMetric"
 }

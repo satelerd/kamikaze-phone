@@ -26,6 +26,7 @@ struct ResultReplayView: View {
     @State private var isConfirming = false
     @State private var showsDeleteConfirmation = false
     @AppStorage(BetaFlags.verticalArc) private var verticalArc = false
+    @AppStorage(BetaFlags.resultMetric) private var resultMetricRaw = ResultMetricMode.default.rawValue
     @Environment(FeedbackCoordinator.self) private var feedback
 
     init(
@@ -90,7 +91,7 @@ struct ResultReplayView: View {
                             .font(.system(size: 36, weight: .black, design: .rounded))
                             .tracking(-1.5)
                         Spacer()
-                        Text(displayedResult.evaluation.score.map { String($0.value) } ?? "—")
+                        Text(primaryMetricValue)
                             .font(.system(size: 54, weight: .black, design: .rounded))
                             .foregroundStyle(accent)
                     }
@@ -196,10 +197,29 @@ struct ResultReplayView: View {
     }
 
     private var scoreExplanation: String {
+        if resultMetric == .legacyFit {
+            return "FIT · similarity to the selected trick definition, not landing quality or probability."
+        }
         if let score = displayedResult.evaluation.score {
-            return "THROW SCORE · completion, purity, catch stability and flow · \(score.verification.label.lowercased())."
+            let comparison = resultMetric == .compare
+                ? " · FIT \(displayedResult.displayedFit.map(String.init) ?? "—")"
+                : ""
+            return "THROW SCORE · completion, purity, catch stability and flow · \(score.verification.label.lowercased())\(comparison)."
         }
         return "NO SCORE YET · confirm the trick and outcome without changing its raw sensor evidence."
+    }
+
+    private var resultMetric: ResultMetricMode {
+        ResultMetricMode(rawValue: resultMetricRaw) ?? .default
+    }
+
+    private var primaryMetricValue: String {
+        switch resultMetric {
+        case .legacyFit:
+            displayedResult.displayedFit.map(String.init) ?? "—"
+        case .gameScore, .compare:
+            displayedResult.evaluation.score.map { String($0.value) } ?? "—"
+        }
     }
 
     private func practiceBanner(target: BuiltInTrickID) -> some View {

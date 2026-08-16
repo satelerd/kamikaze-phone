@@ -2,6 +2,7 @@ import KamikazeMotionCore
 import SwiftUI
 
 struct ProfileView: View {
+    @AppStorage(BetaFlags.resultMetric) private var resultMetricRaw = ResultMetricMode.default.rawValue
     static let recentLimit = 6
 
     let onReplayOnboarding: () -> Void
@@ -240,10 +241,13 @@ struct ProfileView: View {
     }
 
     private func recentRow(_ summary: AttemptSummaryV1) -> some View {
-        HStack(spacing: 14) {
-            Text(summary.gameScore.map(String.init)
-                ?? summary.fit.map { String(Int(($0 * 100).rounded())) }
-                ?? "—")
+        let metric = ResultMetricMode(rawValue: resultMetricRaw) ?? .default
+        let showsFit = metric == .legacyFit
+        let value = showsFit
+            ? summary.fit.map { String(Int(($0 * 100).rounded())) }
+            : summary.gameScore.map(String.init)
+        return HStack(spacing: 14) {
+            Text(value ?? "—")
                 .font(.system(size: 22, weight: .black, design: .rounded))
                 .foregroundStyle(summary.gameScore != nil || summary.isRecognized ? KamikazeTheme.volt : KamikazeTheme.hazard)
                 .frame(width: 52, height: 52)
@@ -251,7 +255,7 @@ struct ProfileView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(summary.displayName)
                     .font(.system(size: 14, weight: .black, design: .rounded))
-                Text("\(summary.gameScore == nil ? "FIT" : "SCORE")  ·  \(Int(summary.motionDurationMs.rounded())) MS  ·  \(summary.outcomeLabel)")
+                Text("\(showsFit ? "FIT" : "SCORE")  ·  \(Int(summary.motionDurationMs.rounded())) MS  ·  \(summary.outcomeLabel)")
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(KamikazeTheme.muted)
             }
