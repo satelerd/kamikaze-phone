@@ -11,8 +11,12 @@ nonisolated enum PhoneFormFactor: String, Codable, CaseIterable, Equatable, Send
     case proMax = "pro-max"
     /// Scanned iPhone 15 Pro Max asset (MajdyModels, CC BY 4.0 via
     /// Sketchfab). Renders the real geometry; body/edge cosmetics do not
-    /// apply to it yet.
+    /// apply to it — its baked titanium textures are the look.
     case real
+    /// Low-poly iPhone 15 Pro Max asset (LagzDesign, CC BY via Sketchfab).
+    /// Its flat-color materials take the body/edge cosmetics, so this is the
+    /// real silhouette players can paint.
+    case paint = "paint-15"
 
     var id: String { rawValue }
 
@@ -23,6 +27,7 @@ nonisolated enum PhoneFormFactor: String, Codable, CaseIterable, Equatable, Send
         case .plus: "PLUS"
         case .proMax: "PRO MAX"
         case .real: "REAL 15 PRO"
+        case .paint: "PAINT 15"
         }
     }
 }
@@ -46,7 +51,7 @@ nonisolated struct DeviceShapeDefinition: Equatable, Sendable {
             DeviceShapeDefinition(width: 0.1234, height: 0.2554, depth: 0.0156, cornerRadius: 0.024, cameraLensCount: 2)
         case .plus:
             DeviceShapeDefinition(width: 0.1320, height: 0.2730, depth: 0.0156, cornerRadius: 0.026, cameraLensCount: 2)
-        case .proMax, .real:
+        case .proMax, .real, .paint:
             DeviceShapeDefinition(width: 0.1340, height: 0.2772, depth: 0.0166, cornerRadius: 0.027, cameraLensCount: 3)
         }
     }
@@ -98,6 +103,9 @@ nonisolated enum CosmeticCatalog {
         CosmeticOption(id: "screen-live", displayName: "LIVE STATE", color: .init(red: 0.30, green: 0.40, blue: 1.00), unlock: .free),
         CosmeticOption(id: "screen-pitch", displayName: "BLACKOUT", color: .init(red: 0.05, green: 0.06, blue: 0.06), unlock: .free),
         CosmeticOption(id: "screen-frost", displayName: "PAPER", color: .init(red: 0.86, green: 0.88, blue: 0.90), unlock: .masterPair(5)),
+        // The player's own image (CustomScreenStore); falls back to BLACKOUT
+        // until a photo is chosen.
+        CosmeticOption(id: "screen-photo", displayName: "PHOTO", color: .init(red: 0.10, green: 0.11, blue: 0.13), unlock: .free),
     ]
 
     static func body(id: String) -> CosmeticOption? { bodies.first { $0.id == id } }
@@ -154,6 +162,8 @@ nonisolated struct PhoneAppearance: Codable, Hashable, Sendable {
     /// The LIVE screen renders the gameplay accent; fixed themes render their
     /// authored emissive color.
     var usesLiveScreen: Bool { screenID == "screen-live" }
+    /// PHOTO renders the player's own image from `CustomScreenStore`.
+    var usesCustomPhotoScreen: Bool { screenID == "screen-photo" }
 }
 
 /// Persisted player choice, injected through the shell so Play, Replay,

@@ -1,4 +1,5 @@
 import KamikazeMotionCore
+import PhotosUI
 import SwiftUI
 
 /// The Setup screen (player-facing name prototype; internal Locker name stays
@@ -21,6 +22,7 @@ struct LockerView: View {
     @State private var progressModel = PracticeModel()
     /// The stage mirrors the phone in your hand, exactly like Play.
     @State private var preview = AttitudePreviewModel()
+    @State private var photoItem: PhotosPickerItem?
 
     var body: some View {
         ZStack {
@@ -153,11 +155,50 @@ struct LockerView: View {
                 store.previewChange { $0.edgeID = option.id }
             }
         case .screen:
-            cosmeticRail(
-                options: CosmeticCatalog.screens,
-                selectedID: store.effective.screenID
-            ) { option in
-                store.previewChange { $0.screenID = option.id }
+            VStack(alignment: .leading, spacing: 12) {
+                cosmeticRail(
+                    options: CosmeticCatalog.screens,
+                    selectedID: store.effective.screenID
+                ) { option in
+                    store.previewChange { $0.screenID = option.id }
+                }
+                if store.effective.usesCustomPhotoScreen {
+                    photoPickerRow
+                }
+            }
+        }
+    }
+
+    /// PHOTO's companion control: pick the image the virtual screen shows.
+    /// A screenshot of the real home screen is the intended use.
+    private var photoPickerRow: some View {
+        HStack(spacing: 12) {
+            if let image = CustomScreenStore.shared.image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 44, height: 78)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                Label(
+                    CustomScreenStore.shared.hasImage ? "CHANGE PHOTO" : "CHOOSE PHOTO",
+                    systemImage: "photo"
+                )
+                .font(.system(size: 12, weight: .black, design: .rounded))
+                .padding(.horizontal, 16)
+                .frame(minHeight: 48)
+            }
+            .adaptiveGlassButton()
+        }
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self) {
+                    CustomScreenStore.shared.setImageData(data)
+                    feedback.play(.cosmeticUnlocked)
+                }
+                photoItem = nil
             }
         }
     }

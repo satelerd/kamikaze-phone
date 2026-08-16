@@ -9,9 +9,12 @@ import SwiftUI
 struct AppearanceStampComponent: Component {
     var appearance: PhoneAppearance
     var accentDescription: String
-    /// Whether this entity was built from the scanned asset. When the async
+    /// Whether this entity was built from a downloaded asset. When the async
     /// asset load lands, the flag mismatch triggers the in-place swap.
     var usedRealAsset = false
+    /// CustomScreenStore revision baked into this entity, so choosing a new
+    /// PHOTO screen image rebuilds live phones.
+    var screenPhotoRevision = 0
 }
 
 enum PhoneSceneRefresher {
@@ -31,9 +34,10 @@ enum PhoneSceneRefresher {
         let stamp = current?.components[AppearanceStampComponent.self]
         let accentKey = accent.description
         let wantsReal = PhoneModelFactory.usesRealAsset(for: appearance)
+        let photoRevision = CustomScreenStore.shared.revision
         if let current, let stamp,
            stamp.appearance == appearance, stamp.accentDescription == accentKey,
-           stamp.usedRealAsset == wantsReal {
+           stamp.usedRealAsset == wantsReal, stamp.screenPhotoRevision == photoRevision {
             return current
         }
         let previousOrientation = current?.orientation
@@ -49,7 +53,8 @@ enum PhoneSceneRefresher {
         phone.components.set(AppearanceStampComponent(
             appearance: appearance,
             accentDescription: accentKey,
-            usedRealAsset: wantsReal
+            usedRealAsset: wantsReal,
+            screenPhotoRevision: photoRevision
         ))
         if let previousOrientation {
             phone.orientation = previousOrientation
@@ -112,9 +117,11 @@ struct LivePhoneScene: View {
     }
 
     var body: some View {
-        // Observation hook: when the scanned asset finishes loading, this
-        // read re-evaluates the view so the update pass can swap the phone.
-        let _ = PhoneModelLibrary.shared.realPhone
+        // Observation hooks: when a downloaded asset finishes loading or the
+        // PHOTO screen image changes, these reads re-evaluate the view so the
+        // update pass can swap the phone.
+        let _ = PhoneModelLibrary.shared.loaded
+        let _ = CustomScreenStore.shared.revision
         RealityView { content in
             PhoneSceneRefresher.refreshPhone(
                 in: &content,

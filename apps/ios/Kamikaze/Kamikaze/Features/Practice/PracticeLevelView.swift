@@ -67,28 +67,17 @@ struct PracticeLevelView: View {
                             .padding(10)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     } else {
-                        LivePhoneScene(
-                            attitude: run.relativeAttitude,
-                            accent: accent,
-                            initialZoom: 0.55,
-                            onLevel: {
-                                run.zeroPose()
-                                feedback.play(.zeroed)
-                            }
-                        )
+                        LiveRunStage(run: run, accent: accent, initialZoom: 0.55)
                     }
                 }
                 .frame(maxHeight: 380)
 
-                GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
-                    HStack(spacing: 18) {
-                        metric("REPS", "\(min(reps, PracticeProgress.repsToUnlock))/\(PracticeProgress.repsToUnlock)")
-                        metric("MOTION", sensorLabel)
-                        metric("RATE", run.measuredHz > 0 ? "\(Int(run.measuredHz.rounded())) HZ" : "— HZ")
-                    }
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 8)
-                }
+                RunTelemetryHUD(
+                    run: run,
+                    leadingTitle: "REPS",
+                    leadingValue: "\(min(reps, PracticeProgress.repsToUnlock))/\(PracticeProgress.repsToUnlock)",
+                    showsGyro: false
+                )
 
                 VStack(spacing: 4) {
                     Text(title)
@@ -143,9 +132,6 @@ struct PracticeLevelView: View {
         .onChange(of: run.phase) { _, phase in
             experience.report(phase: phase.experiencePhase)
             reactToPhase(phase)
-        }
-        .onChange(of: run.gyroDps) { _, gyroDps in
-            experience.reportMotion(gyroDps: gyroDps)
         }
         .fullScreenCover(item: Binding(
             get: { run.result },
@@ -237,16 +223,4 @@ struct PracticeLevelView: View {
         }
     }
 
-    private var sensorLabel: String {
-        if case .failed = run.phase { return "ERROR" }
-        return run.measuredHz > 0 ? "LIVE" : "WAITING"
-    }
-
-    private func metric(_ title: String, _ value: String) -> some View {
-        VStack(spacing: 3) {
-            Text(title).font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(KamikazeTheme.muted)
-            Text(value).font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundStyle(KamikazeTheme.frost)
-        }
-        .frame(maxWidth: .infinity)
-    }
 }

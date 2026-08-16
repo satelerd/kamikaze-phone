@@ -31,9 +31,6 @@ struct PlayView: View {
             experience.report(phase: phase.experiencePhase)
             reactToPhase(phase)
         }
-        .onChange(of: run.gyroDps) { _, gyroDps in
-            experience.reportMotion(gyroDps: gyroDps)
-        }
         .fullScreenCover(item: Binding(
             get: { run.result },
             set: { if $0 == nil { run.dismissResult() } }
@@ -52,26 +49,10 @@ struct PlayView: View {
                 Spacer(minLength: 8)
 
                 // The phone floats directly over the field — no stage boxes.
-                LivePhoneScene(
-                    attitude: run.relativeAttitude,
-                    accent: accent,
-                    initialZoom: 0.5,
-                    onLevel: {
-                        run.zeroPose()
-                        feedback.play(.zeroed)
-                    }
-                )
-                .frame(maxHeight: 480)
+                LiveRunStage(run: run, accent: accent, initialZoom: 0.5)
+                    .frame(maxHeight: 480)
 
-                GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
-                    HStack(spacing: 18) {
-                        metric("MOTION", sensorLabel)
-                        metric("RATE", run.measuredHz > 0 ? "\(Int(run.measuredHz.rounded())) HZ" : "— HZ")
-                        metric("GYRO", "\(Int(run.gyroDps.rounded()))°/S")
-                    }
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 8)
-                }
+                RunTelemetryHUD(run: run)
 
                 VStack(spacing: 6) {
                     Text(title).font(.system(size: 32, weight: .black, design: .rounded)).tracking(-1.2)
@@ -158,16 +139,4 @@ struct PlayView: View {
         }
     }
 
-    private var sensorLabel: String {
-        if case .failed = run.phase { return "ERROR" }
-        return run.measuredHz > 0 ? "LIVE" : "WAITING"
-    }
-
-    private func metric(_ title: String, _ value: String) -> some View {
-        VStack(spacing: 3) {
-            Text(title).font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(KamikazeTheme.muted)
-            Text(value).font(.system(size: 11, weight: .bold, design: .monospaced)).foregroundStyle(KamikazeTheme.frost)
-        }
-        .frame(maxWidth: .infinity)
-    }
 }

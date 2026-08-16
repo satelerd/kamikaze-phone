@@ -6,11 +6,21 @@ import UIKit
 /// the set validated on the physical device so the asset reads identically in
 /// every render path.
 enum PhoneModelFactory {
-    /// True when the scanned asset will actually render for this appearance.
+    /// The downloaded asset this appearance renders with, if any.
+    static func assetID(for formFactor: PhoneFormFactor) -> PhoneAssetID? {
+        switch formFactor {
+        case .real: .scanned
+        case .paint: .paintable
+        case .compact, .standard, .plus, .proMax: nil
+        }
+    }
+
+    /// True when a downloaded asset will actually render for this appearance.
     /// The stamp refresher keys on it so scenes swap procedural → real the
     /// moment the async load lands.
     static func usesRealAsset(for appearance: PhoneAppearance) -> Bool {
-        appearance.formFactor == .real && PhoneModelLibrary.shared.realPhone != nil
+        guard let asset = assetID(for: appearance.formFactor) else { return false }
+        return PhoneModelLibrary.shared.isLoaded(asset)
     }
 
     static func makePhone(
@@ -18,10 +28,14 @@ enum PhoneModelFactory {
         accent: UIColor,
         screenLabel: String? = nil
     ) -> Entity {
-        // The scanned asset keeps its own textures; cosmetics do not apply
-        // to it yet. Until the async load finishes (or if it fails), the
-        // procedural PRO MAX body stands in.
-        if appearance.formFactor == .real, let real = PhoneModelLibrary.shared.makeRealPhone() {
+        // Downloaded assets render their own geometry; the paintable one
+        // additionally takes the body/edge cosmetics. Until the async load
+        // finishes (or if it fails), the procedural PRO MAX body stands in.
+        if let asset = assetID(for: appearance.formFactor),
+           let real = PhoneModelLibrary.shared.makePhone(asset) {
+            if asset == .paintable {
+                PhoneModelLibrary.applyCosmetics(to: real, appearance: appearance)
+            }
             return real
         }
         let shape = DeviceShapeDefinition.shape(for: appearance.formFactor)
@@ -70,6 +84,8 @@ enum PhoneModelFactory {
         let screenMaterial: UnlitMaterial
         if let screenLabel, let labelled = labelledScreenMaterial(text: screenLabel) {
             screenMaterial = labelled
+        } else if appearance.usesCustomPhotoScreen, let photo = customPhotoScreenMaterial() {
+            screenMaterial = photo
         } else {
             screenMaterial = UnlitMaterial(color: screenColor.withAlphaComponent(0.92))
         }
@@ -182,6 +198,16 @@ enum PhoneModelFactory {
         rig.addChild(fill)
 
         return rig
+    }
+
+    /// The player's own screen image as an unlit material — unlit so the
+    /// photo reads identically in every render path, like every screen here.
+    static func customPhotoScreenMaterial(flippedVertically: Bool = false) -> UnlitMaterial? {
+        guard let resource = CustomScreenStore.shared.texture(flippedVertically: flippedVertically)
+        else { return nil }
+        var material = UnlitMaterial()
+        material.color = .init(tint: .white, texture: .init(resource))
+        return material
     }
 
     /// Renders the label into a screen texture: pitch glass with the word in

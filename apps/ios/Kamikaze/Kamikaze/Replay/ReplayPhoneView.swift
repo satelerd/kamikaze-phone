@@ -3,9 +3,9 @@ import RealityKit
 import SwiftUI
 
 /// The 3D scene is orientation-first. Vertical translation is OFF by default:
-/// when the beta "estimated arc" experiment is enabled, the phone follows a
-/// ballistic arc derived from motion duration — clearly labelled ESTIMATED,
-/// never presented as measured position.
+/// when the beta arc experiment is enabled, the phone rises during its
+/// MEASURED free-fall window — hang time detected from the accelerometer,
+/// height from ballistics. Nothing outside the window ever translates.
 struct ReplayPhoneScene: View {
     @Bindable var controller: ReplayController
     let accent: Color
@@ -17,17 +17,19 @@ struct ReplayPhoneScene: View {
     var appearanceOverride: PhoneAppearance? = nil
     /// Screen stamp for demo phones (e.g. "IDEAL").
     var screenLabel: String? = nil
-    /// Peak arc height in scene meters when the beta experiment is on.
-    var estimatedArcHeight: Float? = nil
+    /// Measured free-fall window when the beta arc experiment is on.
+    var arcWindow: FreefallWindow? = nil
 
     @Environment(AppearanceStore.self) private var appearance
     @State private var previousDragTranslation = CGSize.zero
     @State private var magnifyOrigin = 1.0
 
     var body: some View {
-        // Observation hook: when the scanned asset finishes loading, this
-        // read re-evaluates the view so the update pass can swap the phone.
-        let _ = PhoneModelLibrary.shared.realPhone
+        // Observation hooks: when a downloaded asset finishes loading or the
+        // PHOTO screen image changes, these reads re-evaluate the view so the
+        // update pass can swap the phone.
+        let _ = PhoneModelLibrary.shared.loaded
+        let _ = CustomScreenStore.shared.revision
         RealityView { content in
             PhoneSceneRefresher.refreshPhone(
                 in: &content,
@@ -73,12 +75,12 @@ struct ReplayPhoneScene: View {
                 iz: Float(frame.quaternion.z),
                 r: Float(frame.quaternion.w)
             )
-            // Ballistic vertical arc (beta): y = 4h·p·(1−p) over the motion
-            // window. Estimated presentation, not measured evidence.
+            // Measured vertical arc (beta): ballistic height over the
+            // detected free-fall window, scaled and capped so the phone
+            // stays framed by the spectator camera.
             let arcY: Float
-            if let estimatedArcHeight {
-                let p = Float(min(1, max(0, frame.progress)))
-                arcY = 4 * estimatedArcHeight * p * (1 - p)
+            if let arcWindow {
+                arcY = Float(min(0.28, arcWindow.heightM(at: frame.timestampMs) * 0.30))
             } else {
                 arcY = 0
             }
@@ -147,18 +149,18 @@ struct ReplayPhoneView: View {
     @Bindable var controller: ReplayController
     let accent: Color
     let targetFrames: [ReplayFrame]?
-    let estimatedArcHeight: Float?
+    let arcWindow: FreefallWindow?
 
     init(
         controller: ReplayController,
         accent: Color = .blue,
         targetFrames: [ReplayFrame]? = nil,
-        estimatedArcHeight: Float? = nil
+        arcWindow: FreefallWindow? = nil
     ) {
         self.controller = controller
         self.accent = accent
         self.targetFrames = targetFrames
-        self.estimatedArcHeight = estimatedArcHeight
+        self.arcWindow = arcWindow
     }
 
     var body: some View {
@@ -169,7 +171,7 @@ struct ReplayPhoneView: View {
                         controller: controller,
                         accent: accent,
                         targetFrames: targetFrames,
-                        estimatedArcHeight: estimatedArcHeight
+                        arcWindow: arcWindow
                     )
                     .frame(minHeight: 430)
 
@@ -179,10 +181,10 @@ struct ReplayPhoneView: View {
                                 .font(.system(size: 8, weight: .black, design: .monospaced))
                                 .foregroundStyle(KamikazeTheme.volt)
                         }
-                        if estimatedArcHeight != nil {
-                            Text("EST. ARC — BETA")
+                        if arcWindow != nil {
+                            Text("MEASURED ARC")
                                 .font(.system(size: 8, weight: .black, design: .monospaced))
-                                .foregroundStyle(KamikazeTheme.hazard)
+                                .foregroundStyle(KamikazeTheme.volt)
                         }
                     }
                     .padding(8)

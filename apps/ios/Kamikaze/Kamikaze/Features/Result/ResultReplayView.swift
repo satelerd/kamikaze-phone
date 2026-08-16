@@ -17,6 +17,9 @@ struct ResultReplayView: View {
     /// practice mode or for tricks without a validated definition.
     private let targetFrames: [ReplayFrame]?
     private let targetDefinition: TrickDefinition?
+    /// Measured free-fall window of this attempt (accelerometer-detected);
+    /// nil when no sustained free fall exists (e.g. a spin in the hand).
+    private let freefall: FreefallWindow?
     @State private var displayedResult: NativeRunResult
     @State private var replay: ReplayController
     @State private var showsCorrection = false
@@ -52,6 +55,14 @@ struct ResultReplayView: View {
         _replay = State(initialValue: ReplayController(
             payload: result.capture.samplePayload,
             boundaries: result.capture.attempt.boundaries
+        ))
+        // Same frame build the controller performs, so window timestamps and
+        // playhead share one timebase.
+        freefall = ReplayBuilder.freefallWindow(in: ReplayBuilder.normalized(
+            ReplayBuilder.buildFrames(
+                payload: result.capture.samplePayload,
+                boundaries: result.capture.attempt.boundaries
+            )
         ))
     }
 
@@ -105,7 +116,7 @@ struct ResultReplayView: View {
                         controller: replay,
                         accent: accent,
                         targetFrames: targetFrames,
-                        estimatedArcHeight: verticalArc ? estimatedArcHeight : nil
+                        arcWindow: verticalArc ? freefall : nil
                     )
 
                     if let practiceTarget, displayedResult.humanReview == nil {
@@ -113,8 +124,8 @@ struct ResultReplayView: View {
                     }
 
                     Button(primaryTitle) { onAgain() }
-                        .font(.system(size: 19, weight: .black, design: .rounded))
-                        .frame(maxWidth: .infinity, minHeight: 84)
+                        .font(.system(size: 23, weight: .black, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 100)
                         .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.ion)
 
                     GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
@@ -127,6 +138,10 @@ struct ResultReplayView: View {
                             Divider().overlay(.white.opacity(0.08))
                             HStack {
                                 stat("DURATION", "\(displayedResult.durationMs) MS")
+                                if let freefall {
+                                    stat("AIR", "\(Int((freefall.durationS * 1_000).rounded())) MS")
+                                    stat("PEAK", "\(Int((freefall.peakHeightM * 100).rounded())) CM")
+                                }
                                 stat("EVIDENCE", "\(displayedResult.capture.samplePayload.samples.count) SAMPLES")
                             }
                         }
@@ -173,15 +188,6 @@ struct ResultReplayView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
-    }
-
-    /// Ballistic peak from motion duration (h = g·t²/8), scaled into the
-    /// scene and capped so the phone stays framed. Estimated, never measured.
-    private var estimatedArcHeight: Float {
-        let boundaries = displayedResult.capture.attempt.boundaries
-        let t = max(0, boundaries.motionEndS - boundaries.motionStartS)
-        let physicalPeak = 9.81 * t * t / 8
-        return Float(min(0.28, physicalPeak * 0.30))
     }
 
     private var accent: Color {

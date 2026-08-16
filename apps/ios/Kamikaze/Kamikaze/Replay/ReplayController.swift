@@ -45,7 +45,9 @@ final class ReplayController {
 
     private(set) var state: PlaybackState = .paused
     private(set) var playheadMs: Double = 0
-    var speed: PlaybackSpeed = .normal
+    /// Half speed by default: a real trick resolves in a few hundred ms, so
+    /// 1× replays read as a blink. 0.5× is the study speed.
+    var speed: PlaybackSpeed = .half
     var camera: Camera = .spectator
     private(set) var poseBaseline: Quaternion?
 

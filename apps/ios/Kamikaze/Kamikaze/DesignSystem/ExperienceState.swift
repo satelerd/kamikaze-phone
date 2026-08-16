@@ -46,8 +46,10 @@ final class ExperienceCoordinator {
     /// Full-scale rotation: a violent trick peaks around 720°/s or more.
     static let fullScaleGyroDps: Double = 720
     /// Low-pass factor per report. High enough to feel live, low enough that
-    /// a single noisy sample cannot jump the field.
-    static let energySmoothing = 0.18
+    /// a single noisy sample cannot jump the field. Calibrated for the 8 Hz
+    /// telemetry cadence — the same time constant the original 0.18 factor
+    /// gave at the old 20 Hz report rate.
+    static let energySmoothing = 0.35
 
     private static let signposter = OSSignposter(
         subsystem: "tech.sateler.kamikazephone",

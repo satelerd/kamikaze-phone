@@ -93,7 +93,7 @@ struct BetaView: View {
                     }
                     .adaptiveGlassButton(tint: KamikazeTheme.ion)
 
-                    Text("iPhone 3D model by MajdyModels — CC BY 4.0, via Sketchfab.")
+                    Text("iPhone 3D models by MajdyModels (CC BY 4.0) and LagzDesign (CC BY), via Sketchfab.")
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
                         .foregroundStyle(KamikazeTheme.muted)
                         .padding(.top, 8)

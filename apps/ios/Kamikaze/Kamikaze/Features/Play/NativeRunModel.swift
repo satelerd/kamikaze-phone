@@ -153,7 +153,8 @@ final class NativeRunModel {
     private let repository: FileAttemptRepository
     private let analysisRepository: FileAttemptAnalysisRepository
     private let summaryRepository: FileAttemptSummaryRepository
-    private var lastPaintUptime = 0.0
+    private var lastPoseUptime = 0.0
+    private var lastTelemetryUptime = 0.0
 
     private(set) var phase: NativeRunPhase = .ready
     private(set) var attitude = Quaternion.identity
@@ -299,14 +300,24 @@ final class NativeRunModel {
         let now = ProcessInfo.processInfo.systemUptime
         let belongsToActiveRun = event.runID != nil && event.runID == activeRunID
         let phaseChanged = belongsToActiveRun && phase != event.phase
-        if phaseChanged || now - lastPaintUptime >= 0.05 {
-            lastPaintUptime = now
+        // Two publish gates on purpose. The pose tracks the hand, so it goes
+        // out near display cadence (~50 Hz from the 100 Hz stream) — a single
+        // shared 20 Hz gate here is what made the live stage feel choppy.
+        // Numeric telemetry is for reading, not tracking: 8 Hz keeps digits
+        // legible and spares its observers the high-frequency invalidation.
+        // Only views that read a property re-evaluate, so screens isolate the
+        // pose reads in `LiveRunStage`.
+        if phaseChanged || now - lastPoseUptime >= 1.0 / 60.0 {
+            lastPoseUptime = now
             attitude = event.attitude
+        }
+        if phaseChanged || now - lastTelemetryUptime >= 0.125 {
+            lastTelemetryUptime = now
             measuredHz = event.measuredHz
             gyroDps = event.gyroDps
-            if belongsToActiveRun {
-                phase = event.phase
-            }
+        }
+        if phaseChanged {
+            phase = event.phase
         }
 
         guard belongsToActiveRun, let completed = event.completed else { return }
