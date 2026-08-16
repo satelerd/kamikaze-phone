@@ -3,8 +3,8 @@ import KamikazeMotionCore
 
 /// Deterministic statistics over attempt summaries — the G3 engine from
 /// PROFILE_LOCKER_STATS_V1. Same inputs always produce the same numbers, and
-/// nothing here decodes raw motion payloads. Score-based statistics stay
-/// absent until a versioned Game Score exists.
+/// nothing here decodes raw motion payloads. Game Score and identity FIT stay
+/// separate records.
 nonisolated struct PlayerStatsEngine: Equatable, Sendable {
     struct TrickStat: Equatable, Sendable, Identifiable {
         let trickID: BuiltInTrickID
@@ -14,6 +14,8 @@ nonisolated struct PlayerStatsEngine: Equatable, Sendable {
         let successCount: Int
         /// Best identity FIT among recognized attempts, display percent.
         let bestFitPercent: Int?
+        /// Best deterministic gameplay score for this trick.
+        let bestScore: Int?
         /// Fastest successful motion, in milliseconds.
         let fastestLandedMs: Int?
         /// Longest successful motion, in milliseconds.
@@ -45,6 +47,7 @@ nonisolated struct PlayerStatsEngine: Equatable, Sendable {
     let fastestLanded: Record?
     let longestLanded: Record?
     let bestFit: Record?
+    let bestScore: Record?
     let activeDayCount: Int
 
     init(summaries: [AttemptSummaryV1], defaultTimezone: TimeZone = .current) {
@@ -67,6 +70,7 @@ nonisolated struct PlayerStatsEngine: Equatable, Sendable {
                         .compactMap(\.fit)
                         .max()
                         .map { Int(($0 * 100).rounded()) },
+                    bestScore: rows.compactMap(\.gameScore).max(),
                     fastestLandedMs: landed.map(\.motionDurationMs).min().map { Int($0.rounded()) },
                     longestLandedMs: landed.map(\.motionDurationMs).max().map { Int($0.rounded()) }
                 )
@@ -84,6 +88,10 @@ nonisolated struct PlayerStatsEngine: Equatable, Sendable {
             .filter { $0.isRecognized && $0.fit != nil }
             .max { ($0.fit ?? 0) < ($1.fit ?? 0) }
             .map { Record(attemptID: $0.attemptID, trickID: $0.trickID, valueLabel: "\(Int((($0.fit ?? 0) * 100).rounded())) FIT") }
+        bestScore = summaries
+            .filter { $0.gameScore != nil }
+            .max { ($0.gameScore ?? 0) < ($1.gameScore ?? 0) }
+            .map { Record(attemptID: $0.attemptID, trickID: $0.trickID, valueLabel: "\($0.gameScore ?? 0) PTS") }
 
         var byDay: [String: Int] = [:]
         let parser = ISO8601DateFormatter()

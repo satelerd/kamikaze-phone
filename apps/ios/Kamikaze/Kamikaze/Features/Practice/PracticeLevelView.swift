@@ -35,77 +35,14 @@ struct PracticeLevelView: View {
 
     var body: some View {
         ZStack {
-            ExperienceFieldBackground()
-            VStack(spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(node.trickID.displayName)
-                        .font(.system(size: 30, weight: .black, design: .rounded))
-                        .tracking(-1.2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(node.coachingCue)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(KamikazeTheme.muted)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                ZStack {
-                    if showsTarget {
-                        // Mathematical demonstration on a clearly different
-                        // DEMO phone — never the player's own configuration.
-                        ReplayPhoneScene(
-                            controller: targetReplay,
-                            accent: KamikazeTheme.volt,
-                            appearanceOverride: .demo,
-                            screenLabel: "IDEAL"
-                        )
-                        Text("DEMO PHONE · TARGET MOTION")
-                            .font(.system(size: 9, weight: .black, design: .monospaced))
-                            .foregroundStyle(Color.black)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(KamikazeTheme.volt, in: Capsule())
-                            .padding(10)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    } else {
-                        LiveRunStage(run: run, accent: accent, initialZoom: 0.55)
-                    }
-                }
-                .frame(maxHeight: 380)
-
-                RunTelemetryHUD(
-                    run: run,
-                    leadingTitle: "REPS",
-                    leadingValue: "\(min(reps, PracticeProgress.repsToUnlock))/\(PracticeProgress.repsToUnlock)",
-                    showsGyro: false
-                )
-
-                VStack(spacing: 4) {
-                    Text(title)
-                        .font(.system(size: 22, weight: .black, design: .rounded))
-                        .tracking(-0.8)
-                    Text(detail)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(KamikazeTheme.muted)
-                }
-                .multilineTextAlignment(.center)
-
-                Button {
-                    if active {
-                        run.cancel()
-                        feedback.play(.cancelled)
-                    } else {
-                        run.arm()
-                    }
-                } label: {
-                    Text(active ? "CANCEL" : "START PRACTICE")
-                        .font(.system(size: 17, weight: .black, design: .rounded))
-                        .frame(maxWidth: .infinity, minHeight: 66)
-                }
-                .adaptiveGlassButton(prominent: true, tint: active ? KamikazeTheme.hazard : KamikazeTheme.ion)
+            if run.result == nil {
+                ExperienceFieldBackground()
+                practiceContent
+            } else {
+                // ResultReplayView owns the only active RealityView/Metal
+                // field while its full-screen cover is presented.
+                KamikazeTheme.pitch.ignoresSafeArea()
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 8)
-            .padding(.bottom, 14)
         }
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -126,12 +63,20 @@ struct PracticeLevelView: View {
             }
         }
         .onDisappear {
+            targetReplay.pause()
             run.stop()
             experience.report(phase: .idle)
         }
         .onChange(of: run.phase) { _, phase in
             experience.report(phase: phase.experiencePhase)
             reactToPhase(phase)
+        }
+        .onChange(of: run.result?.id) { _, resultID in
+            if resultID != nil {
+                targetReplay.pause()
+            } else if showsTarget {
+                targetReplay.play()
+            }
         }
         .fullScreenCover(item: Binding(
             get: { run.result },
@@ -153,6 +98,79 @@ struct PracticeLevelView: View {
         .onChange(of: run.result == nil) { _, dismissed in
             if dismissed { Task { await progressModel.refresh() } }
         }
+    }
+
+    private var practiceContent: some View {
+        VStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(node.trickID.displayName)
+                    .font(.system(size: 30, weight: .black, design: .rounded))
+                    .tracking(-1.2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(node.coachingCue)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(KamikazeTheme.muted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            ZStack {
+                if showsTarget {
+                    // Mathematical demonstration on a clearly different
+                    // DEMO phone — never the player's own configuration.
+                    ReplayPhoneScene(
+                        controller: targetReplay,
+                        accent: KamikazeTheme.volt,
+                        appearanceOverride: .demo,
+                        screenLabel: "IDEAL"
+                    )
+                    Text("DEMO PHONE · TARGET MOTION")
+                        .font(.system(size: 9, weight: .black, design: .monospaced))
+                        .foregroundStyle(Color.black)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(KamikazeTheme.volt, in: Capsule())
+                        .padding(10)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                } else {
+                    LiveRunStage(run: run, accent: accent, initialZoom: 0.55)
+                }
+            }
+            .frame(maxHeight: 380)
+
+            RunTelemetryHUD(
+                run: run,
+                leadingTitle: "REPS",
+                leadingValue: "\(min(reps, PracticeProgress.repsToUnlock))/\(PracticeProgress.repsToUnlock)",
+                showsGyro: false
+            )
+
+            VStack(spacing: 4) {
+                Text(title)
+                    .font(.system(size: 22, weight: .black, design: .rounded))
+                    .tracking(-0.8)
+                Text(detail)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(KamikazeTheme.muted)
+            }
+            .multilineTextAlignment(.center)
+
+            Button {
+                if active {
+                    run.cancel()
+                    feedback.play(.cancelled)
+                } else {
+                    run.arm()
+                }
+            } label: {
+                Text(active ? "CANCEL" : "START PRACTICE")
+                    .font(.system(size: 17, weight: .black, design: .rounded))
+                    .frame(maxWidth: .infinity, minHeight: 66)
+            }
+            .adaptiveGlassButton(prominent: true, tint: active ? KamikazeTheme.hazard : KamikazeTheme.ion)
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 8)
+        .padding(.bottom, 14)
     }
 
     private var reps: Int {

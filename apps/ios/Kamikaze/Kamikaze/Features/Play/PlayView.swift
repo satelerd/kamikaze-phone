@@ -16,9 +16,17 @@ struct PlayView: View {
 
     var body: some View {
         ZStack {
-            ExperienceFieldBackground()
-            GlassCluster(spacing: 14) {
-                playContent
+            if run.result == nil {
+                ExperienceFieldBackground()
+                GlassCluster(spacing: 14) {
+                    playContent
+                }
+            } else {
+                // A full-screen result owns its own RealityView and Metal
+                // field. Removing (rather than merely hiding) Play's stage
+                // prevents two 3D scenes and two full-screen shaders from
+                // rendering at the same time underneath the cover.
+                KamikazeTheme.pitch.ignoresSafeArea()
             }
         }
         .toolbar(.hidden, for: .navigationBar)

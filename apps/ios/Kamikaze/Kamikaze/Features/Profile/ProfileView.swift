@@ -19,7 +19,7 @@ struct ProfileView: View {
                     HStack(spacing: 10) {
                         stat("\(model.metrics.currentStreak)", "CURRENT STREAK")
                         stat("\(model.metrics.successCount)", "LANDED")
-                        stat(model.metrics.highFitPercent.map(String.init) ?? "—", "HIGH FIT")
+                        stat(model.metrics.highScore.map(String.init) ?? "—", "HIGH SCORE")
                     }
                     activityCard
                     recentCard
@@ -241,15 +241,17 @@ struct ProfileView: View {
 
     private func recentRow(_ summary: AttemptSummaryV1) -> some View {
         HStack(spacing: 14) {
-            Text(summary.fit.map { String(Int(($0 * 100).rounded())) } ?? "—")
+            Text(summary.gameScore.map(String.init)
+                ?? summary.fit.map { String(Int(($0 * 100).rounded())) }
+                ?? "—")
                 .font(.system(size: 22, weight: .black, design: .rounded))
-                .foregroundStyle(summary.isRecognized ? KamikazeTheme.volt : KamikazeTheme.hazard)
+                .foregroundStyle(summary.gameScore != nil || summary.isRecognized ? KamikazeTheme.volt : KamikazeTheme.hazard)
                 .frame(width: 52, height: 52)
                 .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
             VStack(alignment: .leading, spacing: 4) {
                 Text(summary.displayName)
                     .font(.system(size: 14, weight: .black, design: .rounded))
-                Text("\(Int(summary.motionDurationMs.rounded())) MS  ·  \(summary.outcomeLabel)")
+                Text("\(summary.gameScore == nil ? "FIT" : "SCORE")  ·  \(Int(summary.motionDurationMs.rounded())) MS  ·  \(summary.outcomeLabel)")
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(KamikazeTheme.muted)
             }
@@ -270,14 +272,18 @@ struct WorkshopView: View {
                 } label: {
                     Label("Trick Lab", systemImage: "waveform.badge.magnifyingglass")
                 }
-                Label("Express calibration", systemImage: "bolt.fill")
-                Label("Full axis bench", systemImage: "axis.3d")
-                Label("Trick studio", systemImage: "waveform.path")
+                NavigationLink {
+                    ExpressCalibrationView()
+                } label: {
+                    Label("Express calibration", systemImage: "bolt.fill")
+                }
+                Label("Full axis bench · next", systemImage: "axis.3d")
+                Label("Trick studio · next", systemImage: "waveform.path")
             }
             Section("STATUS") {
                 LabeledContent("Reference device", value: "iPhone 15 Plus")
                 LabeledContent("Grip", value: "Right")
-                LabeledContent("Motion core", value: "Fixture mode")
+                LabeledContent("Motion core", value: "Native v3")
             }
         }
         .navigationTitle("Sensor Workshop")

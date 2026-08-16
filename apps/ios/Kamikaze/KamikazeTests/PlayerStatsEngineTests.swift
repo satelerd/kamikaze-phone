@@ -44,6 +44,8 @@ struct PlayerStatsEngineTests {
         #expect(engine.longestLanded?.attemptID == "r-long")
         #expect(engine.bestFit?.attemptID == "r-fit")
         #expect(engine.bestFit?.valueLabel == "95 FIT")
+        #expect(engine.bestScore?.attemptID == "r-fit")
+        #expect(engine.bestScore?.valueLabel == "67 PTS")
     }
 
     @Test func activityDaysFollowTheStoredTimezone() throws {
@@ -70,6 +72,7 @@ struct PlayerStatsEngineTests {
         #expect(engine.trickStats.isEmpty)
         #expect(engine.fastestLanded == nil)
         #expect(engine.bestFit == nil)
+        #expect(engine.bestScore == nil)
         #expect(engine.activeDayCount == 0)
     }
 

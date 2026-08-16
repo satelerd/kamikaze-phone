@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 import KamikazeMotionApple
 import KamikazeMotionCore
@@ -97,7 +98,7 @@ actor RunProcessingEngine {
             calibrationVersion: nil,
             detectorVersion: "attempt-segmenter-v3",
             analysisVersion: match.policyVersion,
-            scoreVersion: nil
+            scoreVersion: GameScoreEngine.version
         )
         let attempt = MotionAttemptV3(
             id: id,
@@ -107,13 +108,7 @@ actor RunProcessingEngine {
             triggerMode: segmented.trigger == .freefall ? .freefall : .gyro,
             boundaries: segmented.boundaries,
             environment: CaptureEnvironmentV3(
-                device: CaptureDeviceMetadataV3(
-                    modelIdentifier: nil,
-                    modelName: "iPhone",
-                    operatingSystemName: "iOS",
-                    operatingSystemVersion: nil,
-                    operatingSystemBuild: nil
-                ),
+                device: Self.deviceMetadata(),
                 gripHand: .right,
                 orientation: .portrait,
                 referenceFrame: .xArbitraryZVertical,
@@ -131,6 +126,40 @@ actor RunProcessingEngine {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         return try encoder.encode(value)
+    }
+
+    /// Foundation/Darwin-only so the processing actor never reaches into a
+    /// MainActor-isolated UIKit singleton. Future datasets can now be grouped
+    /// by real hardware and OS instead of the old generic "iPhone" value.
+    private static func deviceMetadata() -> CaptureDeviceMetadataV3 {
+        CaptureDeviceMetadataV3(
+            modelIdentifier: machineIdentifier(),
+            modelName: "iPhone",
+            operatingSystemName: "iOS",
+            operatingSystemVersion: ProcessInfo.processInfo.operatingSystemVersionString,
+            operatingSystemBuild: operatingSystemBuild()
+        )
+    }
+
+    private static func machineIdentifier() -> String? {
+        var info = utsname()
+        guard uname(&info) == 0 else { return nil }
+        var machine = info.machine
+        let capacity = MemoryLayout.size(ofValue: machine)
+        return withUnsafePointer(to: &machine) { pointer in
+            pointer.withMemoryRebound(to: CChar.self, capacity: capacity) {
+                String(cString: $0)
+            }
+        }
+    }
+
+    private static func operatingSystemBuild() -> String? {
+        var size = 0
+        guard sysctlbyname("kern.osversion", nil, &size, nil, 0) == 0, size > 0 else { return nil }
+        var value = [CChar](repeating: 0, count: size)
+        guard sysctlbyname("kern.osversion", &value, &size, nil, 0) == 0 else { return nil }
+        let bytes = value.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     private static func presentationPhase(_ phase: AttemptSegmentationPhase) -> NativeRunPhase {

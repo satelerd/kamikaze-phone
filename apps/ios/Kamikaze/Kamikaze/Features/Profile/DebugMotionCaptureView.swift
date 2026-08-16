@@ -28,21 +28,34 @@ struct DebugMotionCaptureView: View {
     @State private var labMode = LabMode.library
     @State private var guidedIndex = 0
 
-    private let guidedSteps: [GuidedStep] = {
-        let tricks: [DebugTrickID] = [
-            .flip, .reverseFlip, .phoneFlip, .reversePhoneFlip,
-            .backsideThreeSixtyShuvit, .frontsideThreeSixtyShuvit,
-        ]
+    /// One focused evidence session for the selected trick. A different-day
+    /// session must be collected later as holdout; these repetitions are the
+    /// development split only.
+    private var guidedSteps: [GuidedStep] {
         let variations: [(DebugMotionCaptureCondition, String)] = [
-            (.standard, "LAND IT AT YOUR NATURAL HEIGHT AND SPEED"),
-            (.highFreefall, "LAND A CLEAR, HIGHER THROW"),
-            (.fastLow, "LAND IT FAST AND LOW"),
-            (.negativeControl, "INTENTIONALLY MISS OR UNDER-ROTATE IT"),
+            (.standard, "NATURAL HEIGHT + SPEED · REP 1 / 3"),
+            (.standard, "NATURAL HEIGHT + SPEED · REP 2 / 3"),
+            (.standard, "NATURAL HEIGHT + SPEED · REP 3 / 3"),
+            (.fastLow, "FAST + LOW · REP 1 / 2"),
+            (.fastLow, "FAST + LOW · REP 2 / 2"),
+            (.highFreefall, "HIGHER THROW · REP 1 / 3"),
+            (.highFreefall, "HIGHER THROW · REP 2 / 3"),
+            (.highFreefall, "HIGHER THROW · REP 3 / 3"),
+            (.negativeControl, "INTENTIONALLY MISS / UNDER-ROTATE · REP 1 / 5"),
+            (.negativeControl, "INTENTIONALLY MISS / WRONG AXIS · REP 2 / 5"),
+            (.negativeControl, "INTENTIONALLY OVER-ROTATE · REP 3 / 5"),
+            (.negativeControl, "MAKE A LOOK-ALIKE MOTION · REP 4 / 5"),
+            (.negativeControl, "ONE LAST DELIBERATE MISS · REP 5 / 5"),
         ]
-        return tricks.flatMap { trick in variations.map { (trick, $0.0, $0.1) } }
-            .enumerated()
-            .map { GuidedStep(id: $0.offset, trick: $0.element.0, condition: $0.element.1, prompt: $0.element.2) }
-    }()
+        return variations.enumerated().map {
+            GuidedStep(
+                id: $0.offset,
+                trick: expectedTrickID,
+                condition: $0.element.0,
+                prompt: $0.element.1
+            )
+        }
+    }
 
     private let trickShelves: [TrickShelf] = [
         TrickShelf(
@@ -233,6 +246,13 @@ struct DebugMotionCaptureView: View {
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundStyle(KamikazeTheme.muted)
                 if labMode == .guided {
+                    Picker("TRICK TO TEACH", selection: $expectedTrickID) {
+                        ForEach(DebugTrickID.allCases.filter { $0 != .unknown }, id: \.self) { trick in
+                            Text(trick.title).tag(trick)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: expectedTrickID) { _, _ in guidedIndex = 0 }
                     Text(guidedStep.trick.title)
                         .font(.system(size: 25, weight: .black, design: .rounded))
                     Text(guidedStep.condition.title)
@@ -242,6 +262,9 @@ struct DebugMotionCaptureView: View {
                         .font(.system(size: 13, weight: .bold, design: .rounded))
                     ProgressView(value: Double(guidedIndex + 1), total: Double(guidedSteps.count))
                         .tint(KamikazeTheme.volt)
+                    Text("8 LANDED VARIATIONS + 5 NEGATIVE CONTROLS. Use a later session as the independent holdout.")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundStyle(KamikazeTheme.muted)
                 } else {
                     HStack(alignment: .firstTextBaseline) {
                         Text(expectedTrickID.title)
@@ -503,6 +526,7 @@ private struct TrickCaptureReviewView: View {
             }
         }
         .onAppear { replay.play() }
+        .onDisappear { replay.pause() }
     }
 
     private var labelReview: some View {

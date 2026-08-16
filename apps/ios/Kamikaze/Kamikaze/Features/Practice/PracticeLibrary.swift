@@ -7,11 +7,13 @@ import KamikazeMotionCore
 /// never pretends it can judge a motion it has no validated definition for.
 nonisolated enum PracticeTrickReadiness: String, Equatable, Sendable {
     case collectingEvidence
+    case candidateNeedsHoldout
     case detectorReady
 
     var label: String {
         switch self {
         case .collectingEvidence: "NEEDS DATA"
+        case .candidateNeedsHoldout: "NEEDS HOLDOUT"
         case .detectorReady: "READY"
         }
     }
@@ -120,7 +122,10 @@ nonisolated enum PracticeLibrary {
             title: "DOUBLE PHONE FLIP",
             primary: PracticeTrickNode(
                 trickID: .doublePhoneFlip,
-                readiness: .collectingEvidence,
+                // Two consistent landed examples seed a development
+                // reference, but were used to derive it and cannot validate
+                // it. Keep automatic recognition locked until a new session.
+                readiness: .candidateNeedsHoldout,
                 coachingCue: "Double everything. Height buys time."
             ),
             opposite: PracticeTrickNode(

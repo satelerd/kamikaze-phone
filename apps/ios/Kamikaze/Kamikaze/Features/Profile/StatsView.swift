@@ -89,6 +89,7 @@ struct StatsView: View {
                 statCell("\(engine.metrics.attemptCount)", "ATTEMPTS")
                 statCell("\(engine.metrics.currentStreak)", "CURRENT STREAK")
                 statCell("\(engine.metrics.bestStreak)", "BEST STREAK")
+                statCell(engine.metrics.highScore.map(String.init) ?? "—", "HIGH SCORE")
             }
             GlassSurface {
                 VStack(alignment: .leading, spacing: 12) {
@@ -145,6 +146,11 @@ struct StatsView: View {
                                 Text(stat.bestFitPercent.map { "\($0) FIT" } ?? "—")
                                     .font(.system(size: 8, weight: .bold, design: .monospaced))
                                     .foregroundStyle(KamikazeTheme.muted)
+                                if let score = stat.bestScore {
+                                    Text("\(score) SCORE")
+                                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                        .foregroundStyle(KamikazeTheme.volt)
+                                }
                             }
                         }
                         if stat.id != engine.trickStats.last?.id {
@@ -175,14 +181,15 @@ struct StatsView: View {
 
     @ViewBuilder
     private var records: some View {
-        if engine.fastestLanded == nil && engine.bestFit == nil {
+        if engine.fastestLanded == nil && engine.bestFit == nil && engine.bestScore == nil {
             emptyCard("No records yet", detail: "Records come from confirmed landings and recognized throws.")
         } else {
             VStack(spacing: 10) {
                 recordCard("FASTEST LANDED", record: engine.fastestLanded)
                 recordCard("LONGEST LANDED", record: engine.longestLanded)
                 recordCard("BEST FIT", record: engine.bestFit)
-                Text("Motion duration, not airtime. Score records unlock with Game Score v1.")
+                recordCard("HIGH SCORE", record: engine.bestScore)
+                Text("Motion duration is not airtime. FIT measures identity; score measures motion quality.")
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(KamikazeTheme.muted)
             }

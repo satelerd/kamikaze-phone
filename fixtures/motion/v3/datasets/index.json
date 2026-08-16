@@ -1,0 +1,35 @@
+{
+  "format": "kpf-player-feedback-dataset-index",
+  "schemaVersion": 1,
+  "datasets": [
+    {
+      "id": "native-player-feedback-2026-08-16",
+      "file": "fixtures/motion/v3/datasets/player-feedback-2026-08-16.json",
+      "sha256": "4534d39236a87c1a10098b38bc7d530913af8aee9c2434d8b8d8a368ca9f9748",
+      "format": "kamikaze.player-feedback.v1",
+      "split": "development",
+      "captureCount": 36,
+      "sampleCount": 6574,
+      "humanOutcomes": {
+        "landed": 34,
+        "missed": 2
+      },
+      "device": {
+        "model": "iPhone (model identifier unavailable in payload)",
+        "gripHand": "right",
+        "orientation": "portrait"
+      },
+      "allowedUses": [
+        "identity-error-analysis",
+        "score-shape-development",
+        "double-phone-flip-candidate-reference",
+        "replay-regression"
+      ],
+      "forbiddenClaims": [
+        "independent-holdout",
+        "landing-classifier-validation",
+        "axis-calibration-validation"
+      ]
+    }
+  ]
+}

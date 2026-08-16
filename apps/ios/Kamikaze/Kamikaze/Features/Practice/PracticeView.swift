@@ -117,6 +117,15 @@ struct PracticeView: View {
                 trickRowContent(node, reps: reps, mastered: false, locked: false, needsData: true)
             }
             .buttonStyle(.plain)
+        case .candidateNeedsHoldout:
+            // A development reference exists, but it was derived from the
+            // same session and cannot serve as its own validation.
+            NavigationLink {
+                DebugMotionCaptureView()
+            } label: {
+                trickRowContent(node, reps: reps, mastered: false, locked: false, needsData: true)
+            }
+            .buttonStyle(.plain)
         }
     }
 
