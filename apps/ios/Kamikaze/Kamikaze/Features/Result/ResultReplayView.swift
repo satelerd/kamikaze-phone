@@ -10,6 +10,10 @@ struct ResultReplayView: View {
     let onAgain: () -> Void
     let onClose: () -> Void
     let onReview: (HumanAttemptReview) async -> NativeRunResult?
+    /// Machine-readable prompt context for Follow. It is appended to human
+    /// review notes so exported evidence retains the intended condition.
+    let reviewContextNote: String?
+    let requiresReviewBeforeAgain: Bool
     /// Saved-attempt contexts (History, Recent) pass this to allow permanent
     /// deletion. The immediate Play result does not.
     let onDelete: (() async -> Void)?
@@ -37,6 +41,8 @@ struct ResultReplayView: View {
         onAgain: @escaping () -> Void,
         onClose: @escaping () -> Void,
         onReview: @escaping (HumanAttemptReview) async -> NativeRunResult?,
+        reviewContextNote: String? = nil,
+        requiresReviewBeforeAgain: Bool = false,
         onDelete: (() async -> Void)? = nil
     ) {
         self.primaryTitle = primaryTitle
@@ -44,6 +50,8 @@ struct ResultReplayView: View {
         self.onAgain = onAgain
         self.onClose = onClose
         self.onReview = onReview
+        self.reviewContextNote = reviewContextNote
+        self.requiresReviewBeforeAgain = requiresReviewBeforeAgain
         self.onDelete = onDelete
         let definition = practiceTarget.flatMap { target in
             TrickCatalog.provisional(gripHand: .right).definitions.first { $0.id == target }
@@ -117,8 +125,6 @@ struct ResultReplayView: View {
                         arcWindow: verticalArc ? freefall : nil
                     )
 
-                    scoreBreakdownCard
-
                     if let practiceTarget, displayedResult.humanReview == nil {
                         practiceConfirmRow(target: practiceTarget)
                     }
@@ -127,6 +133,9 @@ struct ResultReplayView: View {
                         .font(.system(size: 27, weight: .black, design: .rounded))
                         .frame(maxWidth: .infinity, minHeight: 122)
                         .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.ion)
+                        .disabled(requiresReviewBeforeAgain && displayedResult.humanReview == nil)
+
+                    scoreBreakdownCard
 
                     GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
                         VStack(spacing: 14) {
@@ -177,7 +186,7 @@ struct ResultReplayView: View {
             Text("This permanently removes the sensor evidence, its analysis and its summary. Statistics and practice progress update immediately.")
         }
         .sheet(isPresented: $showsCorrection) {
-            ResultCorrectionView(result: displayedResult) { review in
+            ResultCorrectionView(result: displayedResult, contextNote: reviewContextNote) { review in
                 guard let updated = await onReview(review) else { return false }
                 displayedResult = updated
                 return true
@@ -343,14 +352,22 @@ struct ResultReplayView: View {
     private func practiceConfirmRow(target: BuiltInTrickID) -> some View {
         HStack(spacing: 10) {
             Button("LANDED IT") {
-                confirm(HumanAttemptReview(trickID: target, outcome: .landed))
+                confirm(HumanAttemptReview(
+                    trickID: target,
+                    outcome: .landed,
+                    notes: reviewContextNote ?? ""
+                ))
             }
             .font(.system(size: 13, weight: .black, design: .rounded))
             .frame(maxWidth: .infinity, minHeight: 52)
             .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.volt)
 
             Button("MISSED") {
-                confirm(HumanAttemptReview(trickID: target, outcome: .missed))
+                confirm(HumanAttemptReview(
+                    trickID: target,
+                    outcome: .missed,
+                    notes: reviewContextNote ?? ""
+                ))
             }
             .font(.system(size: 13, weight: .black, design: .rounded))
             .frame(maxWidth: .infinity, minHeight: 52)
@@ -390,6 +407,7 @@ struct ResultReplayView: View {
 
 private struct ResultCorrectionView: View {
     let result: NativeRunResult
+    let contextNote: String?
     let onSave: (HumanAttemptReview) async -> Bool
 
     @Environment(\.dismiss) private var dismiss
@@ -401,9 +419,11 @@ private struct ResultCorrectionView: View {
 
     init(
         result: NativeRunResult,
+        contextNote: String? = nil,
         onSave: @escaping (HumanAttemptReview) async -> Bool
     ) {
         self.result = result
+        self.contextNote = contextNote
         self.onSave = onSave
         _selectedTrick = State(initialValue: result.humanReview?.trickID ?? result.match.candidates.first?.definition.id)
         _outcome = State(initialValue: result.humanReview?.outcome
@@ -468,7 +488,10 @@ private struct ResultCorrectionView: View {
                         let review = HumanAttemptReview(
                             trickID: selectedTrick,
                             outcome: outcome,
-                            notes: notes
+                            notes: [contextNote, notes]
+                                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                                .filter { !$0.isEmpty }
+                                .joined(separator: " | ")
                         )
                         isSaving = true
                         saveFailed = false

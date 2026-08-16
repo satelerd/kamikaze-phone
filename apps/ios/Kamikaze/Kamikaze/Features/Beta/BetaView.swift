@@ -11,6 +11,8 @@ struct BetaView: View {
     @AppStorage(BetaFlags.resultMetric) private var resultMetricRaw = ResultMetricMode.default.rawValue
     @AppStorage(BetaFlags.verticalArc) private var verticalArc = true
     @AppStorage(BetaFlags.airBonus) private var airBonus = true
+    @AppStorage(BetaFlags.followMode) private var followMode = false
+    @AppStorage(BetaFlags.classicMode) private var classicMode = false
     @AppStorage(BetaFlags.fieldDisabled) private var fieldDisabled = false
 
     var body: some View {
@@ -53,6 +55,18 @@ struct BetaView: View {
                                 "AIR BONUS (EXPERIMENTAL)",
                                 detail: "Adds 0–10 result points from estimated peak height. Raw evidence and base score stay unchanged.",
                                 isOn: $airBonus
+                            )
+                            Divider()
+                            toggleRow(
+                                "FOLLOW MODE IN PLAY",
+                                detail: "Random labelled prompts with automatic capture and quick landed/missed review.",
+                                isOn: $followMode
+                            )
+                            Divider()
+                            toggleRow(
+                                "CLASSIC MODE IN PLAY",
+                                detail: "Original Kamikaze: score only measured air time and estimated peak height.",
+                                isOn: $classicMode
                             )
                             Divider()
                             toggleRow(
@@ -215,6 +229,8 @@ nonisolated enum ResultMetricMode: String, CaseIterable, Identifiable {
 enum BetaFlags {
     static let verticalArc = "betaEstimatedVerticalArcV2"
     static let airBonus = "betaEstimatedAirBonusV1"
+    static let followMode = "betaFollowPlayModeV1"
+    static let classicMode = "betaClassicPlayModeV1"
     static let fieldDisabled = "debugDisableField"
     static let resultMetric = "betaResultMetric"
 }
