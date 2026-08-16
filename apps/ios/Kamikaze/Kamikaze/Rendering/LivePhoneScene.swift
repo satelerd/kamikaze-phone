@@ -184,6 +184,9 @@ struct LivePhoneScene: View {
                 }
                 .onEnded { _ in magnifyOrigin = nil }
         )
+        // Label the stage BEFORE attaching the overlay: applied after, it
+        // would swallow the LEVEL/CAMERA buttons out of the a11y tree.
+        .accessibilityLabel("Live 3D phone pose")
         .overlay(alignment: .bottomTrailing) {
             // The stage's two controls live together: LEVEL sets the neutral
             // grip, CAMERA restores the viewing angle.
@@ -213,6 +216,5 @@ struct LivePhoneScene: View {
             }
             .padding(12)
         }
-        .accessibilityLabel("Live 3D phone pose")
     }
 }
