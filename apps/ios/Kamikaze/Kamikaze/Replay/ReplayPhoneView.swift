@@ -80,7 +80,7 @@ struct ReplayPhoneScene: View {
             // stays framed by the spectator camera.
             let arcY: Float
             if let arcWindow {
-                arcY = Float(min(0.28, arcWindow.heightM(at: frame.timestampMs) * 0.30))
+                arcY = Float(min(0.22, arcWindow.heightM(at: frame.timestampMs) * 0.30))
             } else {
                 arcY = 0
             }

@@ -48,13 +48,13 @@ struct PlayView: View {
         VStack(spacing: 16) {
                 // Same typographic voice as Setup's header. The phase story
                 // moved into the button and the HUD — no status subtitle.
-                Text("KAMIKAZE\nPHONE FLIP.")
+                Text("KAMIKAZE\nPHONE FLIP")
                     .font(.system(size: 40, weight: .black, design: .rounded))
                     .tracking(-1.8)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 // The phone floats directly over the field — no stage boxes.
-                LiveRunStage(run: run, accent: accent, initialZoom: 0.40)
+                LiveRunStage(run: run, accent: accent, initialZoom: 0.33)
                     .frame(maxHeight: 520)
 
                 RunTelemetryHUD(run: run)

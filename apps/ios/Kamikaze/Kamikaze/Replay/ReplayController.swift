@@ -36,7 +36,7 @@ final class ReplayController {
         var elevation: Double
         var distance: Double
 
-        static let spectator = Camera(azimuth: -0.48, elevation: 0.22, distance: 0.42)
+        static let spectator = Camera(azimuth: -0.48, elevation: 0.22, distance: 0.34)
     }
 
     private let frames: [ReplayFrame]
@@ -143,7 +143,7 @@ final class ReplayController {
 
     func zoom(magnification: Double) {
         guard magnification.isFinite, magnification > 0 else { return }
-        camera.distance = min(1.2, max(0.38, camera.distance / magnification))
+        camera.distance = min(1.2, max(0.30, camera.distance / magnification))
     }
 
     /// Restores only the spectator camera; it never changes Zero Pose.

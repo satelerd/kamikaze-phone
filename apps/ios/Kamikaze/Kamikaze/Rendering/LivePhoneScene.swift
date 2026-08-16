@@ -187,7 +187,7 @@ struct LivePhoneScene: View {
                 .onChanged { value in
                     let origin = magnifyOrigin ?? zoom
                     magnifyOrigin = origin
-                    zoom = min(1.2, max(0.38, origin / value.magnification))
+                    zoom = min(1.2, max(0.30, origin / value.magnification))
                 }
                 .onEnded { _ in magnifyOrigin = nil }
         )
