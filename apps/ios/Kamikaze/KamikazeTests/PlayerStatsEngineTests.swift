@@ -7,27 +7,28 @@ struct PlayerStatsEngineTests {
     private let catalog = TrickCatalog.provisional(gripHand: .right)
     private let santiago = TimeZone(identifier: "America/Santiago")!
 
-    @Test func perTrickStatsUseLandedOnlyDurations() throws {
+    @Test func perTrickStatsUseSuccessfulDurationsOnly() throws {
         let engine = PlayerStatsEngine(summaries: [
             try summary(id: "t1", second: 40, trick: .flip, outcome: .landed, durationS: 0.700, fit: 0.90),
             try summary(id: "t2", second: 39, trick: .flip, outcome: .landed, durationS: 0.500, fit: 0.85),
-            // Missed attempts never contribute to fastest/longest records.
+            // Confirmed misses never contribute to fastest/longest records.
             try summary(id: "t3", second: 38, trick: .flip, outcome: .missed, durationS: 0.100, fit: 0.60),
             try summary(id: "t4", second: 37, trick: .phoneFlip, outcome: nil, durationS: 0.900, fit: 0.88),
         ], defaultTimezone: santiago)
 
         let flip = try #require(engine.trickStats.first { $0.trickID == .flip })
         #expect(flip.attemptCount == 3)
-        #expect(flip.landedCount == 2)
+        #expect(flip.successCount == 2)
         #expect(flip.bestFitPercent == 90)
         #expect(flip.fastestLandedMs == 500)
         #expect(flip.longestLandedMs == 700)
 
+        // An unreviewed but detector-recognized attempt counts as success.
         let phone = try #require(engine.trickStats.first { $0.trickID == .phoneFlip })
-        #expect(phone.landedCount == 0)
-        #expect(phone.fastestLandedMs == nil)
+        #expect(phone.successCount == 1)
+        #expect(phone.fastestLandedMs == 900)
 
-        // Tricks with landings rank above unlanded ones.
+        // The most-thrown trick ranks first.
         #expect(engine.trickStats.first?.trickID == .flip)
     }
 

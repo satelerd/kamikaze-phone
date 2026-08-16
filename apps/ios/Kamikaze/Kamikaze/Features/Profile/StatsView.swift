@@ -85,7 +85,7 @@ struct StatsView: View {
     private var overview: some View {
         VStack(alignment: .leading, spacing: 12) {
             LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 10) {
-                statCell("\(engine.metrics.landedCount)", "LANDED")
+                statCell("\(engine.metrics.successCount)", "LANDED")
                 statCell("\(engine.metrics.attemptCount)", "ATTEMPTS")
                 statCell("\(engine.metrics.currentStreak)", "CURRENT STREAK")
                 statCell("\(engine.metrics.bestStreak)", "BEST STREAK")
@@ -99,8 +99,8 @@ struct StatsView: View {
                             .font(.system(size: 9, weight: .bold, design: .monospaced))
                             .foregroundStyle(KamikazeTheme.muted)
                     }
-                    if engine.metrics.landedCount == 0 {
-                        Text("Confirm your first landing and this field starts filling in.")
+                    if engine.metrics.successCount == 0 {
+                        Text("Land your first throw and this field starts filling in.")
                             .font(.system(size: 11, weight: .medium, design: .rounded))
                             .foregroundStyle(KamikazeTheme.muted)
                     } else {
@@ -119,23 +119,30 @@ struct StatsView: View {
         if engine.trickStats.isEmpty {
             emptyCard("No recognized tricks yet", detail: "Land something in Play and it shows up here.")
         } else {
+            // The headline per trick is how many times it was thrown; the bar
+            // shows the landed share of those throws. Misses without an
+            // identified trick never appear here — they have no trick to
+            // belong to.
+            let maxAttempts = engine.trickStats.map(\.attemptCount).max() ?? 1
             GlassSurface {
-                VStack(spacing: 12) {
+                VStack(spacing: 14) {
                     ForEach(engine.trickStats) { stat in
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 3) {
+                        VStack(alignment: .leading, spacing: 7) {
+                            HStack(alignment: .firstTextBaseline) {
                                 Text(stat.trickID.displayName)
                                     .font(.system(size: 13, weight: .black, design: .rounded))
-                                Text("\(stat.landedCount) LANDED / \(stat.attemptCount) ATTEMPTS")
+                                Spacer()
+                                Text("\(stat.attemptCount)×")
+                                    .font(.system(size: 19, weight: .black, design: .rounded))
+                                    .foregroundStyle(KamikazeTheme.volt)
+                            }
+                            trickBar(stat: stat, maxAttempts: maxAttempts)
+                            HStack {
+                                Text("\(stat.successCount) LANDED / \(stat.attemptCount) THROWS")
                                     .font(.system(size: 8, weight: .bold, design: .monospaced))
                                     .foregroundStyle(KamikazeTheme.muted)
-                            }
-                            Spacer()
-                            VStack(alignment: .trailing, spacing: 3) {
+                                Spacer()
                                 Text(stat.bestFitPercent.map { "\($0) FIT" } ?? "—")
-                                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(KamikazeTheme.volt)
-                                Text(stat.fastestLandedMs.map { "\($0) MS BEST" } ?? "NOT LANDED")
                                     .font(.system(size: 8, weight: .bold, design: .monospaced))
                                     .foregroundStyle(KamikazeTheme.muted)
                             }
@@ -148,6 +155,20 @@ struct StatsView: View {
                 .padding(16)
             }
         }
+    }
+
+    /// Track length compares tricks (attempts vs the most-thrown trick);
+    /// the filled span inside it is this trick's landed share.
+    private func trickBar(stat: PlayerStatsEngine.TrickStat, maxAttempts: Int) -> some View {
+        GeometryReader { proxy in
+            let track = proxy.size.width * CGFloat(stat.attemptCount) / CGFloat(max(1, maxAttempts))
+            let landed = track * CGFloat(stat.successCount) / CGFloat(max(1, stat.attemptCount))
+            ZStack(alignment: .leading) {
+                Capsule().fill(.white.opacity(0.10)).frame(width: max(6, track))
+                Capsule().fill(KamikazeTheme.volt).frame(width: max(landed > 0 ? 6 : 0, landed))
+            }
+        }
+        .frame(height: 6)
     }
 
     // MARK: - Records

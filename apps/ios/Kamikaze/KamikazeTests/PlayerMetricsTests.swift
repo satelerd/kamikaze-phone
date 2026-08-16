@@ -6,7 +6,7 @@ import Testing
 struct PlayerMetricsTests {
     private let catalog = TrickCatalog.provisional(gripHand: .right)
 
-    @Test func currentStreakBreaksOnMissAndSkipsNeutralEvidence() throws {
+    @Test func currentStreakCountsDetectorRecognitionAndBreaksOnMiss() throws {
         // Newest-first: landed, landed, unreviewed, landed, missed, landed.
         let metrics = PlayerMetrics(summaries: [
             try summary(id: "s1", second: 60, outcome: .landed),
@@ -16,10 +16,22 @@ struct PlayerMetricsTests {
             try summary(id: "s5", second: 56, outcome: .missed),
             try summary(id: "s6", second: 55, outcome: .landed),
         ])
-        // The unreviewed attempt waits for review: it neither counts nor breaks.
-        #expect(metrics.currentStreak == 3)
-        #expect(metrics.bestStreak == 3)
-        #expect(metrics.landedCount == 4)
+        // An unreviewed but detector-recognized attempt counts as success —
+        // the human verdict only overrides when it exists.
+        #expect(metrics.currentStreak == 4)
+        #expect(metrics.bestStreak == 4)
+        #expect(metrics.successCount == 5)
+    }
+
+    @Test func unreviewedUnrecognizedThrowBreaksTheStreak() throws {
+        // NEEDS REVIEW reads as a miss until someone reviews it.
+        let metrics = PlayerMetrics(summaries: [
+            try summary(id: "u1", second: 40, outcome: .landed),
+            try summary(id: "u2", second: 39, outcome: nil, status: .review),
+            try summary(id: "u3", second: 38, outcome: .landed),
+        ])
+        #expect(metrics.currentStreak == 1)
+        #expect(metrics.successCount == 2)
     }
 
     @Test func noAttemptIsIgnoredEverywhere() throws {
@@ -30,7 +42,7 @@ struct PlayerMetricsTests {
         ])
         #expect(metrics.currentStreak == 2)
         #expect(metrics.attemptCount == 2)
-        #expect(metrics.landedCount == 2)
+        #expect(metrics.successCount == 2)
     }
 
     @Test func freshMissMeansZeroStreakDespiteHistory() throws {
@@ -90,9 +102,9 @@ struct PlayerMetricsTests {
 
     // MARK: - Helpers
 
-    private func makeResult() -> TrickMatchResult {
+    private func makeResult(status: TrickRecognitionStatus = .recognized) -> TrickMatchResult {
         TrickMatchResult(
-            status: .recognized,
+            status: status,
             policyVersion: TrickMatchingPolicy.provisionalVersion,
             catalogVersion: catalog.version,
             features: nil,
@@ -118,7 +130,8 @@ struct PlayerMetricsTests {
     private func summary(
         id: String,
         second: Int,
-        outcome: HumanAttemptOutcome?
+        outcome: HumanAttemptOutcome?,
+        status: TrickRecognitionStatus = .recognized
     ) throws -> AttemptSummaryV1 {
         let capture = try TestCaptureFactory.makeCapture(id: id, timestamp: Double(second))
         let review = outcome.map {
@@ -126,7 +139,7 @@ struct PlayerMetricsTests {
         }
         return AttemptSummaryV1(
             attempt: capture.attempt,
-            analysis: AttemptAnalysisRecord(attemptID: id, result: makeResult(), humanReview: review)
+            analysis: AttemptAnalysisRecord(attemptID: id, result: makeResult(status: status), humanReview: review)
         )
     }
 }

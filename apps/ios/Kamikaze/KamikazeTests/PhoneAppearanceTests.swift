@@ -9,7 +9,7 @@ struct PhoneAppearanceTests {
     private let catalog = TrickCatalog.provisional(gripHand: .right)
 
     @MainActor
-    @Test func previewIsLiveEverywhereButOnlyEquipPersists() throws {
+    @Test func everySelectionAppliesAndPersistsImmediately() throws {
         let suite = "PhoneAppearanceTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -17,21 +17,12 @@ struct PhoneAppearanceTests {
         let store = AppearanceStore(defaults: defaults)
         #expect(store.effective == .default)
 
-        store.previewChange { $0.bodyID = "body-ion" }
+        // Auto-save: a tap is immediately live AND immediately durable.
+        store.applyChange { $0.bodyID = "body-ion" }
         #expect(store.effective.bodyID == "body-ion")
-        #expect(store.equipped.bodyID == "body-graphite")
-        #expect(store.hasPendingPreview)
+        #expect(AppearanceStore(defaults: defaults).equipped.bodyID == "body-ion")
 
-        // Discard restores the equipped phone.
-        store.discardPreview()
-        #expect(store.effective.bodyID == "body-graphite")
-
-        // Equip commits and survives a cold relaunch.
-        store.previewChange { $0.bodyID = "body-ion" }
-        store.previewChange { $0.formFactor = .proMax }
-        store.equipPreview()
-        #expect(!store.hasPendingPreview)
-
+        store.applyChange { $0.formFactor = .proMax }
         let reloaded = AppearanceStore(defaults: defaults)
         #expect(reloaded.equipped.bodyID == "body-ion")
         #expect(reloaded.equipped.formFactor == .proMax)

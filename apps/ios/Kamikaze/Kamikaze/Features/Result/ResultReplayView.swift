@@ -124,8 +124,8 @@ struct ResultReplayView: View {
                     }
 
                     Button(primaryTitle) { onAgain() }
-                        .font(.system(size: 23, weight: .black, design: .rounded))
-                        .frame(maxWidth: .infinity, minHeight: 100)
+                        .font(.system(size: 27, weight: .black, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 122)
                         .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.ion)
 
                     GlassSurface(role: .instrumentHUD, cornerRadius: 20) {

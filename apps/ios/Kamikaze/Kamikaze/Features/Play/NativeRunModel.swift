@@ -4,6 +4,7 @@ import KamikazeMotionApple
 import KamikazeMotionCore
 import Observation
 import UIKit
+import os
 
 enum NativeRunPhase: Equatable {
     case ready
@@ -155,6 +156,15 @@ final class NativeRunModel {
     private let summaryRepository: FileAttemptSummaryRepository
     private var lastPoseUptime = 0.0
     private var lastTelemetryUptime = 0.0
+    /// Latest-wins mailbox between the 100 Hz sensor loop and the MainActor.
+    /// Pure pose events overwrite each other here instead of queueing, so a
+    /// busy UI can never back the stream up (which surfaced as the stage
+    /// lagging further and further behind the hand, then looking dead).
+    private struct PendingPose {
+        var event: RunProcessingEvent?
+        var drainScheduled = false
+    }
+    private let pendingPose = OSAllocatedUnfairLock(initialState: PendingPose())
 
     private(set) var phase: NativeRunPhase = .ready
     private(set) var attitude = Quaternion.identity
@@ -199,6 +209,10 @@ final class NativeRunModel {
                 }
             }
             do {
+                // Phase transitions and completion cross to the MainActor
+                // awaited and in order; pure pose updates take the
+                // latest-wins mailbox so this loop never waits on the UI.
+                var forwardedPhase: NativeRunPhase?
                 for try await sample in source.samples(configuration: MotionStreamConfiguration(
                     requestedFrequencyHz: 100,
                     ringBufferDurationS: 0.5,
@@ -206,7 +220,12 @@ final class NativeRunModel {
                 )) {
                     guard !Task.isCancelled else { break }
                     let event = await engine.ingest(sample)
-                    await self?.receive(event)
+                    if event.completed != nil || event.phase != forwardedPhase {
+                        forwardedPhase = event.phase
+                        await self?.receive(event)
+                    } else {
+                        self?.postLatestPose(event)
+                    }
                 }
             } catch is CancellationError {
                 // Expected when Play leaves the view.
@@ -271,6 +290,9 @@ final class NativeRunModel {
     func dismissResult() {
         result = nil
         phase = .ready
+        // The completed run stopped the stream to seal its evidence; bring it
+        // back so the stage keeps tracking the hand after Close.
+        start()
     }
 
     func applyHumanReview(_ review: HumanAttemptReview) async -> NativeRunResult? {
@@ -296,10 +318,42 @@ final class NativeRunModel {
         }
     }
 
-    private func receive(_ event: RunProcessingEvent) async {
+    /// Sensor-loop side of the mailbox. Nonisolated: it must never hop actors
+    /// itself — it only overwrites the pending event and, at most once per
+    /// drain cycle, schedules the MainActor task that empties the mailbox.
+    nonisolated private func postLatestPose(_ event: RunProcessingEvent) {
+        let schedule = pendingPose.withLock { state -> Bool in
+            state.event = event
+            guard !state.drainScheduled else { return false }
+            state.drainScheduled = true
+            return true
+        }
+        guard schedule else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            while let event = self.takePendingPose() {
+                // Not authoritative: a stale mailbox event must never roll
+                // the phase back behind the awaited transition lane.
+                await self.receive(event, phaseAuthoritative: false)
+            }
+        }
+    }
+
+    nonisolated private func takePendingPose() -> RunProcessingEvent? {
+        pendingPose.withLock { state in
+            guard let event = state.event else {
+                state.drainScheduled = false
+                return nil
+            }
+            state.event = nil
+            return event
+        }
+    }
+
+    private func receive(_ event: RunProcessingEvent, phaseAuthoritative: Bool = true) async {
         let now = ProcessInfo.processInfo.systemUptime
         let belongsToActiveRun = event.runID != nil && event.runID == activeRunID
-        let phaseChanged = belongsToActiveRun && phase != event.phase
+        let phaseChanged = phaseAuthoritative && belongsToActiveRun && phase != event.phase
         // Two publish gates on purpose. The pose tracks the hand, so it goes
         // out near display cadence (~50 Hz from the 100 Hz stream) — a single
         // shared 20 Hz gate here is what made the live stage feel choppy.

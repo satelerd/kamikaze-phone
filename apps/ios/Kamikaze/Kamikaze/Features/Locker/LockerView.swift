@@ -46,8 +46,6 @@ struct LockerView: View {
                         .frame(minHeight: 340)
                     }
 
-                    equipBar
-
                     HStack(spacing: 8) {
                         ForEach(Category.allCases) { candidate in
                             Button {
@@ -80,8 +78,13 @@ struct LockerView: View {
         }
         .onDisappear {
             preview.stop()
-            store.discardPreview()
         }
+    }
+
+    /// Every selection applies and saves immediately — no EQUIP step.
+    private func apply(_ transform: (inout PhoneAppearance) -> Void) {
+        store.applyChange(transform)
+        feedback.play(.cosmeticUnlocked)
     }
 
     /// The camera frames whatever the active section edits: the back for
@@ -93,32 +96,6 @@ struct LockerView: View {
         case .body: StageCameraPose(yaw: .pi, pitch: 0.10, zoom: 0.54)
         case .edge: StageCameraPose(yaw: .pi / 2, pitch: 0.04, zoom: 0.44)
         case .screen: StageCameraPose(yaw: 0, pitch: 0.02, zoom: 0.54)
-        }
-    }
-
-    @ViewBuilder
-    private var equipBar: some View {
-        if store.hasPendingPreview {
-            HStack(spacing: 10) {
-                Button("EQUIP") {
-                    store.equipPreview()
-                    feedback.play(.cosmeticUnlocked)
-                }
-                .font(.system(size: 15, weight: .black, design: .rounded))
-                .frame(maxWidth: .infinity, minHeight: 56)
-                .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.volt)
-
-                Button("DISCARD") {
-                    store.discardPreview()
-                }
-                .font(.system(size: 13, weight: .black, design: .rounded))
-                .frame(minWidth: 110, minHeight: 56)
-                .adaptiveGlassButton(tint: KamikazeTheme.hazard)
-            }
-        } else {
-            Text("EQUIPPED  ·  APPLIES IN PLAY, PRACTICE AND REPLAY")
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .foregroundStyle(KamikazeTheme.muted)
         }
     }
 
@@ -135,7 +112,7 @@ struct LockerView: View {
                             selected: store.effective.formFactor == factor,
                             lockedLabel: nil
                         ) {
-                            store.previewChange { $0.formFactor = factor }
+                            apply { $0.formFactor = factor }
                         }
                     }
                 }
@@ -145,14 +122,14 @@ struct LockerView: View {
                 options: CosmeticCatalog.bodies,
                 selectedID: store.effective.bodyID
             ) { option in
-                store.previewChange { $0.bodyID = option.id }
+                apply { $0.bodyID = option.id }
             }
         case .edge:
             cosmeticRail(
                 options: CosmeticCatalog.edges,
                 selectedID: store.effective.edgeID
             ) { option in
-                store.previewChange { $0.edgeID = option.id }
+                apply { $0.edgeID = option.id }
             }
         case .screen:
             VStack(alignment: .leading, spacing: 12) {
@@ -160,7 +137,7 @@ struct LockerView: View {
                     options: CosmeticCatalog.screens,
                     selectedID: store.effective.screenID
                 ) { option in
-                    store.previewChange { $0.screenID = option.id }
+                    apply { $0.screenID = option.id }
                 }
                 if store.effective.usesCustomPhotoScreen {
                     photoPickerRow

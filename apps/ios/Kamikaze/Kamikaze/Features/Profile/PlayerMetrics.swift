@@ -22,48 +22,53 @@ nonisolated struct PlayerMetrics: Equatable, Sendable {
         summaries.count(where: \.isRecognized)
     }
 
-    /// Human-confirmed landings only. FIT never counts as landing in v1.
-    var landedCount: Int {
-        summaries.count(where: \.hasConfirmedLanding)
+    /// Successful throws as the player sees them: human-confirmed landings
+    /// plus unreviewed detector-recognized attempts (`countsAsSuccess`).
+    /// Supersedes the v1 "human-confirmed only" rule by design decision.
+    var successCount: Int {
+        summaries.count(where: \.countsAsSuccess)
     }
 
     var reviewedCount: Int {
         summaries.count { $0.humanOutcome != nil }
     }
 
-    /// Consecutive landed attempts ending at the most recent attempt:
-    /// a confirmed miss breaks the streak, `noAttempt` is ignored, and an
-    /// unreviewed or unclear attempt is neutral — it neither counts nor
-    /// breaks (it is still waiting for review).
+    /// Consecutive successes ending at the most recent attempt. Same
+    /// success rule as `successCount`; a miss — confirmed by a human or an
+    /// unreviewed unrecognized throw — breaks the streak. `unclear` and
+    /// `noAttempt` are neutral.
     var currentStreak: Int {
         var streak = 0
         for summary in summaries {
             switch summary.humanOutcome {
-            case .landed:
-                streak += 1
-            case .missed:
-                return streak
-            case .unclear, .noAttempt, nil:
+            case .unclear, .noAttempt:
                 continue
+            case .landed, .missed, nil:
+                if summary.countsAsSuccess {
+                    streak += 1
+                } else {
+                    return streak
+                }
             }
         }
         return streak
     }
 
-    /// Longest landed run across history, same neutrality rules as
-    /// `currentStreak`.
+    /// Longest success run across history, same rules as `currentStreak`.
     var bestStreak: Int {
         var best = 0
         var current = 0
         for summary in summaries.reversed() {
             switch summary.humanOutcome {
-            case .landed:
-                current += 1
-                best = max(best, current)
-            case .missed:
-                current = 0
-            case .unclear, .noAttempt, nil:
+            case .unclear, .noAttempt:
                 continue
+            case .landed, .missed, nil:
+                if summary.countsAsSuccess {
+                    current += 1
+                    best = max(best, current)
+                } else {
+                    current = 0
+                }
             }
         }
         return best

@@ -18,7 +18,7 @@ struct ProfileView: View {
                     identityHeader
                     HStack(spacing: 10) {
                         stat("\(model.metrics.currentStreak)", "CURRENT STREAK")
-                        stat("\(model.metrics.landedCount)", "LANDED")
+                        stat("\(model.metrics.successCount)", "LANDED")
                         stat(model.metrics.highFitPercent.map(String.init) ?? "—", "HIGH FIT")
                     }
                     activityCard

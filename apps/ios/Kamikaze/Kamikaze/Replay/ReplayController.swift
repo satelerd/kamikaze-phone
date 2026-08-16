@@ -36,7 +36,7 @@ final class ReplayController {
         var elevation: Double
         var distance: Double
 
-        static let spectator = Camera(azimuth: -0.48, elevation: 0.22, distance: 0.48)
+        static let spectator = Camera(azimuth: -0.48, elevation: 0.22, distance: 0.42)
     }
 
     private let frames: [ReplayFrame]

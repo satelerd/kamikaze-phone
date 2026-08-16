@@ -173,7 +173,7 @@ struct ReplayPhoneView: View {
                         targetFrames: targetFrames,
                         arcWindow: arcWindow
                     )
-                    .frame(minHeight: 430)
+                    .frame(minHeight: 460)
 
                     VStack(alignment: .leading, spacing: 4) {
                         if targetFrames != nil {

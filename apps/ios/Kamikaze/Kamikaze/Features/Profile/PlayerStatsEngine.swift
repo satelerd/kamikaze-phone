@@ -10,13 +10,13 @@ nonisolated struct PlayerStatsEngine: Equatable, Sendable {
         let trickID: BuiltInTrickID
         /// Attempts whose displayed identity is this trick (noAttempt excluded).
         let attemptCount: Int
-        /// Human-confirmed landings only.
-        let landedCount: Int
+        /// Successes under the display rule (`countsAsSuccess`).
+        let successCount: Int
         /// Best identity FIT among recognized attempts, display percent.
         let bestFitPercent: Int?
-        /// Fastest human-confirmed landed motion, in milliseconds.
+        /// Fastest successful motion, in milliseconds.
         let fastestLandedMs: Int?
-        /// Longest human-confirmed landed motion, in milliseconds.
+        /// Longest successful motion, in milliseconds.
         let longestLandedMs: Int?
 
         var id: BuiltInTrickID { trickID }
@@ -31,14 +31,14 @@ nonisolated struct PlayerStatsEngine: Equatable, Sendable {
     struct DayActivity: Equatable, Sendable, Identifiable {
         /// Stable local-calendar key, `yyyy-MM-dd`.
         let dayKey: String
-        let landedCount: Int
+        let successCount: Int
 
         var id: String { dayKey }
     }
 
     let metrics: PlayerMetrics
     let trickStats: [TrickStat]
-    /// Landed counts per local calendar day, most recent day first. A day
+    /// Success counts per local calendar day, most recent day first. A day
     /// belongs to the timezone stored with each summary; legacy summaries
     /// without one fall back to the provided default.
     let activity: [DayActivity]
@@ -57,11 +57,11 @@ nonisolated struct PlayerStatsEngine: Equatable, Sendable {
         }
         trickStats = byTrick
             .map { trickID, rows in
-                let landed = rows.filter(\.hasConfirmedLanding)
+                let landed = rows.filter(\.countsAsSuccess)
                 return TrickStat(
                     trickID: trickID,
                     attemptCount: rows.count,
-                    landedCount: landed.count,
+                    successCount: landed.count,
                     bestFitPercent: rows
                         .filter(\.isRecognized)
                         .compactMap(\.fit)
@@ -71,9 +71,9 @@ nonisolated struct PlayerStatsEngine: Equatable, Sendable {
                     longestLandedMs: landed.map(\.motionDurationMs).max().map { Int($0.rounded()) }
                 )
             }
-            .sorted { $0.landedCount == $1.landedCount ? $0.attemptCount > $1.attemptCount : $0.landedCount > $1.landedCount }
+            .sorted { $0.attemptCount == $1.attemptCount ? $0.successCount > $1.successCount : $0.attemptCount > $1.attemptCount }
 
-        let landed = summaries.filter(\.hasConfirmedLanding)
+        let landed = summaries.filter(\.countsAsSuccess)
         fastestLanded = landed
             .min { $0.motionDurationMs < $1.motionDurationMs }
             .map { Record(attemptID: $0.attemptID, trickID: $0.trickID, valueLabel: "\(Int($0.motionDurationMs.rounded())) MS") }
@@ -93,13 +93,13 @@ nonisolated struct PlayerStatsEngine: Equatable, Sendable {
             byDay[Self.dayKey(for: date, in: timezone), default: 0] += 1
         }
         activity = byDay
-            .map { DayActivity(dayKey: $0.key, landedCount: $0.value) }
+            .map { DayActivity(dayKey: $0.key, successCount: $0.value) }
             .sorted { $0.dayKey > $1.dayKey }
         activeDayCount = byDay.count
     }
 
     func activity(onDayKey key: String) -> Int {
-        activity.first { $0.dayKey == key }?.landedCount ?? 0
+        activity.first { $0.dayKey == key }?.successCount ?? 0
     }
 
     static func dayKey(for date: Date, in timezone: TimeZone) -> String {

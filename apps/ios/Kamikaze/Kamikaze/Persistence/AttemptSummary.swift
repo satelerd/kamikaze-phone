@@ -36,6 +36,15 @@ nonisolated struct AttemptSummaryV1: Codable, Equatable, Sendable, Identifiable 
 
     var hasConfirmedLanding: Bool { humanOutcome == .landed }
 
+    /// Display success — what the player's counters celebrate. The human
+    /// verdict always wins when present; an unreviewed attempt counts
+    /// through the detector's recognized identity. NEEDS REVIEW and UNKNOWN
+    /// therefore read as misses until a review says otherwise.
+    var countsAsSuccess: Bool {
+        if let humanOutcome { return humanOutcome == .landed }
+        return recognitionStatus == .recognized
+    }
+
     /// Counts toward "Recognized": detector identity, or a valid human trick
     /// correction. A `noAttempt` review removes the attempt from recognition.
     var isRecognized: Bool {

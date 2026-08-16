@@ -36,7 +36,8 @@ final class KamikazeUITests: XCTestCase {
         app.buttons["ENTER KAMIKAZE"].tap()
         // Simulator has no Core Motion stream, so Play may truthfully show a
         // sensor error. This test owns onboarding/navigation, not device motion.
-        XCTAssertTrue(app.buttons["START SESSION"].waitForExistence(timeout: 3))
+        // Renamed from START SESSION per player feedback (2026-08-16).
+        XCTAssertTrue(app.buttons["THROW"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.otherElements["Live 3D phone pose"].exists)
         // Renamed from ZERO POSE per player feedback (2026-08-15).
         XCTAssertTrue(app.buttons["LEVEL"].exists)

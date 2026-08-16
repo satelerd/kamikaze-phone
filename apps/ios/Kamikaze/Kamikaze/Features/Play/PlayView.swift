@@ -46,19 +46,26 @@ struct PlayView: View {
 
     private var playContent: some View {
         VStack(spacing: 16) {
-                Spacer(minLength: 8)
+                // Same typographic voice as Setup's header. The phase story
+                // moved into the button and the HUD — no status subtitle.
+                Text("KAMIKAZE\nPHONE FLIP.")
+                    .font(.system(size: 40, weight: .black, design: .rounded))
+                    .tracking(-1.8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 // The phone floats directly over the field — no stage boxes.
-                LiveRunStage(run: run, accent: accent, initialZoom: 0.5)
-                    .frame(maxHeight: 480)
+                LiveRunStage(run: run, accent: accent, initialZoom: 0.40)
+                    .frame(maxHeight: 520)
 
                 RunTelemetryHUD(run: run)
 
-                VStack(spacing: 6) {
-                    Text(title).font(.system(size: 32, weight: .black, design: .rounded)).tracking(-1.2)
-                    Text(detail).font(.system(size: 13, weight: .medium, design: .rounded)).foregroundStyle(KamikazeTheme.muted)
+                if case let .failed(message) = run.phase {
+                    Text(message)
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(KamikazeTheme.hazard)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
                 }
-                .multilineTextAlignment(.center)
 
                 Button {
                     if active {
@@ -68,9 +75,9 @@ struct PlayView: View {
                         run.arm()
                     }
                 } label: {
-                    Text(active ? "CANCEL SESSION" : "START SESSION")
-                        .font(.system(size: 18, weight: .black, design: .rounded))
-                        .frame(maxWidth: .infinity, minHeight: 72)
+                    Text(active ? "CANCEL" : "THROW")
+                        .font(.system(size: 26, weight: .black, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 84)
                 }
                 .adaptiveGlassButton(prominent: true, tint: active ? KamikazeTheme.hazard : KamikazeTheme.ion)
                 // Stable identity: arming morphs the same surface instead of
@@ -112,30 +119,6 @@ struct PlayView: View {
             feedback.playDetectionSound(success: false)
         case .ready, .failed:
             feedback.evidenceWindowActive = false
-        }
-    }
-
-    private var title: String {
-        switch run.phase {
-        case .ready: "READY TO FLIP?"
-        case .armed: "THROW WHEN READY"
-        case .motion: "TRICK IN MOTION"
-        case .settling: "HOLD THE CATCH"
-        case .result: "LANDED"
-        case .unknown: "CHECK THE THROW"
-        case let .failed(message): "SENSOR ERROR\n\(message)"
-        }
-    }
-
-    private var detail: String {
-        switch run.phase {
-        case .ready: "A quick spin is enough. You do not need a high throw."
-        case .armed: "The full 100 Hz stream is armed."
-        case .motion: "Rotation captured — catch it and steady the phone."
-        case .settling: "Keep it still for a fraction of a second."
-        case .result: "Opening measured replay."
-        case .unknown: "The evidence is saved for review, not guessed."
-        case .failed: "Reconnect motion access, then try again."
         }
     }
 

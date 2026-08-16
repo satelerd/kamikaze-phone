@@ -175,9 +175,6 @@ final class AppearanceStore {
 
     private let defaults: UserDefaults
     private(set) var equipped: PhoneAppearance
-    /// Live Setup preview; every scene renders `effective`, so trying on a
-    /// finish updates the whole app instantly. Leaving Setup discards it.
-    private(set) var preview: PhoneAppearance?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -190,24 +187,15 @@ final class AppearanceStore {
         }
     }
 
-    var effective: PhoneAppearance { preview ?? equipped }
-    var hasPendingPreview: Bool { preview != nil && preview != equipped }
+    var effective: PhoneAppearance { equipped }
 
-    func previewChange(_ transform: (inout PhoneAppearance) -> Void) {
-        var draft = preview ?? equipped
+    /// Setup is auto-saving: every tap applies and persists immediately.
+    /// There is deliberately no draft/confirm step.
+    func applyChange(_ transform: (inout PhoneAppearance) -> Void) {
+        var draft = equipped
         transform(&draft)
-        preview = draft
-    }
-
-    func equipPreview() {
-        guard let preview else { return }
-        equipped = preview
-        self.preview = nil
+        equipped = draft
         persist()
-    }
-
-    func discardPreview() {
-        preview = nil
     }
 
     private func persist() {
