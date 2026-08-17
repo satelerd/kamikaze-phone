@@ -319,8 +319,12 @@ struct ResultReplayView: View {
     private func practiceBanner(target: BuiltInTrickID) -> some View {
         let measured = displayedResult.evaluation.identity.trickID
         let onTarget = measured == target
-        let coachCue = targetDefinition.flatMap {
-            PracticeCoach.primaryCue(features: displayedResult.match.features, definition: $0)
+        let coachMessage = targetDefinition.map {
+            PracticeCoach.reviewMessage(
+                features: displayedResult.match.features,
+                definition: $0,
+                recognizedTrickID: measured
+            )
         }
         return GlassSurface(role: .contentPanel, cornerRadius: 20) {
             VStack(alignment: .leading, spacing: 10) {
@@ -337,10 +341,10 @@ struct ResultReplayView: View {
                         .font(.system(size: 11, weight: .black, design: .monospaced))
                         .foregroundStyle(onTarget ? KamikazeTheme.volt : KamikazeTheme.hazard)
                 }
-                if let coachCue {
-                    Text("COACH  ·  \(coachCue)")
+                if let coachMessage {
+                    Text("COACH  ·  \(coachMessage)")
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundStyle(KamikazeTheme.hazard)
+                        .foregroundStyle(onTarget ? KamikazeTheme.volt : KamikazeTheme.hazard)
                 }
             }
             .padding(16)

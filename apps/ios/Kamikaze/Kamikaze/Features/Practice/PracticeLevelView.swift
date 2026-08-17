@@ -12,6 +12,7 @@ struct PracticeLevelView: View {
     @State private var progressModel = PracticeModel()
     /// Mathematical target animation, looped while the level is at rest.
     @State private var targetReplay: ReplayController
+    @State private var lessonStep = PracticeLessonStep.learn
 
     init(node: PracticeTrickNode, pair: PracticePair) {
         self.node = node
@@ -47,6 +48,7 @@ struct PracticeLevelView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             run.start()
+            targetReplay.setSpeed(.half)
             targetReplay.play()
             await progressModel.refresh()
         }
@@ -73,8 +75,9 @@ struct PracticeLevelView: View {
         }
         .onChange(of: run.result?.id) { _, resultID in
             if resultID != nil {
+                lessonStep = .review
                 targetReplay.pause()
-            } else if showsTarget {
+            } else if lessonStep != .tryIt {
                 targetReplay.play()
             }
         }
@@ -86,8 +89,14 @@ struct PracticeLevelView: View {
                 result: result,
                 primaryTitle: "TRY AGAIN",
                 practiceTarget: node.trickID,
-                onAgain: run.dismissResultAndRearm,
-                onClose: run.dismissResult,
+                onAgain: {
+                    lessonStep = .tryIt
+                    run.dismissResultAndRearm()
+                },
+                onClose: {
+                    lessonStep = .tryIt
+                    run.dismissResult()
+                },
                 onReview: { review in
                     let updated = await run.applyHumanReview(review)
                     await progressModel.refresh()
@@ -102,6 +111,8 @@ struct PracticeLevelView: View {
 
     private var practiceContent: some View {
         VStack(spacing: 14) {
+            trainingTape
+
             VStack(alignment: .leading, spacing: 6) {
                 Text(node.trickID.displayName)
                     .font(.system(size: 30, weight: .black, design: .rounded))
@@ -137,12 +148,18 @@ struct PracticeLevelView: View {
             }
             .frame(maxHeight: 380)
 
-            RunTelemetryHUD(
-                run: run,
-                leadingTitle: "REPS",
-                leadingValue: "\(min(reps, PracticeProgress.repsToUnlock))/\(PracticeProgress.repsToUnlock)",
-                showsGyro: false
-            )
+            if lessonStep == .follow, !active {
+                followTransport
+            } else if lessonStep == .tryIt || active {
+                RunTelemetryHUD(
+                    run: run,
+                    leadingTitle: "REPS",
+                    leadingValue: "\(min(reps, PracticeProgress.repsToUnlock))/\(PracticeProgress.repsToUnlock)",
+                    showsGyro: false
+                )
+            } else {
+                lessonBrief
+            }
 
             VStack(spacing: 4) {
                 Text(title)
@@ -155,18 +172,29 @@ struct PracticeLevelView: View {
             .multilineTextAlignment(.center)
 
             Button {
-                if active {
+                if lessonStep == .learn {
+                    lessonStep = .follow
+                    targetReplay.seek(toProgress: 0)
+                    targetReplay.setSpeed(.quarter)
+                    targetReplay.play()
+                } else if lessonStep == .follow {
+                    lessonStep = .tryIt
+                    targetReplay.pause()
+                } else if active {
                     run.cancel()
                     feedback.play(.cancelled)
                 } else {
                     run.arm()
                 }
             } label: {
-                Text(active ? "CANCEL" : "START PRACTICE")
+                Text(primaryActionTitle)
                     .font(.system(size: 17, weight: .black, design: .rounded))
                     .frame(maxWidth: .infinity, minHeight: 66)
             }
-            .adaptiveGlassButton(prominent: true, tint: active ? KamikazeTheme.hazard : KamikazeTheme.ion)
+            .adaptiveGlassButton(
+                prominent: true,
+                tint: active ? KamikazeTheme.hazard : (lessonStep == .follow ? KamikazeTheme.volt : KamikazeTheme.ion)
+            )
         }
         .padding(.horizontal, 18)
         .padding(.top, 8)
@@ -180,8 +208,95 @@ struct PracticeLevelView: View {
     /// The target demo owns the stage only while the level is at rest; from
     /// ARMED onward the live pose is the hero.
     private var showsTarget: Bool {
-        if case .ready = run.phase { return targetReplay.hasReplay }
-        return false
+        !active && (lessonStep == .learn || lessonStep == .follow)
+    }
+
+    private var trainingTape: some View {
+        HStack(spacing: 5) {
+            ForEach(PracticeLessonStep.allCases, id: \.self) { step in
+                let activeStep = step == lessonStep
+                let complete = step.isComplete(relativeTo: lessonStep)
+                VStack(alignment: .leading, spacing: 5) {
+                    Capsule()
+                        .fill(activeStep ? KamikazeTheme.volt : (complete ? KamikazeTheme.ion : .white.opacity(0.12)))
+                        .frame(height: activeStep ? 4 : 2)
+                    Text(step.label)
+                        .font(.system(size: 8, weight: .black, design: .monospaced))
+                        .foregroundStyle(activeStep ? KamikazeTheme.frost : KamikazeTheme.muted)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityLabel("\(step.label)\(activeStep ? ", current step" : (complete ? ", complete" : ""))")
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var lessonBrief: some View {
+        GlassSurface(role: .instrumentHUD, cornerRadius: 18) {
+            HStack(spacing: 14) {
+                Image(systemName: lessonStep == .learn ? "move.3d" : "hand.draw.fill")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(lessonStep == .learn ? KamikazeTheme.ion : KamikazeTheme.volt)
+                    .frame(width: 34)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(lessonStep == .learn ? "READ THE ROTATION" : "TRACE IT WITH YOUR HAND")
+                        .font(.system(size: 9, weight: .black, design: .monospaced))
+                    Text(lessonStep == .learn
+                        ? "Orbit the demo phone. Notice the axis and the direction before copying it."
+                        : "Keep hold of your phone and mirror the ideal motion slowly. No throw yet.")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundStyle(KamikazeTheme.muted)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(13)
+        }
+    }
+
+    private var followTransport: some View {
+        GlassSurface(role: .transport, cornerRadius: 18) {
+            HStack(spacing: 12) {
+                Button {
+                    targetReplay.togglePlayback()
+                } label: {
+                    Image(systemName: targetReplay.state == .playing ? "pause.fill" : "play.fill")
+                        .font(.system(size: 14, weight: .black))
+                        .foregroundStyle(KamikazeTheme.volt)
+                        .frame(width: 38, height: 38)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(targetReplay.state == .playing ? "Pause target" : "Play target")
+
+                Slider(
+                    value: Binding(
+                        get: { targetReplay.progress },
+                        set: { targetReplay.seek(toProgress: $0) }
+                    ),
+                    in: 0 ... 1
+                )
+                .tint(KamikazeTheme.volt)
+                .accessibilityLabel("Target motion position")
+
+                Menu(targetReplay.speed.label) {
+                    ForEach(ReplayController.PlaybackSpeed.allCases) { speed in
+                        Button(speed.label) { targetReplay.setSpeed(speed) }
+                    }
+                }
+                .font(.system(size: 10, weight: .black, design: .monospaced))
+                .frame(minWidth: 42, minHeight: 38)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+        }
+    }
+
+    private var primaryActionTitle: String {
+        if active { return "CANCEL" }
+        return switch lessonStep {
+        case .learn: "SHOW ME SLOWLY"
+        case .follow: "I'VE GOT IT — TRY"
+        case .tryIt, .review: "START PRACTICE"
+        }
     }
 
     /// Same ordering rule as Play: armed tick before the window opens,
@@ -218,7 +333,9 @@ struct PracticeLevelView: View {
     }
 
     private var title: String {
-        switch run.phase {
+        if !active, lessonStep == .learn { return "WATCH THE AXIS" }
+        if !active, lessonStep == .follow { return "FOLLOW — DON'T THROW YET" }
+        return switch run.phase {
         case .ready: progressModel.progress.isMastered(node.trickID) ? "MASTERED — KEEP RIDING" : "READY TO TRY?"
         case .armed: "THROW WHEN READY"
         case .motion: "TRICK IN MOTION"
@@ -230,7 +347,9 @@ struct PracticeLevelView: View {
     }
 
     private var detail: String {
-        switch run.phase {
+        if !active, lessonStep == .learn { return node.coachingCue }
+        if !active, lessonStep == .follow { return "Scrub, slow it down and mirror the movement while keeping the phone in your hand." }
+        return switch run.phase {
         case .ready: "Three confirmed landings unlock the next trick."
         case .armed: "Same detector as Play. Throw the \(node.trickID.displayName)."
         case .motion: "Catch it and hold still."

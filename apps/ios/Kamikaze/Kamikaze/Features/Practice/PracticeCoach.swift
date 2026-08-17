@@ -49,4 +49,21 @@ nonisolated enum PracticeCoach {
 
         return nil
     }
+
+    /// One plain-language review line for Practice. Identity comes first:
+    /// axis coaching is only useful after the detector saw the intended trick.
+    static func reviewMessage(
+        features: MotionFeatures?,
+        definition: TrickDefinition,
+        recognizedTrickID: BuiltInTrickID?
+    ) -> String {
+        guard let recognizedTrickID else {
+            return "NO CLEAR MATCH — REPLAY IT, THEN TRY ONE CLEAN ROTATION"
+        }
+        guard recognizedTrickID == definition.id else {
+            return "DETECTOR SAW \(recognizedTrickID.displayName.uppercased()) — CHECK THE TARGET DIRECTION"
+        }
+        return primaryCue(features: features, definition: definition)
+            ?? "CLEAN ROTATION — REPEAT THAT MOTION"
+    }
 }

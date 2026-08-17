@@ -43,4 +43,29 @@ final class KamikazeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["LEVEL"].exists)
         XCTAssertTrue(app.tabBars.buttons["PRACTICE"].exists)
     }
+
+    @MainActor
+    func testPracticeLessonMovesFromLearnToFollowToTry() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-onboardingComplete", "YES", "-debugInitialTab", "practice"]
+        app.launch()
+
+        let firstReadyTrick = app.staticTexts["BACKSIDE 360 SHUVIT"]
+        XCTAssertTrue(firstReadyTrick.waitForExistence(timeout: 4))
+        firstReadyTrick.tap()
+
+        let learnStep = app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "LEARN")
+        ).firstMatch
+        XCTAssertTrue(learnStep.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["SHOW ME SLOWLY"].exists)
+        app.buttons["SHOW ME SLOWLY"].tap()
+
+        XCTAssertTrue(app.staticTexts["FOLLOW — DON'T THROW YET"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["I'VE GOT IT — TRY"].exists)
+        app.buttons["I'VE GOT IT — TRY"].tap()
+
+        XCTAssertTrue(app.buttons["START PRACTICE"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.otherElements["Live 3D phone pose"].exists)
+    }
 }

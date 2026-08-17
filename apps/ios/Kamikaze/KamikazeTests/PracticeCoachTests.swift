@@ -83,4 +83,31 @@ struct PracticeCoachTests {
     @Test func missingFeaturesStaySilent() {
         #expect(PracticeCoach.primaryCue(features: nil, definition: definition(Vector3(x: 0, y: 370, z: 0))) == nil)
     }
+
+    @Test func reviewMessagePrioritizesIdentityBeforeAxisAdvice() {
+        let target = definition(Vector3(x: 0, y: 370, z: 0))
+        #expect(PracticeCoach.reviewMessage(
+            features: nil,
+            definition: target,
+            recognizedTrickID: nil
+        ) == "NO CLEAR MATCH — REPLAY IT, THEN TRY ONE CLEAN ROTATION")
+        #expect(PracticeCoach.reviewMessage(
+            features: nil,
+            definition: target,
+            recognizedTrickID: .reverseFlip
+        ) == "DETECTOR SAW REVERSE FLIP — CHECK THE TARGET DIRECTION")
+    }
+
+    @Test func cleanOnTargetReviewGetsPositiveInstruction() {
+        let target = definition(Vector3(x: 0, y: 370, z: 0))
+        let message = PracticeCoach.reviewMessage(
+            features: features(
+                signed: Vector3(x: 2, y: 366, z: -5),
+                path: Vector3(x: 40, y: 380, z: 35)
+            ),
+            definition: target,
+            recognizedTrickID: .flip
+        )
+        #expect(message == "CLEAN ROTATION — REPEAT THAT MOTION")
+    }
 }
