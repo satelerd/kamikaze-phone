@@ -3,11 +3,11 @@ import Testing
 @testable import Kamikaze
 
 struct OnboardingChallengeTests {
-    @Test func straightAirRequiresThirtyEstimatedCentimeters() {
+    @Test func straightAirRequiresFiftyEstimatedCentimeters() {
         #expect(!OnboardingChallengeEvaluator.passesStraightAir(estimatedHeightM: nil))
-        #expect(!OnboardingChallengeEvaluator.passesStraightAir(estimatedHeightM: 0.299))
-        #expect(OnboardingChallengeEvaluator.passesStraightAir(estimatedHeightM: 0.30))
-        #expect(OnboardingChallengeEvaluator.passesStraightAir(estimatedHeightM: 0.44))
+        #expect(!OnboardingChallengeEvaluator.passesStraightAir(estimatedHeightM: 0.499))
+        #expect(OnboardingChallengeEvaluator.passesStraightAir(estimatedHeightM: 0.50))
+        #expect(OnboardingChallengeEvaluator.passesStraightAir(estimatedHeightM: 0.64))
     }
 
     @Test func shuvitRequiresTheExactRecognizedIdentity() {

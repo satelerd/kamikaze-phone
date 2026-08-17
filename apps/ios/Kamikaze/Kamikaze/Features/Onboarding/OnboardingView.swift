@@ -206,6 +206,10 @@ struct OnboardingView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var minimumAirLabel: String {
+        "\(Int((OnboardingChallengeEvaluator.minimumStraightAirHeightM * 100).rounded())) CM"
+    }
+
     private var straightAirPage: some View {
         VStack(alignment: .leading, spacing: 14) {
             challengeHeader(
@@ -221,7 +225,7 @@ struct OnboardingView: View {
                     value: lastHeightM.map { "\(Int(($0 * 100).rounded())) CM" } ?? "— CM",
                     label: "ESTIMATED"
                 )
-                metricCard(value: "30 CM", label: "MINIMUM")
+                metricCard(value: minimumAirLabel, label: "MINIMUM")
             }
 
             statusBlock(title: straightAirStatus.title, detail: straightAirStatus.detail)
@@ -368,7 +372,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(value)
                     .font(.system(size: 25, weight: .black, design: .rounded))
-                    .foregroundStyle(value == "30 CM" ? KamikazeTheme.frost : accent)
+                    .foregroundStyle(value == minimumAirLabel ? KamikazeTheme.frost : accent)
                 Text(label)
                     .font(.system(size: 8, weight: .black, design: .monospaced))
                     .foregroundStyle(KamikazeTheme.muted)
@@ -411,7 +415,13 @@ struct OnboardingView: View {
             .adaptiveGlassButton(prominent: true, tint: primaryTint)
             .accessibilityIdentifier("onboarding-primary-action")
 
-            if canBypassChallenge {
+            if currentChallengePassed, step.isSensorChallenge {
+                Button("TRY AGAIN") { beginChallenge() }
+                    .font(.system(size: 9, weight: .black, design: .monospaced))
+                    .foregroundStyle(KamikazeTheme.muted)
+                    .frame(minHeight: 28)
+                    .buttonStyle(.plain)
+            } else if canBypassChallenge {
                 Button("CONTINUE WITHOUT SENSOR") { bypassChallenge() }
                     .font(.system(size: 9, weight: .black, design: .monospaced))
                     .foregroundStyle(KamikazeTheme.muted)
@@ -629,7 +639,7 @@ struct OnboardingView: View {
 
     private var straightAirStatus: (title: String, detail: String) {
         if airPassed {
-            return ("AIR CLEARED", "You passed 30 cm. Now turn that air into a trick.")
+            return ("AIR CLEARED", "You passed \(minimumAirLabel.lowercased()). Now turn that air into a trick.")
         }
         if let lastHeightM {
             let centimeters = Int((lastHeightM * 100).rounded())

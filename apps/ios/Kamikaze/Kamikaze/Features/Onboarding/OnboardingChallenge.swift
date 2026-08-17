@@ -19,7 +19,7 @@ nonisolated enum OnboardingStep: Int, CaseIterable, Equatable, Sendable {
 nonisolated enum OnboardingChallengeEvaluator {
     /// Ballistic estimate from the measured low-g window. This is a tutorial
     /// threshold, not a claim that the IMU observes absolute position.
-    static let minimumStraightAirHeightM = 0.30
+    static let minimumStraightAirHeightM = 0.50
     static let firstShuvit: BuiltInTrickID = .backsideShuvit
 
     static func passesStraightAir(estimatedHeightM: Double?) -> Bool {
