@@ -10,6 +10,7 @@ struct OnboardingView: View {
     private let shuvitFrames: [ReplayFrame]
 
     @State private var step = OnboardingStep.board
+    @State private var maxReachedStep = OnboardingStep.board
     @State private var run = NativeRunModel()
     @State private var targetReplay: ReplayController
     @State private var resultReplay: ReplayController?
@@ -86,16 +87,26 @@ struct OnboardingView: View {
     }
 
     private var progressTape: some View {
+        // Each capsule is a tap target back to any step already reached —
+        // never a shortcut past maxReachedStep.
         HStack(spacing: 6) {
             ForEach(OnboardingStep.allCases, id: \.self) { item in
                 Capsule()
                     .fill(item.rawValue <= step.rawValue ? accent : .white.opacity(0.16))
                     .frame(height: item == step ? 5 : 3)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 24)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        guard item.rawValue <= maxReachedStep.rawValue, item != step else { return }
+                        move(to: item)
+                    }
                     .accessibilityHidden(true)
             }
         }
         .accessibilityElement()
         .accessibilityLabel("Onboarding step \(step.position) of \(OnboardingStep.allCases.count)")
+        .accessibilityHint("Tap a previous segment to revisit that step")
     }
 
     @ViewBuilder
@@ -471,6 +482,7 @@ struct OnboardingView: View {
     private func move(to newStep: OnboardingStep) {
         resultReplay?.pause()
         resultReplay = nil
+        if newStep.rawValue > maxReachedStep.rawValue { maxReachedStep = newStep }
         withAnimation(.snappy) { step = newStep }
     }
 
