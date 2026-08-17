@@ -44,7 +44,14 @@ struct KamikazeRootView: View {
             }
         } else {
             OnboardingView(onComplete: { onboardingComplete = true })
+                .environment(experience)
+                .environment(appearance)
+                .environment(feedback)
                 .preferredColorScheme(.dark)
+                .onAppear {
+                    experience.setReduceEffects(reduceMotion)
+                    PhoneModelLibrary.shared.preload()
+                }
         }
     }
 }

@@ -32,10 +32,21 @@ final class KamikazeUITests: XCTestCase {
         app.buttons["CONTINUE"].tap()
         XCTAssertTrue(app.staticTexts["CHOOSE YOUR\nLEVEL OF CHAOS."].waitForExistence(timeout: 2))
         app.buttons["CONTINUE"].tap()
-        XCTAssertTrue(app.staticTexts["ZERO. THROW.\nLAND."].waitForExistence(timeout: 2))
-        app.buttons["ENTER KAMIKAZE"].tap()
+        XCTAssertTrue(app.staticTexts["ONE THROW.\nONE NUMBER."].waitForExistence(timeout: 2))
+        keepScreenshot(of: app, named: "onboarding-2014-origin")
+        app.buttons["TRY THE ORIGINAL"].tap()
+        XCTAssertTrue(app.staticTexts["GET SOME AIR."].waitForExistence(timeout: 2))
+        keepScreenshot(of: app, named: "onboarding-straight-air")
         // Simulator has no Core Motion stream, so Play may truthfully show a
-        // sensor error. This test owns onboarding/navigation, not device motion.
+        // sensor error. The honest fallback still lets this navigation test
+        // inspect the TARGET preview and reach the shell.
+        app.buttons["CONTINUE WITHOUT SENSOR"].tap()
+        XCTAssertTrue(app.staticTexts["ADD A SHUVIT."].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.otherElements["Replay 3D phone"].exists)
+        keepScreenshot(of: app, named: "onboarding-shuvit-preview")
+        app.buttons["TRY THE SHUVIT"].tap()
+        XCTAssertTrue(app.staticTexts["LAND THE SHUVIT."].waitForExistence(timeout: 2))
+        app.buttons["CONTINUE WITHOUT SENSOR"].tap()
         // Renamed from START SESSION per player feedback (2026-08-16).
         XCTAssertTrue(app.buttons["THROW"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.otherElements["Live 3D phone pose"].exists)
@@ -44,13 +55,20 @@ final class KamikazeUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["PRACTICE"].exists)
     }
 
+    private func keepScreenshot(of app: XCUIApplication, named name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     @MainActor
     func testPracticeLessonMovesFromLearnToTryAndBack() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-onboardingComplete", "YES", "-debugInitialTab", "practice"]
         app.launch()
 
-        let firstReadyTrick = app.staticTexts["BACKSIDE 360 SHUVIT"]
+        let firstReadyTrick = app.staticTexts["BACKSIDE SHUVIT"]
         XCTAssertTrue(firstReadyTrick.waitForExistence(timeout: 4))
         firstReadyTrick.tap()
 
