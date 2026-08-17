@@ -25,10 +25,11 @@ CHOOSE → WATCH → ZERO → TRY → COMPARE → REPEAT → MASTER
 Each trick has one readiness state:
 
 1. `collectingEvidence`: selectable in Trick Lab, not scoreable in Practice.
-2. `candidateReady`: enough labelled examples to propose a mathematical target.
-3. `validationRequired`: matcher candidate exists but holdout is still frozen.
-4. `detectorReady`: independent validation passed; Practice can judge attempts.
-5. `mastered`: player progression, derived from saved attempts.
+2. `candidateNeedsHoldout`: a V4-derived matcher exists and is playable in the
+   beta, but remains visibly marked `BETA` until an independent physical
+   session validates it.
+3. `detectorReady`: independent validation passed; Practice can judge attempts.
+4. `mastered`: player progression, derived from saved attempts.
 
 ## Ordered progression
 
@@ -55,10 +56,17 @@ until hand/grip semantics are physically validated. Phone Flip is the project's
 name for its 360-flip-like compound phone motion, not a claim that phone axes
 map one-to-one to a skateboard.
 
-The first beta should not hard-lock the whole library: a player may preview
-every trick. A scored level becomes playable only when its detector definition
-is ready and the prerequisite pair is complete. Tricks still collecting
-evidence route to Trick Lab instead of pretending they can be judged.
+The first beta does not hard-lock the whole library: a player may preview every
+trick. A scored level becomes playable when it has either a validated detector
+or an explicitly labelled beta candidate and the prerequisite pair is complete.
+Tricks still collecting evidence route to Trick Lab instead of pretending they
+can be judged.
+
+The labelled V4 development set promotes BS Shuvit 180, FS Shuvit 180 and
+Double Flip to beta candidates. Double Reverse Flip and both Double Phone Flip
+directions remain collection-only. These candidates were derived and checked
+on the same session, so their `BETA · NEEDS HOLDOUT` copy must remain until a
+separate capture session passes.
 
 Within a pair, the default order is regular direction followed by its opposite.
 For returning players, a human-confirmed qualifying capture may satisfy an

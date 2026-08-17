@@ -157,7 +157,8 @@ nonisolated struct AttemptSummaryReconciler: Sendable {
             if let current = existingByID[attempt.id],
                current.schemaVersion == AttemptSummaryV1.schemaVersion,
                current.analysisVersion == TrickMatchingPolicy.provisionalVersion,
-               current.catalogVersion == catalog.version {
+               current.catalogVersion == catalog.version,
+               current.scoreVersion == GameScoreEngine.version {
                 next.append(current)
                 report.reusedCount += 1
                 continue

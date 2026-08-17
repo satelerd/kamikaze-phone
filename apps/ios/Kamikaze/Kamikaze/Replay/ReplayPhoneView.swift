@@ -15,9 +15,9 @@ struct ReplayPhoneScene: View {
     /// Fixed appearance for demo/target contexts; nil renders the player's
     /// equipped (or previewed) phone.
     var appearanceOverride: PhoneAppearance? = nil
-    /// Screen stamp for demo phones (e.g. "IDEAL").
+    /// Screen stamp for demo phones (e.g. "TARGET").
     var screenLabel: String? = nil
-    /// Measured free-fall window when the beta arc experiment is on.
+    /// Measured free-fall window used to render an estimated ballistic arc.
     var arcWindow: FreefallWindow? = nil
 
     @Environment(AppearanceStore.self) private var appearance
@@ -42,11 +42,11 @@ struct ReplayPhoneScene: View {
 
             if targetFrames?.isEmpty == false {
                 // The ghost IS the demo phone: distinct body and a stamped
-                // IDEAL screen, never the player's configuration.
+                // TARGET screen, never the player's configuration.
                 let ghost = PhoneModelFactory.makePhone(
                     appearance: .demo,
                     accent: UIColor(KamikazeTheme.volt),
-                    screenLabel: "IDEAL"
+                    screenLabel: "TARGET"
                 )
                 ghost.name = "target-ghost"
                 ghost.scale = SIMD3(repeating: 0.97)
@@ -75,8 +75,8 @@ struct ReplayPhoneScene: View {
                 iz: Float(frame.quaternion.z),
                 r: Float(frame.quaternion.w)
             )
-            // Measured vertical arc (beta): ballistic height over the
-            // detected free-fall window, scaled and capped so the phone
+            // Estimated vertical arc (beta): ballistic height over the
+            // measured free-fall window, scaled and capped so the phone
             // stays framed by the spectator camera.
             let arcY: Float
             if let arcWindow {
@@ -182,7 +182,7 @@ struct ReplayPhoneView: View {
                                 .foregroundStyle(KamikazeTheme.volt)
                         }
                         if arcWindow != nil {
-                            Text("MEASURED ARC")
+                            Text("ESTIMATED AIR ARC")
                                 .font(.system(size: 8, weight: .black, design: .monospaced))
                                 .foregroundStyle(KamikazeTheme.volt)
                         }

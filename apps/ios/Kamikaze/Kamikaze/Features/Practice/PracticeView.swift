@@ -46,7 +46,7 @@ struct PracticeView: View {
                     Text("BUILD THE\nMUSCLE MEMORY.")
                         .font(.system(size: 40, weight: .black, design: .rounded))
                         .tracking(-1.8)
-                    Text("Progress is measured from saved attempts. Landing is confirmed by you, never guessed from FIT.")
+                    Text("Land the exact target three times. The detector counts clean matches; your corrections always win.")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(KamikazeTheme.muted)
                     ForEach(PracticeLibrary.pairs) { pair in
@@ -76,7 +76,11 @@ struct PracticeView: View {
                         Text("MASTERED")
                             .font(.system(size: 9, weight: .black, design: .monospaced))
                             .foregroundStyle(KamikazeTheme.volt)
-                    } else if !pair.isDetectorReady {
+                    } else if pair.containsCandidate {
+                        Text("BETA")
+                            .font(.system(size: 9, weight: .black, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.ion)
+                    } else if !pair.isPracticePlayable {
                         Text("NEEDS DATA")
                             .font(.system(size: 9, weight: .black, design: .monospaced))
                             .foregroundStyle(KamikazeTheme.hazard)
@@ -90,7 +94,7 @@ struct PracticeView: View {
             }
             .padding(16)
         }
-        .opacity(unlocked || !pair.isDetectorReady ? 1 : 0.55)
+        .opacity(unlocked || !pair.isPracticePlayable ? 1 : 0.55)
     }
 
     @ViewBuilder
@@ -117,6 +121,16 @@ struct PracticeView: View {
                 trickRowContent(node, reps: reps, mastered: false, locked: false, needsData: true)
             }
             .buttonStyle(.plain)
+        case .candidateNeedsHoldout:
+            // Playable beta candidate: the lesson obtains useful validation
+            // while copy remains honest that no independent holdout exists.
+            NavigationLink {
+                PracticeLevelView(node: node, pair: pair)
+            } label: {
+                trickRowContent(node, reps: reps, mastered: mastered, locked: !unlocked, beta: true)
+            }
+            .buttonStyle(.plain)
+            .disabled(!unlocked)
         }
     }
 
@@ -125,7 +139,8 @@ struct PracticeView: View {
         reps: Int,
         mastered: Bool,
         locked: Bool,
-        needsData: Bool = false
+        needsData: Bool = false,
+        beta: Bool = false
     ) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
@@ -135,6 +150,11 @@ struct PracticeView: View {
                     .font(.system(size: 8, weight: .bold, design: .monospaced))
                     .foregroundStyle(needsData ? KamikazeTheme.hazard : KamikazeTheme.muted)
                     .lineLimit(1)
+                if beta {
+                    Text("BETA DETECTOR · NEEDS HOLDOUT")
+                        .font(.system(size: 7, weight: .black, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.ion)
+                }
             }
             Spacer()
             if mastered {

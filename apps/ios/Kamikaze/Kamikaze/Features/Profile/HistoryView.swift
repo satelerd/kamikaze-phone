@@ -18,10 +18,43 @@ struct HistoryView: View {
         func matches(_ summary: AttemptSummaryV1) -> Bool {
             switch self {
             case .all: true
-            case .landed: summary.humanOutcome == .landed
+            case .landed: summary.countsAsSuccess
             case .missed: summary.humanOutcome == .missed
-            case .unresolved: summary.humanOutcome == nil || summary.humanOutcome == .unclear
+            case .unresolved:
+                summary.humanOutcome == .unclear
+                    || (summary.humanOutcome == nil && !summary.countsAsSuccess)
             }
+        }
+    }
+
+    private enum SourceFilter: String, CaseIterable, Identifiable {
+        case all = "ANY SOURCE"
+        case detector = "AUTO"
+        case human = "HUMAN"
+
+        var id: String { rawValue }
+
+        func matches(_ summary: AttemptSummaryV1) -> Bool {
+            switch self {
+            case .all: true
+            case .detector: summary.interpretationSource == .detector
+            case .human: summary.interpretationSource == .human
+            }
+        }
+    }
+
+    private enum PeriodFilter: String, CaseIterable, Identifiable {
+        case all = "ALL TIME"
+        case week = "7 DAYS"
+        case month = "30 DAYS"
+
+        var id: String { rawValue }
+
+        func matches(_ summary: AttemptSummaryV1, now: Date = Date()) -> Bool {
+            guard self != .all else { return true }
+            guard let date = ISO8601DateFormatter().date(from: summary.recordedAtISO8601) else { return false }
+            let days = self == .week ? 7 : 30
+            return date >= now.addingTimeInterval(-Double(days) * 86_400)
         }
     }
 
@@ -46,6 +79,8 @@ struct HistoryView: View {
     }
 
     @State private var outcomeFilter = OutcomeFilter.all
+    @State private var sourceFilter = SourceFilter.all
+    @State private var periodFilter = PeriodFilter.all
     @State private var trickFilter: BuiltInTrickID?
     @State private var sortOrder = SortOrder.newest
     @State private var visibleLimit = 30
@@ -60,7 +95,11 @@ struct HistoryView: View {
     }
 
     private var filtered: [AttemptSummaryV1] {
-        let byOutcome = model.allSummaries.filter { outcomeFilter.matches($0) }
+        let byOutcome = model.allSummaries.filter {
+            outcomeFilter.matches($0)
+                && sourceFilter.matches($0)
+                && periodFilter.matches($0)
+        }
         let byTrick = trickFilter.map { trick in byOutcome.filter { $0.trickID == trick } } ?? byOutcome
         return sortOrder.apply(byTrick)
     }
@@ -159,6 +198,24 @@ struct HistoryView: View {
                     }
                 } label: {
                     chip(label: "SORT: \(sortOrder.rawValue)", active: sortOrder != .newest)
+                }
+                Menu {
+                    Picker("Source", selection: $sourceFilter) {
+                        ForEach(SourceFilter.allCases) { source in
+                            Text(source.rawValue).tag(source)
+                        }
+                    }
+                } label: {
+                    chip(label: sourceFilter.rawValue, active: sourceFilter != .all)
+                }
+                Menu {
+                    Picker("Period", selection: $periodFilter) {
+                        ForEach(PeriodFilter.allCases) { period in
+                            Text(period.rawValue).tag(period)
+                        }
+                    }
+                } label: {
+                    chip(label: periodFilter.rawValue, active: periodFilter != .all)
                 }
                 ForEach(OutcomeFilter.allCases) { filter in
                     Button {

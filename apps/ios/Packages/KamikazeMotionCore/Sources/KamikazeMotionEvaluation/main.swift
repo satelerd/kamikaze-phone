@@ -73,7 +73,7 @@ private enum MotionEvaluationCommand {
 
         print("dataset_sha256\t\(split.sourceSHA256)")
         print("set\t\(requested.rawValue)\tcaptures\t\(selected.count)")
-        print("id\toutcome\texpected\tstatus\tpredicted\tfit\tmargin\tpurity\tstability\tcondition")
+        print("id\toutcome\texpected\tstatus\tpredicted\tfit\tmargin\tpurity\tstability\tcondition\tduration_ms\trot_x\trot_y\trot_z\tpath_x_share\tpath_y_share\tpath_z_share")
 
         for item in selected.sorted(by: recordedBefore) {
             let attempt = segmentedAttempt(from: item.capture)
@@ -85,6 +85,10 @@ private enum MotionEvaluationCommand {
             let margin = fit - secondFit
             let purity = result.features?.dominantAxisPurity ?? 0
             let stability = result.features?.postCatchStability ?? 0
+            let duration = result.features?.motionDurationMs ?? 0
+            let rotation = result.features?.signedRotationDegrees ?? .init(x: 0, y: 0, z: 0)
+            let path = result.features?.angularPathDegrees ?? .init(x: 0, y: 0, z: 0)
+            let pathTotal = max(1, path.x + path.y + path.z)
             print([
                 item.capture.attempt.id,
                 item.label.outcome,
@@ -96,6 +100,13 @@ private enum MotionEvaluationCommand {
                 String(format: "%.3f", purity),
                 String(format: "%.3f", stability),
                 item.label.condition,
+                String(format: "%.1f", duration),
+                String(format: "%.1f", rotation.x),
+                String(format: "%.1f", rotation.y),
+                String(format: "%.1f", rotation.z),
+                String(format: "%.3f", path.x / pathTotal),
+                String(format: "%.3f", path.y / pathTotal),
+                String(format: "%.3f", path.z / pathTotal),
             ].joined(separator: "\t"))
 
             if item.label.outcome == "landed" {

@@ -22,6 +22,8 @@ struct PlayerStatsEngineTests {
         #expect(flip.bestFitPercent == 90)
         #expect(flip.fastestLandedMs == 500)
         #expect(flip.longestLandedMs == 700)
+        #expect(flip.recentSuccessCount == 2)
+        #expect(flip.recentSampleSize == 3)
 
         // An unreviewed but detector-recognized attempt counts as success.
         let phone = try #require(engine.trickStats.first { $0.trickID == .phoneFlip })
@@ -30,6 +32,26 @@ struct PlayerStatsEngineTests {
 
         // The most-thrown trick ranks first.
         #expect(engine.trickStats.first?.trickID == .flip)
+    }
+
+    @Test func recentFormUsesOnlyTheLatestFiveThrowsOfThatTrick() throws {
+        let summaries = try (0..<7).map { index in
+            try summary(
+                id: "form-\(index)",
+                second: 50 - index,
+                trick: .flip,
+                outcome: index == 0 || index == 2 || index >= 5 ? .landed : .missed,
+                durationS: 0.6,
+                fit: 0.8
+            )
+        } + [
+            try summary(id: "other", second: 60, trick: .phoneFlip, outcome: .landed, durationS: 0.7, fit: 0.9)
+        ]
+
+        let engine = PlayerStatsEngine(summaries: summaries, defaultTimezone: santiago)
+        let flip = try #require(engine.trickStats.first { $0.trickID == .flip })
+        #expect(flip.recentSuccessCount == 2)
+        #expect(flip.recentSampleSize == 5)
     }
 
     @Test func recordsLinkToTheirAttempts() throws {
@@ -44,6 +66,8 @@ struct PlayerStatsEngineTests {
         #expect(engine.longestLanded?.attemptID == "r-long")
         #expect(engine.bestFit?.attemptID == "r-fit")
         #expect(engine.bestFit?.valueLabel == "95 FIT")
+        #expect(engine.bestScore?.attemptID == "r-fit")
+        #expect(engine.bestScore?.valueLabel == "67 PTS")
     }
 
     @Test func activityDaysFollowTheStoredTimezone() throws {
@@ -70,6 +94,7 @@ struct PlayerStatsEngineTests {
         #expect(engine.trickStats.isEmpty)
         #expect(engine.fastestLanded == nil)
         #expect(engine.bestFit == nil)
+        #expect(engine.bestScore == nil)
         #expect(engine.activeDayCount == 0)
     }
 

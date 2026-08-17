@@ -5,7 +5,7 @@ import KamikazeMotionCore
 /// It is derived from attempt metadata plus the stored analysis record and can
 /// always be rebuilt from them; raw samples are never required to display it.
 nonisolated struct AttemptSummaryV1: Codable, Equatable, Sendable, Identifiable {
-    static let schemaVersion = 1
+    static let schemaVersion = 2
 
     let schemaVersion: Int
     let attemptID: String
@@ -22,8 +22,10 @@ nonisolated struct AttemptSummaryV1: Codable, Equatable, Sendable, Identifiable 
     /// Identity FIT of the displayed candidate in [0, 1]. Not a probability,
     /// landing quality or game score.
     let fit: Double?
-    /// Intentionally nil until a versioned Game Score exists.
+    /// Deterministic Game Score v1 when evidence is scoreable. `nil` means
+    /// the identity/outcome still requires review or evidence is incomplete.
     let gameScore: Int?
+    let scoreVersion: String?
     let analysisVersion: String
     let catalogVersion: String
     let sampleCount: Int
@@ -103,7 +105,11 @@ nonisolated struct AttemptSummaryV1: Codable, Equatable, Sendable, Identifiable 
         self.motionDurationMs = analysis.result.features?.motionDurationMs
             ?? (attempt.boundaries.motionEndS - attempt.boundaries.motionStartS) * 1_000
         self.fit = displayedCandidate?.presentationFit
-        self.gameScore = nil
+        self.gameScore = GameScoreEngine.evaluate(
+            match: analysis.result,
+            humanReview: review
+        )?.value
+        self.scoreVersion = GameScoreEngine.version
         self.analysisVersion = analysis.result.policyVersion
         self.catalogVersion = analysis.result.catalogVersion
         self.sampleCount = attempt.rawSamples.sampleCount

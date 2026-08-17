@@ -9,6 +9,12 @@ struct PhoneAppearanceTests {
     private let catalog = TrickCatalog.provisional(gripHand: .right)
 
     @MainActor
+    @Test func practiceTargetUsesThePaintableIPhoneAsset() {
+        #expect(PhoneAppearance.demo.formFactor == .paint)
+        #expect(PhoneModelFactory.assetID(for: PhoneAppearance.demo.formFactor) == .paintable)
+    }
+
+    @MainActor
     @Test func everySelectionAppliesAndPersistsImmediately() throws {
         let suite = "PhoneAppearanceTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))

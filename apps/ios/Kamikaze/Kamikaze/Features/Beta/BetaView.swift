@@ -8,7 +8,11 @@ struct BetaView: View {
     @Environment(FeedbackCoordinator.self) private var feedback
     @AppStorage(FieldStyle.storageKey) private var fieldStyleRaw = FieldStyle.default.rawValue
     @AppStorage(GlassVariant.storageKey) private var glassVariantRaw = GlassVariant.default.rawValue
-    @AppStorage(BetaFlags.verticalArc) private var verticalArc = false
+    @AppStorage(BetaFlags.resultMetric) private var resultMetricRaw = ResultMetricMode.default.rawValue
+    @AppStorage(BetaFlags.verticalArc) private var verticalArc = true
+    @AppStorage(BetaFlags.airBonus) private var airBonus = true
+    @AppStorage(BetaFlags.followMode) private var followMode = false
+    @AppStorage(BetaFlags.classicMode) private var classicMode = false
     @AppStorage(BetaFlags.fieldDisabled) private var fieldDisabled = false
 
     var body: some View {
@@ -35,11 +39,34 @@ struct BetaView: View {
                     }
 
                     GlassSurface {
+                        optionList(title: "RESULT METRIC", options: ResultMetricMode.allCases,
+                                   selectedRaw: $resultMetricRaw)
+                    }
+
+                    GlassSurface {
                         VStack(spacing: 0) {
                             toggleRow(
-                                "VERTICAL ARC (ESTIMATED)",
-                                detail: "Replay adds a ballistic up/down arc from motion duration. Estimated, not measured.",
+                                "SHOW ESTIMATED AIR ARC",
+                                detail: "Uses measured air time and ballistic physics. Vertical position is not directly measured by the IMU.",
                                 isOn: $verticalArc
+                            )
+                            Divider()
+                            toggleRow(
+                                "AIR BONUS (EXPERIMENTAL)",
+                                detail: "Adds 0–10 result points from estimated peak height. Raw evidence and base score stay unchanged.",
+                                isOn: $airBonus
+                            )
+                            Divider()
+                            toggleRow(
+                                "FOLLOW MODE IN PLAY",
+                                detail: "Random labelled prompts with automatic capture and quick landed/missed review.",
+                                isOn: $followMode
+                            )
+                            Divider()
+                            toggleRow(
+                                "CLASSIC MODE IN PLAY",
+                                detail: "Original Kamikaze: score only measured air time and estimated peak height.",
+                                isOn: $classicMode
                             )
                             Divider()
                             toggleRow(
@@ -169,9 +196,41 @@ protocol FieldOption: Identifiable, RawRepresentable where RawValue == String {
 
 extension FieldStyle: @MainActor FieldOption {}
 extension GlassVariant: @MainActor FieldOption {}
+extension ResultMetricMode: @MainActor FieldOption {}
+
+/// Presentation experiment only. Raw evidence, classifications and both
+/// underlying metrics remain stored, so switching modes is reversible.
+nonisolated enum ResultMetricMode: String, CaseIterable, Identifiable {
+    case gameScore
+    case legacyFit
+    case compare
+
+    static let `default`: Self = .compare
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .gameScore: "GAME SCORE V1"
+        case .legacyFit: "FIT (LEGACY)"
+        case .compare: "COMPARE BOTH"
+        }
+    }
+
+    var blurb: String {
+        switch self {
+        case .gameScore: "Completion, purity, catch stability and flow."
+        case .legacyFit: "Only similarity to the selected trick definition."
+        case .compare: "Score is primary; FIT remains visible beside it."
+        }
+    }
+}
 
 /// AppStorage keys for beta experiments.
 enum BetaFlags {
-    static let verticalArc = "betaVerticalArc"
+    static let verticalArc = "betaEstimatedVerticalArcV2"
+    static let airBonus = "betaEstimatedAirBonusV1"
+    static let followMode = "betaFollowPlayModeV1"
+    static let classicMode = "betaClassicPlayModeV1"
     static let fieldDisabled = "debugDisableField"
+    static let resultMetric = "betaResultMetric"
 }

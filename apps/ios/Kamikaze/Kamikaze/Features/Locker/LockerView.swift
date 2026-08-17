@@ -149,7 +149,8 @@ struct LockerView: View {
     /// PHOTO's companion control: pick the image the virtual screen shows.
     /// A screenshot of the real home screen is the intended use.
     private var photoPickerRow: some View {
-        HStack(spacing: 12) {
+        let pickerTitle = CustomScreenStore.shared.hasImage ? "CHANGE PHOTO" : "CHOOSE PHOTO"
+        return HStack(spacing: 12) {
             if let image = CustomScreenStore.shared.image {
                 Image(uiImage: image)
                     .resizable()
@@ -159,7 +160,7 @@ struct LockerView: View {
             }
             PhotosPicker(selection: $photoItem, matching: .images) {
                 Label(
-                    CustomScreenStore.shared.hasImage ? "CHANGE PHOTO" : "CHOOSE PHOTO",
+                    pickerTitle,
                     systemImage: "photo"
                 )
                 .font(.system(size: 12, weight: .black, design: .rounded))

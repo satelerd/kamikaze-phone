@@ -143,7 +143,7 @@ final class ReplayController {
 
     func zoom(magnification: Double) {
         guard magnification.isFinite, magnification > 0 else { return }
-        camera.distance = min(1.2, max(0.30, camera.distance / magnification))
+        camera.distance = min(1.2, max(0.18, camera.distance / magnification))
     }
 
     /// Restores only the spectator camera; it never changes Zero Pose.

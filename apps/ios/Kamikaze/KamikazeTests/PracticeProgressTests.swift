@@ -6,7 +6,7 @@ import Testing
 struct PracticeProgressTests {
     private let catalog = TrickCatalog.provisional(gripHand: .right)
 
-    @Test func qualifyingRepRequiresTargetIdentityAndHumanLanding() throws {
+    @Test func exactRecognizedIdentityCountsUntilHumanFeedbackOverridesIt() throws {
         let progress = PracticeProgress(summaries: [
             // Counts: right trick, human landed.
             try summary(id: "q1", second: 5, trick: .flip, outcome: .landed),
@@ -14,42 +14,46 @@ struct PracticeProgressTests {
             try summary(id: "q2", second: 4, trick: .reverseFlip, outcome: .landed),
             // Right trick, human said missed.
             try summary(id: "q3", second: 3, trick: .flip, outcome: .missed),
-            // Detector recognized but nobody confirmed the landing.
+            // Exact detector recognition counts without an extra question.
             try summary(id: "q4", second: 2, trick: .flip, outcome: nil),
         ])
-        #expect(progress.qualifyingReps(for: .flip) == 1)
+        #expect(progress.qualifyingReps(for: .flip) == 2)
         #expect(progress.attemptCount(for: .flip) == 3)
         #expect(!progress.isUnlockedByReps(.flip))
     }
 
-    @Test func firstDetectorReadyPairIsPlayableFromZero() {
+    @Test func firstCandidatePairIsPlayableFromZero() {
         let progress = PracticeProgress(summaries: [])
         let shuvit180 = PracticeLibrary.pairs[0]
         let fullShuvit = PracticeLibrary.pairs[1]
         let flip = PracticeLibrary.pairs[2]
 
-        // Collection-only pairs are never scored-playable…
-        #expect(!progress.isPairUnlocked(shuvit180))
-        // …and they do not block the ladder behind them.
-        #expect(progress.isPairUnlocked(fullShuvit))
-        // The next detector-ready pair waits for mastery of the previous one.
+        #expect(shuvit180.containsCandidate)
+        #expect(progress.isPairUnlocked(shuvit180))
+        // The V4-backed half rotation now leads the authored ladder.
+        #expect(!progress.isPairUnlocked(fullShuvit))
         #expect(!progress.isPairUnlocked(flip))
     }
 
     @Test func masteringAPairUnlocksTheNextDetectorReadyPair() throws {
         var rows: [AttemptSummaryV1] = []
         var second = 60
-        for trick in [BuiltInTrickID.backsideThreeSixtyShuvit, .frontsideThreeSixtyShuvit] {
+        for trick in [
+            BuiltInTrickID.backsideShuvit, .frontsideShuvit,
+            .backsideThreeSixtyShuvit, .frontsideThreeSixtyShuvit,
+        ] {
             for index in 0 ..< 3 {
                 rows.append(try summary(id: "m-\(trick.rawValue)-\(index)", second: second, trick: trick, outcome: .landed))
                 second -= 1
             }
         }
         let progress = PracticeProgress(summaries: rows)
+        let shuvit180 = PracticeLibrary.pairs[0]
         let fullShuvit = PracticeLibrary.pairs[1]
         let flip = PracticeLibrary.pairs[2]
         let phoneFlip = PracticeLibrary.pairs[4]
 
+        #expect(progress.isPairMastered(shuvit180))
         #expect(progress.isPairMastered(fullShuvit))
         #expect(progress.isPairUnlocked(flip))
         // Phone Flip still waits for the Flip pair.
@@ -57,15 +61,15 @@ struct PracticeProgressTests {
     }
 
     @Test func oppositeDirectionWaitsForPrimaryReps() throws {
-        let fullShuvit = PracticeLibrary.pairs[1]
+        let shuvit = PracticeLibrary.pairs[0]
         let empty = PracticeProgress(summaries: [])
-        #expect(empty.isTrickUnlocked(.backsideThreeSixtyShuvit, in: fullShuvit))
-        #expect(!empty.isTrickUnlocked(.frontsideThreeSixtyShuvit, in: fullShuvit))
+        #expect(empty.isTrickUnlocked(.backsideShuvit, in: shuvit))
+        #expect(!empty.isTrickUnlocked(.frontsideShuvit, in: shuvit))
 
         let progressed = PracticeProgress(summaries: try (0 ..< 3).map {
-            try summary(id: "bs-\($0)", second: 10 + $0, trick: .backsideThreeSixtyShuvit, outcome: .landed)
+            try summary(id: "bs-\($0)", second: 10 + $0, trick: .backsideShuvit, outcome: .landed)
         })
-        #expect(progressed.isTrickUnlocked(.frontsideThreeSixtyShuvit, in: fullShuvit))
+        #expect(progressed.isTrickUnlocked(.frontsideShuvit, in: shuvit))
     }
 
     @Test func masteryLivesInTheLatestFiveAttempts() throws {
@@ -82,6 +86,28 @@ struct PracticeProgressTests {
         #expect(progress.isUnlockedByReps(.flip))
         // …but current mastery is judged on the latest window.
         #expect(!progress.isMastered(.flip))
+        #expect(progress.masteryReps(for: .flip) == 0)
+    }
+
+    @Test func nextGoalWalksOnlyThePlayableLadder() throws {
+        let empty = PracticeProgress(summaries: [])
+        #expect(empty.nextGoal() == PracticeGoal(
+            trickID: .backsideShuvit,
+            pairOrder: 1,
+            cleanReps: 0,
+            requiredReps: 3
+        ))
+
+        let primaryMastered = PracticeProgress(summaries: try (0 ..< 3).map {
+            try summary(
+                id: "goal-bs-\($0)",
+                second: 30 - $0,
+                trick: .backsideShuvit,
+                outcome: .landed
+            )
+        })
+        #expect(primaryMastered.nextGoal()?.trickID == .frontsideShuvit)
+        #expect(primaryMastered.nextGoal()?.pairOrder == 1)
     }
 
     // MARK: - Helpers

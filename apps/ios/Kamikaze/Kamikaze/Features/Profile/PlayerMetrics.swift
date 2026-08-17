@@ -82,4 +82,10 @@ nonisolated struct PlayerMetrics: Equatable, Sendable {
             .max()
             .map { Int(($0 * 100).rounded()) }
     }
+
+    /// Highest versioned gameplay score. FIT remains available separately as
+    /// a detector diagnostic and is never substituted when score is absent.
+    var highScore: Int? {
+        summaries.compactMap(\.gameScore).max()
+    }
 }

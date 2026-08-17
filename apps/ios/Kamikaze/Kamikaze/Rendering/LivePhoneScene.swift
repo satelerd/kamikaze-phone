@@ -82,6 +82,9 @@ struct LivePhoneScene: View {
     var initialYaw = 0.0
     var initialPitch = 0.0
     let initialZoom: Double
+    /// Optional ideal pose rendered as a translucent phone in the same
+    /// RealityKit scene. Used by guided calibration without a second GPU view.
+    var ghostAttitude: Quaternion?
     /// External camera target. When it changes, the stage animates the orbit
     /// to the new pose (manual drags still work in between).
     var cameraPose: StageCameraPose?
@@ -101,6 +104,7 @@ struct LivePhoneScene: View {
         initialYaw: Double = 0,
         initialPitch: Double = 0,
         initialZoom: Double = 0.72,
+        ghostAttitude: Quaternion? = nil,
         cameraPose: StageCameraPose? = nil,
         onLevel: (() -> Void)? = nil
     ) {
@@ -109,6 +113,7 @@ struct LivePhoneScene: View {
         self.initialYaw = cameraPose?.yaw ?? initialYaw
         self.initialPitch = cameraPose?.pitch ?? initialPitch
         self.initialZoom = cameraPose?.zoom ?? initialZoom
+        self.ghostAttitude = ghostAttitude
         self.cameraPose = cameraPose
         self.onLevel = onLevel
         _orbitYaw = State(initialValue: self.initialYaw)
@@ -131,6 +136,18 @@ struct LivePhoneScene: View {
             )
             content.add(PhoneModelFactory.makeLightRig())
 
+            if ghostAttitude != nil {
+                let ghost = PhoneModelFactory.makePhone(
+                    appearance: .demo,
+                    accent: UIColor(KamikazeTheme.volt),
+                    screenLabel: "FOLLOW"
+                )
+                ghost.name = "pose-guide-ghost"
+                ghost.scale = SIMD3(repeating: 1.04)
+                ghost.components.set(OpacityComponent(opacity: 0.30))
+                content.add(ghost)
+            }
+
             let camera = PerspectiveCamera()
             camera.name = "camera"
             content.add(camera)
@@ -148,6 +165,30 @@ struct LivePhoneScene: View {
                 iz: Float(attitude.z),
                 r: Float(attitude.w)
             )
+            if let ghostAttitude {
+                let ghost: Entity
+                if let existing = content.entities.first(where: { $0.name == "pose-guide-ghost" }) {
+                    ghost = existing
+                } else {
+                    ghost = PhoneModelFactory.makePhone(
+                        appearance: .demo,
+                        accent: UIColor(KamikazeTheme.volt),
+                        screenLabel: "FOLLOW"
+                    )
+                    ghost.name = "pose-guide-ghost"
+                    ghost.scale = SIMD3(repeating: 1.04)
+                    ghost.components.set(OpacityComponent(opacity: 0.30))
+                    content.add(ghost)
+                }
+                ghost.orientation = simd_quatf(
+                    ix: Float(ghostAttitude.x),
+                    iy: Float(ghostAttitude.y),
+                    iz: Float(ghostAttitude.z),
+                    r: Float(ghostAttitude.w)
+                )
+            } else if let ghost = content.entities.first(where: { $0.name == "pose-guide-ghost" }) {
+                content.remove(ghost)
+            }
             if let camera = content.entities.first(where: { $0.name == "camera" }) {
                 let distance = Float(zoom)
                 let yaw = Float(orbitYaw)
@@ -169,7 +210,7 @@ struct LivePhoneScene: View {
                 zoom = pose.zoom
             }
         }
-        .gesture(
+        .highPriorityGesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
                     let origin = dragOrigin ?? (orbitYaw, orbitPitch)
@@ -180,14 +221,15 @@ struct LivePhoneScene: View {
                         max(-.pi * 0.46, origin.pitch + value.translation.height * 0.008)
                     )
                 }
-                .onEnded { _ in dragOrigin = nil }
+                .onEnded { _ in dragOrigin = nil },
+            including: .all
         )
         .simultaneousGesture(
             MagnifyGesture()
                 .onChanged { value in
                     let origin = magnifyOrigin ?? zoom
                     magnifyOrigin = origin
-                    zoom = min(1.2, max(0.30, origin / value.magnification))
+                    zoom = min(1.2, max(0.18, origin / value.magnification))
                 }
                 .onEnded { _ in magnifyOrigin = nil }
         )

@@ -124,6 +124,26 @@ final class DebugMotionRecorder {
         if state != .unavailable { state = .idle }
     }
 
+    /// The review owns a RealityKit replay. Stop the 100 Hz producer while it
+    /// is visible so the hidden lab cannot keep invalidating SwiftUI behind
+    /// the full-screen cover. The draft and its raw evidence remain intact.
+    func pauseMonitoringForReview() {
+        guard reviewDraft != nil else { return }
+        streamTask?.cancel()
+        streamTask = nil
+        source.stop()
+        preRoll = []
+        previousTimestampS = nil
+        latestTimestampS = nil
+        measuredHz = 0
+        state = .reviewing
+    }
+
+    func resumeMonitoringAfterReview() {
+        guard reviewDraft == nil, streamTask == nil else { return }
+        start()
+    }
+
     func beginCapture(label: DebugMotionCaptureLabel) {
         guard !isRecording, !isSaving else { return }
         guard state != .unavailable else { return }

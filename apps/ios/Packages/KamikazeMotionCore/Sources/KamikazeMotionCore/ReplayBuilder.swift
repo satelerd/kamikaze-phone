@@ -13,8 +13,8 @@ public struct FreefallWindow: Equatable, Sendable {
     }
 
     public var durationS: Double { max(0, endMs - startMs) / 1_000 }
-    /// Ballistic peak for the measured hang time: h = g·T²/8. Real physics,
-    /// not an estimate — a body in free fall for T seconds rose exactly this.
+    /// Ballistic peak estimate for the measured hang time: h = g·T²/8.
+    /// Assumes release and catch occur at the same height with negligible drag.
     public var peakHeightM: Double { 9.80665 * durationS * durationS / 8 }
 
     public func contains(_ timestampMs: Double) -> Bool {

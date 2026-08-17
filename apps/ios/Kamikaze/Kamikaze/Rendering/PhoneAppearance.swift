@@ -150,7 +150,7 @@ nonisolated struct PhoneAppearance: Codable, Hashable, Sendable {
     /// configurable combination, so the demo never looks like the player's
     /// own phone.
     static let demo = PhoneAppearance(
-        formFactor: .standard,
+        formFactor: .paint,
         bodyID: "body-frost",
         edgeID: "edge-volt",
         screenID: "screen-frost"

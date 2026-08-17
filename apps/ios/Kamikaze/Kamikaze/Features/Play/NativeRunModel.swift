@@ -45,16 +45,9 @@ nonisolated enum AttemptExecutionAssessment: Equatable, Sendable {
     case human(HumanAttemptOutcome)
 }
 
-nonisolated struct AttemptGameScore: Equatable, Sendable {
-    let value: Int
-    let version: String
-}
-
 nonisolated struct NativeRunEvaluation: Equatable, Sendable {
     let identity: AttemptIdentityAssessment
     let execution: AttemptExecutionAssessment
-    /// Intentionally nil until execution scoring is calibrated independently
-    /// from the detector's identity fit.
     let score: AttemptGameScore?
 }
 
@@ -115,7 +108,7 @@ struct NativeRunResult: Identifiable, Sendable {
                 source: humanReview == nil ? .detector : .human
             ),
             execution: humanReview.map { .human($0.outcome) } ?? .unverified,
-            score: nil
+            score: GameScoreEngine.evaluate(match: match, humanReview: humanReview)
         )
     }
     var identityLabel: String {

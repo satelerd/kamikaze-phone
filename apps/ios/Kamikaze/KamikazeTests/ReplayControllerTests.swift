@@ -61,6 +61,18 @@ struct ReplayControllerTests {
         #expect(controller.camera == .spectator)
     }
 
+    @MainActor
+    @Test func zoomHasUsefulRangeInBothDirections() {
+        let controller = ReplayController(frames: frames(), clockMode: .manual)
+        #expect(controller.camera.distance == 0.34)
+
+        controller.zoom(magnification: 2)
+        #expect(controller.camera.distance == 0.18)
+
+        controller.zoom(magnification: 0.1)
+        #expect(controller.camera.distance == 1.2)
+    }
+
     private func frames() -> [ReplayFrame] {
         [
             ReplayFrame(timestampMs: 0, progress: 0, quaternion: .identity, accelG: 1, gyroDps: 0),
