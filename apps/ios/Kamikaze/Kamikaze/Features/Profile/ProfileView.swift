@@ -10,6 +10,7 @@ struct ProfileView: View {
     @State private var selectedAttempt: NativeRunResult?
     @State private var isEditingName = false
     @State private var draftName = ""
+    @Environment(AppearanceStore.self) private var appearance
 
     var body: some View {
         ZStack {
@@ -17,11 +18,9 @@ struct ProfileView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     identityHeader
-                    HStack(spacing: 10) {
-                        stat("\(model.metrics.currentStreak)", "CURRENT STREAK")
-                        stat("\(model.metrics.successCount)", "LANDED")
-                        stat(model.metrics.highScore.map(String.init) ?? "—", "HIGH SCORE")
-                    }
+                    riderStage
+                    nextSkillCard
+                    motionTapeCard
                     activityCard
                     recentCard
                     HStack(spacing: 10) {
@@ -128,21 +127,136 @@ struct ProfileView: View {
     }
 
     private var identityHeader: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Button {
-                draftName = model.profileStore.name
-                isEditingName = true
+        HStack(alignment: .bottom, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Button {
+                    draftName = model.profileStore.name
+                    isEditingName = true
+                } label: {
+                    Text(model.profileStore.name)
+                        .font(.system(size: 54, weight: .black, design: .rounded))
+                        .tracking(-2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                }
+                .buttonStyle(.plain)
+                Text("PHONE FLIP RIDER  ·  \(appearance.effective.formFactor.displayName)")
+                    .font(.system(size: 9, weight: .black, design: .monospaced))
+                    .foregroundStyle(KamikazeTheme.volt)
+                Text(model.profileStore.joinedLabel)
+                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+                    .foregroundStyle(KamikazeTheme.muted)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            NavigationLink {
+                LockerView()
             } label: {
-                Text(model.profileStore.name)
-                    .font(.system(size: 54, weight: .black, design: .rounded))
-                    .tracking(-2)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
+                Label("SETUP", systemImage: "slider.horizontal.3")
+                    .font(.system(size: 9, weight: .black, design: .monospaced))
+                    .frame(minWidth: 72, minHeight: 42)
+            }
+            .adaptiveGlassButton(tint: KamikazeTheme.ion)
+        }
+    }
+
+    /// Profile identity is the configured phone, not an avatar placeholder.
+    /// It reuses the same RealityKit scene and gestures as Play and Setup.
+    private var riderStage: some View {
+        GlassSurface(role: .stage, cornerRadius: 34) {
+            ZStack(alignment: .bottomLeading) {
+                LivePhoneScene(
+                    attitude: .identity,
+                    accent: KamikazeTheme.ion,
+                    initialYaw: -0.58,
+                    initialPitch: 0.18,
+                    initialZoom: 0.39
+                )
+                .frame(height: 290)
+
+                GlassSurface(role: .instrumentHUD, cornerRadius: 17) {
+                    HStack(spacing: 16) {
+                        heroStat("\(model.metrics.currentStreak)", "STREAK")
+                        heroStat("\(model.metrics.successCount)", "LANDED")
+                        heroStat("\(model.metrics.bestStreak)", "BEST")
+                    }
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 10)
+                }
+                .frame(maxWidth: 224)
+                .padding(12)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var nextSkillCard: some View {
+        let progress = PracticeProgress(summaries: model.allSummaries)
+        if let goal = progress.nextGoal(),
+           let pair = PracticeLibrary.pairs.first(where: { $0.order == goal.pairOrder }),
+           let node = pair.tricks.first(where: { $0.trickID == goal.trickID }) {
+            NavigationLink {
+                PracticeLevelView(node: node, pair: pair)
+            } label: {
+                GlassSurface(role: .interactiveCard, cornerRadius: 22) {
+                    HStack(spacing: 14) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("NEXT SKILL  /  \(pair.title)")
+                                .font(.system(size: 8, weight: .black, design: .monospaced))
+                                .foregroundStyle(KamikazeTheme.muted)
+                            Text(goal.trickID.displayName)
+                                .font(.system(size: 19, weight: .black, design: .rounded))
+                            Text(node.coachingCue)
+                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                                .foregroundStyle(KamikazeTheme.muted)
+                                .lineLimit(2)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        VStack(alignment: .trailing, spacing: 0) {
+                            Text("\(min(goal.cleanReps, goal.requiredReps))/\(goal.requiredReps)")
+                                .font(.system(size: 32, weight: .black, design: .rounded))
+                                .tracking(-1.4)
+                                .foregroundStyle(KamikazeTheme.volt)
+                            Text("CLEAN REPS")
+                                .font(.system(size: 7, weight: .black, design: .monospaced))
+                                .foregroundStyle(KamikazeTheme.muted)
+                        }
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(KamikazeTheme.volt)
+                    }
+                    .padding(16)
+                }
             }
             .buttonStyle(.plain)
-            Text(model.profileStore.joinedLabel)
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .foregroundStyle(KamikazeTheme.muted)
+        } else {
+            GlassSurface(role: .interactiveCard, cornerRadius: 22) {
+                HStack(spacing: 13) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 24, weight: .black))
+                        .foregroundStyle(KamikazeTheme.volt)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("CURRENT LADDER MASTERED")
+                            .font(.system(size: 15, weight: .black, design: .rounded))
+                        Text("New skills unlock when their detector evidence is ready.")
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.muted)
+                    }
+                }
+                .padding(16)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var motionTapeCard: some View {
+        if !model.allSummaries.isEmpty {
+            GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
+                MotionTapeView(summaries: model.allSummaries) { attemptID in
+                    openAttempt(attemptID)
+                }
+                .padding(15)
+            }
         }
     }
 
@@ -168,11 +282,7 @@ struct ProfileView: View {
                     let recent = model.visible.prefix(Self.recentLimit)
                     ForEach(recent) { summary in
                         Button {
-                            Task {
-                                if let result = await model.openAttempt(id: summary.attemptID) {
-                                    selectedAttempt = result
-                                }
-                            }
+                            openAttempt(summary.attemptID)
                         } label: {
                             recentRow(summary)
                         }
@@ -227,6 +337,24 @@ struct ProfileView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(15)
+        }
+    }
+
+    private func heroStat(_ value: String, _ label: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(value)
+                .font(.system(size: 21, weight: .black, design: .rounded))
+            Text(label)
+                .font(.system(size: 7, weight: .black, design: .monospaced))
+                .foregroundStyle(KamikazeTheme.muted)
+        }
+    }
+
+    private func openAttempt(_ attemptID: String) {
+        Task {
+            if let result = await model.openAttempt(id: attemptID) {
+                selectedAttempt = result
+            }
         }
     }
 

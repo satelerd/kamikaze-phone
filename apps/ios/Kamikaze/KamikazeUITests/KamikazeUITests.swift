@@ -66,4 +66,16 @@ final class KamikazeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["WATCH THE TARGET"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.buttons["TRY THIS TRICK"].exists)
     }
+
+    @MainActor
+    func testProfileLeadsWithTheEquippedPhoneAndNextSkill() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-onboardingComplete", "YES", "-debugInitialTab", "profile"]
+        app.launch()
+
+        XCTAssertTrue(app.otherElements["Live 3D phone pose"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["SETUP"].exists)
+        XCTAssertTrue(app.staticTexts["BACKSIDE 360 SHUVIT"].exists)
+        XCTAssertTrue(app.staticTexts["0/3"].exists)
+    }
 }

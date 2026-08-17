@@ -82,6 +82,28 @@ struct PracticeProgressTests {
         #expect(progress.isUnlockedByReps(.flip))
         // …but current mastery is judged on the latest window.
         #expect(!progress.isMastered(.flip))
+        #expect(progress.masteryReps(for: .flip) == 0)
+    }
+
+    @Test func nextGoalWalksOnlyTheDetectorReadyLadder() throws {
+        let empty = PracticeProgress(summaries: [])
+        #expect(empty.nextGoal() == PracticeGoal(
+            trickID: .backsideThreeSixtyShuvit,
+            pairOrder: 2,
+            cleanReps: 0,
+            requiredReps: 3
+        ))
+
+        let primaryMastered = PracticeProgress(summaries: try (0 ..< 3).map {
+            try summary(
+                id: "goal-bs-\($0)",
+                second: 30 - $0,
+                trick: .backsideThreeSixtyShuvit,
+                outcome: .landed
+            )
+        })
+        #expect(primaryMastered.nextGoal()?.trickID == .frontsideThreeSixtyShuvit)
+        #expect(primaryMastered.nextGoal()?.pairOrder == 2)
     }
 
     // MARK: - Helpers

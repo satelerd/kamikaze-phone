@@ -41,6 +41,15 @@ nonisolated struct PracticePair: Equatable, Sendable, Identifiable {
     }
 }
 
+/// The single next skill Profile can point at. It is derived from the same
+/// mastery window as Practice, so Profile never invents a separate XP track.
+nonisolated struct PracticeGoal: Equatable, Sendable {
+    let trickID: BuiltInTrickID
+    let pairOrder: Int
+    let cleanReps: Int
+    let requiredReps: Int
+}
+
 /// The deliberate skill ladder. Readiness reflects the physically validated
 /// v0.2 matcher (2026-08-13/14 sessions): both 360 Shuvits, Flip/Reverse and
 /// Phone Flip/Reverse are detector-ready; 180 Shuvits and every Double are
@@ -173,6 +182,15 @@ nonisolated struct PracticeProgress: Equatable, Sendable {
         byTrick[trickID]?.count { Self.isQualifying($0, target: trickID) } ?? 0
     }
 
+    /// Clean reps inside the current mastery window. Unlike the lifetime
+    /// qualifying total, this can fall after a run of misses and therefore is
+    /// the truthful player-facing progress toward current mastery.
+    func masteryReps(for trickID: BuiltInTrickID) -> Int {
+        guard let attempts = byTrick[trickID] else { return 0 }
+        return attempts.prefix(Self.masteryWindow)
+            .count { Self.isQualifying($0, target: trickID) }
+    }
+
     func isUnlockedByReps(_ trickID: BuiltInTrickID) -> Bool {
         qualifyingReps(for: trickID) >= Self.repsToUnlock
     }
@@ -180,9 +198,7 @@ nonisolated struct PracticeProgress: Equatable, Sendable {
     /// Mastery: at least 3 qualifying reps within the latest 5 attempts at
     /// this trick.
     func isMastered(_ trickID: BuiltInTrickID) -> Bool {
-        guard let attempts = byTrick[trickID] else { return false }
-        let window = attempts.prefix(Self.masteryWindow)
-        return window.count { Self.isQualifying($0, target: trickID) } >= Self.masteryReps
+        masteryReps(for: trickID) >= Self.masteryReps
     }
 
     func isPairMastered(_ pair: PracticePair) -> Bool {
@@ -208,5 +224,22 @@ nonisolated struct PracticeProgress: Equatable, Sendable {
         guard isPairUnlocked(pair) else { return false }
         if trickID == pair.primary.trickID { return true }
         return isUnlockedByReps(pair.primary.trickID)
+    }
+
+    /// First unmastered detector-ready skill in the authored ladder. Evidence
+    /// collection nodes are deliberately skipped because Profile should send
+    /// a player somewhere the app can currently judge.
+    func nextGoal() -> PracticeGoal? {
+        for pair in PracticeLibrary.pairs where pair.isDetectorReady {
+            for node in pair.tricks where !isMastered(node.trickID) {
+                return PracticeGoal(
+                    trickID: node.trickID,
+                    pairOrder: pair.order,
+                    cleanReps: masteryReps(for: node.trickID),
+                    requiredReps: Self.masteryReps
+                )
+            }
+        }
+        return nil
     }
 }

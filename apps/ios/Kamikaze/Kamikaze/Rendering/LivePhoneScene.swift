@@ -210,7 +210,7 @@ struct LivePhoneScene: View {
                 zoom = pose.zoom
             }
         }
-        .gesture(
+        .highPriorityGesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
                     let origin = dragOrigin ?? (orbitYaw, orbitPitch)
@@ -221,7 +221,8 @@ struct LivePhoneScene: View {
                         max(-.pi * 0.46, origin.pitch + value.translation.height * 0.008)
                     )
                 }
-                .onEnded { _ in dragOrigin = nil }
+                .onEnded { _ in dragOrigin = nil },
+            including: .all
         )
         .simultaneousGesture(
             MagnifyGesture()
