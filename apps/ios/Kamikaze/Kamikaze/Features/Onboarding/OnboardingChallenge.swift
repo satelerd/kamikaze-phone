@@ -11,9 +11,13 @@ nonisolated enum OnboardingStep: Int, CaseIterable, Equatable, Sendable {
     case straightAir
     case shuvitLearn
     case shuvitTry
+    case flipLearn
+    case flipTry
 
     var position: Int { rawValue + 1 }
-    var isSensorChallenge: Bool { self == .straightAir || self == .shuvitTry }
+    var isSensorChallenge: Bool {
+        self == .straightAir || self == .shuvitTry || self == .flipTry
+    }
 }
 
 nonisolated enum OnboardingChallengeEvaluator {
@@ -21,6 +25,7 @@ nonisolated enum OnboardingChallengeEvaluator {
     /// threshold, not a claim that the IMU observes absolute position.
     static let minimumStraightAirHeightM = 0.50
     static let firstShuvit: BuiltInTrickID = .backsideShuvit
+    static let firstFlip: BuiltInTrickID = .flip
 
     static func passesStraightAir(estimatedHeightM: Double?) -> Bool {
         guard let estimatedHeightM, estimatedHeightM.isFinite else { return false }
@@ -32,5 +37,12 @@ nonisolated enum OnboardingChallengeEvaluator {
         trickID: BuiltInTrickID?
     ) -> Bool {
         status == .recognized && trickID == firstShuvit
+    }
+
+    static func passesFlip(
+        status: TrickRecognitionStatus,
+        trickID: BuiltInTrickID?
+    ) -> Bool {
+        status == .recognized && trickID == firstFlip
     }
 }

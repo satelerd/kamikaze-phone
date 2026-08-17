@@ -8,28 +8,38 @@ struct OnboardingView: View {
     let onComplete: () -> Void
 
     private let shuvitFrames: [ReplayFrame]
+    private let flipFrames: [ReplayFrame]
 
     @State private var step = OnboardingStep.board
     @State private var maxReachedStep = OnboardingStep.board
     @State private var run = NativeRunModel()
     @State private var targetReplay: ReplayController
+    @State private var flipReplay: ReplayController
     @State private var resultReplay: ReplayController?
     @State private var lastFreefall: FreefallWindow?
     @State private var lastHeightM: Double?
     @State private var airPassed = false
     @State private var shuvitPassed = false
+    @State private var flipPassed = false
     @State private var airAttempts = 0
     @State private var shuvitAttempts = 0
+    @State private var flipAttempts = 0
 
     @Environment(FeedbackCoordinator.self) private var feedback
 
     init(onComplete: @escaping () -> Void) {
         self.onComplete = onComplete
-        let definition = TrickCatalog.provisional(gripHand: .right)
-            .definitions.first { $0.id == OnboardingChallengeEvaluator.firstShuvit }
-        let frames = definition.map { TargetMotionGenerator.frames(for: $0) } ?? []
+        let catalog = TrickCatalog.provisional(gripHand: .right)
+        let shuvitDefinition = catalog.definitions
+            .first { $0.id == OnboardingChallengeEvaluator.firstShuvit }
+        let frames = shuvitDefinition.map { TargetMotionGenerator.frames(for: $0) } ?? []
         shuvitFrames = frames
         _targetReplay = State(initialValue: ReplayController(frames: frames))
+        let flipDefinition = catalog.definitions
+            .first { $0.id == OnboardingChallengeEvaluator.firstFlip }
+        let flipTarget = flipDefinition.map { TargetMotionGenerator.frames(for: $0) } ?? []
+        flipFrames = flipTarget
+        _flipReplay = State(initialValue: ReplayController(frames: flipTarget))
     }
 
     var body: some View {
@@ -78,9 +88,19 @@ struct OnboardingView: View {
                 targetReplay.play()
             }
         }
+        .onChange(of: flipReplay.state) { _, state in
+            guard state == .ended, step == .flipLearn else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(700))
+                guard step == .flipLearn, flipReplay.state == .ended else { return }
+                flipReplay.seek(toProgress: 0)
+                flipReplay.play()
+            }
+        }
         .onDisappear {
             run.stop()
             targetReplay.pause()
+            flipReplay.pause()
             resultReplay?.pause()
             feedback.evidenceWindowActive = false
         }
@@ -134,6 +154,10 @@ struct OnboardingView: View {
             shuvitLearnPage
         case .shuvitTry:
             shuvitTryPage
+        case .flipLearn:
+            flipLearnPage
+        case .flipTry:
+            flipTryPage
         }
     }
 
@@ -269,7 +293,7 @@ struct OnboardingView: View {
             .background(.black.opacity(0.14), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
             .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
 
-            replayTransport
+            replayTransport(for: targetReplay, name: "Shuvit", tint: KamikazeTheme.volt)
 
             GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
                 HStack(spacing: 14) {
@@ -307,18 +331,83 @@ struct OnboardingView: View {
         }
     }
 
+    private var flipLearnPage: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            challengeHeader(
+                eyebrow: "YOUR SECOND TRICK · LEARN",
+                title: "NOW FLIP IT.",
+                detail: "One full rotation end over end. Same throw, more commitment."
+            )
+
+            ZStack(alignment: .topLeading) {
+                ReplayPhoneScene(
+                    controller: flipReplay,
+                    accent: KamikazeTheme.ion,
+                    appearanceOverride: .demo,
+                    screenLabel: "TARGET"
+                )
+                stageBadge("TARGET · FLIP", color: KamikazeTheme.ion)
+            }
+            .frame(height: 340)
+            .background(.black.opacity(0.14), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+
+            replayTransport(for: flipReplay, name: "Flip", tint: KamikazeTheme.ion)
+
+            GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
+                HStack(spacing: 14) {
+                    Image(systemName: "rotate.3d")
+                        .font(.system(size: 25, weight: .black))
+                        .foregroundStyle(KamikazeTheme.ion)
+                        .frame(width: 36)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("WATCH THE AXIS")
+                            .font(.system(size: 9, weight: .black, design: .monospaced))
+                        Text("Play it slowly, scrub the timeline, then drag the stage to inspect the rotation.")
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(KamikazeTheme.muted)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(15)
+            }
+        }
+    }
+
+    private var flipTryPage: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            challengeHeader(
+                eyebrow: "YOUR SECOND TRICK · TRY",
+                title: "LAND THE FLIP.",
+                detail: "Only the exact full-rotation target clears the tutorial."
+            )
+
+            challengeStage(kind: .flip)
+
+            RunTelemetryHUD(run: run, leadingTitle: "TARGET", leadingValue: "360°")
+
+            statusBlock(title: flipStatus.title, detail: flipStatus.detail)
+        }
+    }
+
     private enum ChallengeStageKind {
         case straightAir
         case shuvit
+        case flip
     }
 
     private func challengeStage(kind: ChallengeStageKind) -> some View {
-        ZStack(alignment: .topLeading) {
+        let targetFrames: [ReplayFrame]? = switch kind {
+        case .shuvit: shuvitFrames
+        case .flip: flipFrames
+        case .straightAir: nil
+        }
+        return ZStack(alignment: .topLeading) {
             if let resultReplay, run.result != nil {
                 ReplayPhoneScene(
                     controller: resultReplay,
                     accent: currentChallengePassed ? KamikazeTheme.volt : KamikazeTheme.hazard,
-                    targetFrames: kind == .shuvit ? shuvitFrames : nil,
+                    targetFrames: targetFrames,
                     arcWindow: kind == .straightAir ? lastFreefall : nil
                 )
             } else {
@@ -331,33 +420,37 @@ struct OnboardingView: View {
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
     }
 
-    private var replayTransport: some View {
+    private func replayTransport(
+        for controller: ReplayController,
+        name: String,
+        tint: Color
+    ) -> some View {
         GlassSurface(role: .transport, cornerRadius: 20) {
             HStack(spacing: 12) {
                 Button {
-                    targetReplay.togglePlayback()
+                    controller.togglePlayback()
                 } label: {
-                    Image(systemName: targetReplay.state == .playing ? "pause.fill" : "play.fill")
+                    Image(systemName: controller.state == .playing ? "pause.fill" : "play.fill")
                         .font(.system(size: 15, weight: .black))
-                        .foregroundStyle(KamikazeTheme.volt)
+                        .foregroundStyle(tint)
                         .frame(width: 38, height: 42)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(targetReplay.state == .playing ? "Pause Shuvit preview" : "Play Shuvit preview")
+                .accessibilityLabel(controller.state == .playing ? "Pause \(name) preview" : "Play \(name) preview")
 
                 Slider(
                     value: Binding(
-                        get: { targetReplay.progress },
-                        set: { targetReplay.seek(toProgress: $0) }
+                        get: { controller.progress },
+                        set: { controller.seek(toProgress: $0) }
                     ),
                     in: 0 ... 1
                 )
-                .tint(KamikazeTheme.volt)
-                .accessibilityLabel("Shuvit preview position")
+                .tint(tint)
+                .accessibilityLabel("\(name) preview position")
 
-                Text(targetReplay.speed.label)
+                Text(controller.speed.label)
                     .font(.system(size: 9, weight: .black, design: .monospaced))
-                    .foregroundStyle(KamikazeTheme.volt)
+                    .foregroundStyle(tint)
             }
             .padding(.horizontal, 13)
             .padding(.vertical, 4)
@@ -470,6 +563,18 @@ struct OnboardingView: View {
             beginChallenge()
         case .shuvitTry:
             if shuvitPassed {
+                move(to: .flipLearn)
+            } else if active {
+                cancelChallenge()
+            } else {
+                beginChallenge()
+            }
+        case .flipLearn:
+            flipReplay.pause()
+            move(to: .flipTry)
+            beginChallenge()
+        case .flipTry:
+            if flipPassed {
                 finishOnboarding()
             } else if active {
                 cancelChallenge()
@@ -490,21 +595,37 @@ struct OnboardingView: View {
         switch newStep {
         case .straightAir:
             targetReplay.pause()
+            flipReplay.pause()
             clearCompletedRunIfNeeded()
             run.start()
         case .shuvitLearn:
             clearCompletedRunIfNeeded()
             run.stop()
+            flipReplay.pause()
             targetReplay.seek(toProgress: 0)
             targetReplay.setSpeed(.half)
             targetReplay.play()
         case .shuvitTry:
             targetReplay.pause()
+            flipReplay.pause()
+            clearCompletedRunIfNeeded()
+            run.start()
+        case .flipLearn:
+            clearCompletedRunIfNeeded()
+            run.stop()
+            targetReplay.pause()
+            flipReplay.seek(toProgress: 0)
+            flipReplay.setSpeed(.half)
+            flipReplay.play()
+        case .flipTry:
+            targetReplay.pause()
+            flipReplay.pause()
             clearCompletedRunIfNeeded()
             run.start()
         case .board, .safety, .origin:
             run.stop()
             targetReplay.pause()
+            flipReplay.pause()
         }
     }
 
@@ -522,6 +643,8 @@ struct OnboardingView: View {
             lastFreefall = nil
         } else if step == .shuvitTry {
             shuvitPassed = false
+        } else if step == .flipTry {
+            flipPassed = false
         }
         feedback.play(.armed)
         if run.result != nil {
@@ -565,7 +688,14 @@ struct OnboardingView: View {
                 trickID: result.match.candidates.first?.definition.id
             )
             shuvitPassed = success
-        case .board, .safety, .origin, .shuvitLearn:
+        case .flipTry:
+            flipAttempts += 1
+            success = OnboardingChallengeEvaluator.passesFlip(
+                status: result.match.status,
+                trickID: result.match.candidates.first?.definition.id
+            )
+            flipPassed = success
+        case .board, .safety, .origin, .shuvitLearn, .flipLearn:
             return
         }
 
@@ -575,9 +705,12 @@ struct OnboardingView: View {
     }
 
     private func bypassChallenge() {
-        if step == .straightAir {
+        switch step {
+        case .straightAir:
             move(to: .shuvitLearn)
-        } else {
+        case .shuvitTry:
+            move(to: .flipLearn)
+        default:
             finishOnboarding()
         }
     }
@@ -585,6 +718,7 @@ struct OnboardingView: View {
     private func finishOnboarding() {
         run.stop()
         targetReplay.pause()
+        flipReplay.pause()
         resultReplay?.pause()
         feedback.evidenceWindowActive = false
         onComplete()
@@ -601,10 +735,16 @@ struct OnboardingView: View {
             else { "START STRAIGHT AIR" }
         case .shuvitLearn: "TRY THE SHUVIT"
         case .shuvitTry:
-            if shuvitPassed { "ENTER KAMIKAZE" }
+            if shuvitPassed { "NEXT: LEARN FLIP" }
             else if active { "CANCEL THROW" }
             else if run.result != nil { "TRY SHUVIT AGAIN" }
             else { "START SHUVIT" }
+        case .flipLearn: "TRY THE FLIP"
+        case .flipTry:
+            if flipPassed { "ENTER KAMIKAZE" }
+            else if active { "CANCEL THROW" }
+            else if run.result != nil { "TRY FLIP AGAIN" }
+            else { "START FLIP" }
         }
     }
 
@@ -631,7 +771,8 @@ struct OnboardingView: View {
         switch step {
         case .straightAir: airAttempts >= 3 && !airPassed
         case .shuvitTry: shuvitAttempts >= 3 && !shuvitPassed
-        case .board, .safety, .origin, .shuvitLearn: false
+        case .flipTry: flipAttempts >= 3 && !flipPassed
+        case .board, .safety, .origin, .shuvitLearn, .flipLearn: false
         }
     }
 
@@ -639,7 +780,8 @@ struct OnboardingView: View {
         switch step {
         case .straightAir: airPassed
         case .shuvitTry: shuvitPassed
-        case .board, .safety, .origin, .shuvitLearn: false
+        case .flipTry: flipPassed
+        case .board, .safety, .origin, .shuvitLearn, .flipLearn: false
         }
     }
 
@@ -669,7 +811,7 @@ struct OnboardingView: View {
 
     private var shuvitStatus: (title: String, detail: String) {
         if shuvitPassed {
-            return ("SHUVIT LANDED", "You cleared the first trick. The rest of Kamikaze is open.")
+            return ("SHUVIT LANDED", "First trick down. One more to go: the flip.")
         }
         if let result = run.result {
             if let detected = result.evaluation.identity.trickID {
@@ -688,11 +830,33 @@ struct OnboardingView: View {
         }
     }
 
+    private var flipStatus: (title: String, detail: String) {
+        if flipPassed {
+            return ("FLIP LANDED", "You cleared the tutorial. The rest of Kamikaze is open.")
+        }
+        if let result = run.result {
+            if let detected = result.evaluation.identity.trickID {
+                return ("THAT WAS \(detected.displayName)", "The target is FLIP: one clean full rotation.")
+            }
+            return ("NOT THE TARGET YET", "Replay the preview, then send one committed full rotation.")
+        }
+        return switch run.phase {
+        case .ready: ("READY TO TRY?", "Start, throw the full flip and catch it flat.")
+        case .armed: ("THROW THE FLIP", "One full rotation end over end.")
+        case .motion: ("TRICK IN MOTION", "Find the flat catch.")
+        case .settling: ("HOLD THE CATCH", "Keep it steady.")
+        case .result: ("CHECKING TARGET", "Comparing your throw with the Flip definition.")
+        case .unknown: ("NOT THE TARGET", "No trick was guessed.")
+        case let .failed(message): ("MOTION SENSOR NEEDED", message)
+        }
+    }
+
     private var accent: Color {
         switch step {
         case .board, .origin: KamikazeTheme.ion
         case .safety, .straightAir: KamikazeTheme.hazard
         case .shuvitLearn, .shuvitTry: KamikazeTheme.volt
+        case .flipLearn, .flipTry: KamikazeTheme.ion
         }
     }
 }

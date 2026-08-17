@@ -25,9 +25,25 @@ struct OnboardingChallengeTests {
         ))
     }
 
+    @Test func flipRequiresTheExactRecognizedIdentity() {
+        #expect(OnboardingChallengeEvaluator.passesFlip(
+            status: .recognized,
+            trickID: .flip
+        ))
+        #expect(!OnboardingChallengeEvaluator.passesFlip(
+            status: .review,
+            trickID: .flip
+        ))
+        #expect(!OnboardingChallengeEvaluator.passesFlip(
+            status: .recognized,
+            trickID: .doubleFlip
+        ))
+    }
+
     @Test func authoredStoryEndsWithLearnThenTry() {
         #expect(OnboardingStep.allCases == [
             .board, .safety, .origin, .straightAir, .shuvitLearn, .shuvitTry,
+            .flipLearn, .flipTry,
         ])
     }
 }
