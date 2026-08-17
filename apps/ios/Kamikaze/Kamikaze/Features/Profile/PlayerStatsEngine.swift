@@ -20,6 +20,10 @@ nonisolated struct PlayerStatsEngine: Equatable, Sendable {
         let fastestLandedMs: Int?
         /// Longest successful motion, in milliseconds.
         let longestLandedMs: Int?
+        /// Successful throws in the most recent window for this trick.
+        let recentSuccessCount: Int
+        /// Number of throws present in that window (up to five).
+        let recentSampleSize: Int
 
         var id: BuiltInTrickID { trickID }
     }
@@ -61,6 +65,9 @@ nonisolated struct PlayerStatsEngine: Equatable, Sendable {
         trickStats = byTrick
             .map { trickID, rows in
                 let landed = rows.filter(\.countsAsSuccess)
+                // Summary storage is newest-first, so the prefix is the
+                // player's current form rather than an all-time average.
+                let recent = rows.prefix(5)
                 return TrickStat(
                     trickID: trickID,
                     attemptCount: rows.count,
@@ -72,7 +79,9 @@ nonisolated struct PlayerStatsEngine: Equatable, Sendable {
                         .map { Int(($0 * 100).rounded()) },
                     bestScore: rows.compactMap(\.gameScore).max(),
                     fastestLandedMs: landed.map(\.motionDurationMs).min().map { Int($0.rounded()) },
-                    longestLandedMs: landed.map(\.motionDurationMs).max().map { Int($0.rounded()) }
+                    longestLandedMs: landed.map(\.motionDurationMs).max().map { Int($0.rounded()) },
+                    recentSuccessCount: recent.count(where: \.countsAsSuccess),
+                    recentSampleSize: recent.count
                 )
             }
             .sorted { $0.attemptCount == $1.attemptCount ? $0.successCount > $1.successCount : $0.attemptCount > $1.attemptCount }
