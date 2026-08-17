@@ -34,7 +34,11 @@ enum PhoneModelFactory {
         if let asset = assetID(for: appearance.formFactor),
            let real = PhoneModelLibrary.shared.makePhone(asset) {
             if asset == .paintable {
-                PhoneModelLibrary.applyCosmetics(to: real, appearance: appearance)
+                PhoneModelLibrary.applyCosmetics(
+                    to: real,
+                    appearance: appearance,
+                    screenLabel: screenLabel
+                )
             }
             return real
         }
@@ -212,7 +216,10 @@ enum PhoneModelFactory {
 
     /// Renders the label into a screen texture: pitch glass with the word in
     /// Volt, so the demo phone announces itself from any distance.
-    private static func labelledScreenMaterial(text: String) -> UnlitMaterial? {
+    static func labelledScreenMaterial(
+        text: String,
+        flippedVertically: Bool = false
+    ) -> UnlitMaterial? {
         let size = CGSize(width: 512, height: 1024)
         let renderer = UIGraphicsImageRenderer(size: size)
         let image = renderer.image { context in
@@ -241,7 +248,18 @@ enum PhoneModelFactory {
                 withAttributes: caption
             )
         }
-        guard let cgImage = image.cgImage,
+        let textureImage: UIImage
+        if flippedVertically {
+            let flipped = UIGraphicsImageRenderer(size: size).image { context in
+                context.cgContext.translateBy(x: 0, y: size.height)
+                context.cgContext.scaleBy(x: 1, y: -1)
+                image.draw(in: CGRect(origin: .zero, size: size))
+            }
+            textureImage = flipped
+        } else {
+            textureImage = image
+        }
+        guard let cgImage = textureImage.cgImage,
               let resource = try? TextureResource(
                   image: cgImage,
                   options: .init(semantic: .color)

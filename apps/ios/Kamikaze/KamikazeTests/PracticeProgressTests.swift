@@ -6,7 +6,7 @@ import Testing
 struct PracticeProgressTests {
     private let catalog = TrickCatalog.provisional(gripHand: .right)
 
-    @Test func qualifyingRepRequiresTargetIdentityAndHumanLanding() throws {
+    @Test func exactRecognizedIdentityCountsUntilHumanFeedbackOverridesIt() throws {
         let progress = PracticeProgress(summaries: [
             // Counts: right trick, human landed.
             try summary(id: "q1", second: 5, trick: .flip, outcome: .landed),
@@ -14,10 +14,10 @@ struct PracticeProgressTests {
             try summary(id: "q2", second: 4, trick: .reverseFlip, outcome: .landed),
             // Right trick, human said missed.
             try summary(id: "q3", second: 3, trick: .flip, outcome: .missed),
-            // Detector recognized but nobody confirmed the landing.
+            // Exact detector recognition counts without an extra question.
             try summary(id: "q4", second: 2, trick: .flip, outcome: nil),
         ])
-        #expect(progress.qualifyingReps(for: .flip) == 1)
+        #expect(progress.qualifyingReps(for: .flip) == 2)
         #expect(progress.attemptCount(for: .flip) == 3)
         #expect(!progress.isUnlockedByReps(.flip))
     }

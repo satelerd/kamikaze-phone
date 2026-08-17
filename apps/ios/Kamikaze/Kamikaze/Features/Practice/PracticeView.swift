@@ -46,7 +46,7 @@ struct PracticeView: View {
                     Text("BUILD THE\nMUSCLE MEMORY.")
                         .font(.system(size: 40, weight: .black, design: .rounded))
                         .tracking(-1.8)
-                    Text("Progress is measured from saved attempts. Landing is confirmed by you, never guessed from FIT.")
+                    Text("Land the exact target three times. The detector counts clean matches; your corrections always win.")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(KamikazeTheme.muted)
                     ForEach(PracticeLibrary.pairs) { pair in

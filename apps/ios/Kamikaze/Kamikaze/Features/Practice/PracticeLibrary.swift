@@ -142,9 +142,8 @@ nonisolated enum PracticeLibrary {
 }
 
 /// Progression is derived from persisted attempt summaries — never from a
-/// second completion flag. A qualifying rep is an attempt whose displayed
-/// identity equals the target and whose execution a human confirmed as landed
-/// (FIT alone never counts as landing in v1).
+/// second completion flag. An exact detector-recognized identity counts
+/// automatically; when a human verdict exists it supersedes the detector.
 nonisolated struct PracticeProgress: Equatable, Sendable {
     static let repsToUnlock = 3
     static let masteryWindow = 5
@@ -163,7 +162,7 @@ nonisolated struct PracticeProgress: Equatable, Sendable {
     }
 
     static func isQualifying(_ summary: AttemptSummaryV1, target: BuiltInTrickID) -> Bool {
-        summary.trickID == target && summary.humanOutcome == .landed
+        summary.trickID == target && summary.countsAsSuccess
     }
 
     func attemptCount(for trickID: BuiltInTrickID) -> Int {
@@ -204,7 +203,7 @@ nonisolated struct PracticeProgress: Equatable, Sendable {
     }
 
     /// Within a pair, the regular direction unlocks first; its opposite opens
-    /// after three qualifying reps (or retroactive human-confirmed captures).
+    /// after three qualifying reps (automatic or human-corrected captures).
     func isTrickUnlocked(_ trickID: BuiltInTrickID, in pair: PracticePair) -> Bool {
         guard isPairUnlocked(pair) else { return false }
         if trickID == pair.primary.trickID { return true }

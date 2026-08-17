@@ -127,7 +127,11 @@ extension PhoneModelLibrary {
     /// Applies the player's body/edge cosmetics to the paintable asset. Parts
     /// are matched by the mesh names authored in the source model; anything
     /// unmatched (lenses, screws, screen) keeps its authored look.
-    static func applyCosmetics(to phone: Entity, appearance: PhoneAppearance) {
+    static func applyCosmetics(
+        to phone: Entity,
+        appearance: PhoneAppearance,
+        screenLabel: String? = nil
+    ) {
         let body = appearance.body.color
         // Uniform boost, clamped so hue survives: per-component clamping
         // would bleach saturated colors toward white.
@@ -147,7 +151,13 @@ extension PhoneModelLibrary {
         tintParts(of: phone, matching: "Cube_sides", tint: edgeTint, keepTexture: false)
         // "Cube_screen_0" never matches the separate "Cube_screen_border_0".
         // Flipped: this mesh's UVs expect the GLTF pre-flipped orientation.
-        if appearance.usesCustomPhotoScreen,
+        if let screenLabel,
+           let labelled = PhoneModelFactory.labelledScreenMaterial(
+               text: screenLabel,
+               flippedVertically: true
+           ) {
+            replaceMaterials(of: phone, matching: "Cube_screen_0", with: labelled)
+        } else if appearance.usesCustomPhotoScreen,
            let photo = PhoneModelFactory.customPhotoScreenMaterial(flippedVertically: true) {
             replaceMaterials(of: phone, matching: "Cube_screen_0", with: photo)
         }

@@ -15,7 +15,7 @@ struct ReplayPhoneScene: View {
     /// Fixed appearance for demo/target contexts; nil renders the player's
     /// equipped (or previewed) phone.
     var appearanceOverride: PhoneAppearance? = nil
-    /// Screen stamp for demo phones (e.g. "IDEAL").
+    /// Screen stamp for demo phones (e.g. "TARGET").
     var screenLabel: String? = nil
     /// Measured free-fall window used to render an estimated ballistic arc.
     var arcWindow: FreefallWindow? = nil
@@ -42,11 +42,11 @@ struct ReplayPhoneScene: View {
 
             if targetFrames?.isEmpty == false {
                 // The ghost IS the demo phone: distinct body and a stamped
-                // IDEAL screen, never the player's configuration.
+                // TARGET screen, never the player's configuration.
                 let ghost = PhoneModelFactory.makePhone(
                     appearance: .demo,
                     accent: UIColor(KamikazeTheme.volt),
-                    screenLabel: "IDEAL"
+                    screenLabel: "TARGET"
                 )
                 ghost.name = "target-ghost"
                 ghost.scale = SIMD3(repeating: 0.97)
