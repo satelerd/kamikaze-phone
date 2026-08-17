@@ -90,3 +90,20 @@ For the new classes:
 After candidate v0.3 parameters freeze, record a separate physical session as
 holdout. None of these 118 inspected captures may later be described as an
 independent holdout.
+
+## Candidate catalog v0.3 result
+
+The V4 landed captures support development candidates for three previously
+unmodelled identities:
+
+- Backside Shuvit 180: 13 / 13 landed identities selected;
+- Frontside Shuvit 180: 11 / 12 landed identities selected (one ~200 ms sample
+  remained unknown);
+- Double Flip: 5 / 5 landed identities selected.
+
+Across the full development set, catalog v0.3 selects the labelled identity for
+79 / 90 landed captures and abstains on 26 / 28 missed captures. The two missed
+captures that still select Frontside Shuvit show that identity matching and
+landing quality are separate decisions; the matcher fit is not a calibrated
+probability of landing. Practice therefore exposes these three definitions as
+visibly labelled beta candidates and retains player correction.

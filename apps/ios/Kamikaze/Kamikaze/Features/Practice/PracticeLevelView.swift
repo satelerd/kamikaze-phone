@@ -164,6 +164,11 @@ struct PracticeLevelView: View {
     private var lessonHeader: some View {
         HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 5) {
+                if node.readiness == .candidateNeedsHoldout {
+                    Text("BETA DETECTOR  /  NEEDS HOLDOUT")
+                        .font(.system(size: 8, weight: .black, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.ion)
+                }
                 Text(node.trickID.displayName)
                     .font(.system(size: 29, weight: .black, design: .rounded))
                     .tracking(-1.2)

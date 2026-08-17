@@ -92,6 +92,48 @@ struct TrickMatcherTests {
         #expect(result.candidates.first?.definition.family == .shuvit)
     }
 
+    @Test("separates the V4 half Shuvits from their full-rotation variants")
+    func halfShuvitDirections() {
+        let backside = TrickMatcher().match(
+            attempt: makeAttempt(
+                rotationDegrees: Vector3(x: 0, y: 0, z: 171),
+                durationS: 0.745,
+                cancellingPathDegrees: Vector3(x: 78, y: 74, z: 0)
+            ),
+            catalog: .provisional(gripHand: .right)
+        )
+        let frontside = TrickMatcher().match(
+            attempt: makeAttempt(
+                rotationDegrees: Vector3(x: 0, y: 0, z: -159),
+                durationS: 0.730,
+                cancellingPathDegrees: Vector3(x: 122, y: 126, z: 0)
+            ),
+            catalog: .provisional(gripHand: .right)
+        )
+
+        #expect(backside.status == .recognized)
+        #expect(backside.candidates.first?.definition.id == .backsideShuvit)
+        #expect(frontside.status == .recognized)
+        #expect(frontside.candidates.first?.definition.id == .frontsideShuvit)
+    }
+
+    @Test("separates the axial V4 Double Flip from Flip and Phone Flip")
+    func doubleFlip() {
+        let result = TrickMatcher().match(
+            attempt: makeAttempt(
+                rotationDegrees: Vector3(x: 0, y: 735, z: 0),
+                durationS: 0.965,
+                cancellingPathDegrees: Vector3(x: 76, y: 0, z: 44)
+            ),
+            catalog: .provisional(gripHand: .right)
+        )
+
+        #expect(result.status == .recognized)
+        #expect(result.candidates.first?.definition.id == .doubleFlip)
+        #expect(result.candidates.map(\.definition.id).contains(.flip))
+        #expect(result.candidates.map(\.definition.id).contains(.phoneFlip))
+    }
+
     @Test("malformed partial front rotation abstains instead of forcing a label")
     func malformedFrontAbstains() {
         let result = TrickMatcher().match(

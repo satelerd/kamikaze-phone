@@ -22,34 +22,38 @@ struct PracticeProgressTests {
         #expect(!progress.isUnlockedByReps(.flip))
     }
 
-    @Test func firstDetectorReadyPairIsPlayableFromZero() {
+    @Test func firstCandidatePairIsPlayableFromZero() {
         let progress = PracticeProgress(summaries: [])
         let shuvit180 = PracticeLibrary.pairs[0]
         let fullShuvit = PracticeLibrary.pairs[1]
         let flip = PracticeLibrary.pairs[2]
 
-        // Collection-only pairs are never scored-playable…
-        #expect(!progress.isPairUnlocked(shuvit180))
-        // …and they do not block the ladder behind them.
-        #expect(progress.isPairUnlocked(fullShuvit))
-        // The next detector-ready pair waits for mastery of the previous one.
+        #expect(shuvit180.containsCandidate)
+        #expect(progress.isPairUnlocked(shuvit180))
+        // The V4-backed half rotation now leads the authored ladder.
+        #expect(!progress.isPairUnlocked(fullShuvit))
         #expect(!progress.isPairUnlocked(flip))
     }
 
     @Test func masteringAPairUnlocksTheNextDetectorReadyPair() throws {
         var rows: [AttemptSummaryV1] = []
         var second = 60
-        for trick in [BuiltInTrickID.backsideThreeSixtyShuvit, .frontsideThreeSixtyShuvit] {
+        for trick in [
+            BuiltInTrickID.backsideShuvit, .frontsideShuvit,
+            .backsideThreeSixtyShuvit, .frontsideThreeSixtyShuvit,
+        ] {
             for index in 0 ..< 3 {
                 rows.append(try summary(id: "m-\(trick.rawValue)-\(index)", second: second, trick: trick, outcome: .landed))
                 second -= 1
             }
         }
         let progress = PracticeProgress(summaries: rows)
+        let shuvit180 = PracticeLibrary.pairs[0]
         let fullShuvit = PracticeLibrary.pairs[1]
         let flip = PracticeLibrary.pairs[2]
         let phoneFlip = PracticeLibrary.pairs[4]
 
+        #expect(progress.isPairMastered(shuvit180))
         #expect(progress.isPairMastered(fullShuvit))
         #expect(progress.isPairUnlocked(flip))
         // Phone Flip still waits for the Flip pair.
@@ -57,15 +61,15 @@ struct PracticeProgressTests {
     }
 
     @Test func oppositeDirectionWaitsForPrimaryReps() throws {
-        let fullShuvit = PracticeLibrary.pairs[1]
+        let shuvit = PracticeLibrary.pairs[0]
         let empty = PracticeProgress(summaries: [])
-        #expect(empty.isTrickUnlocked(.backsideThreeSixtyShuvit, in: fullShuvit))
-        #expect(!empty.isTrickUnlocked(.frontsideThreeSixtyShuvit, in: fullShuvit))
+        #expect(empty.isTrickUnlocked(.backsideShuvit, in: shuvit))
+        #expect(!empty.isTrickUnlocked(.frontsideShuvit, in: shuvit))
 
         let progressed = PracticeProgress(summaries: try (0 ..< 3).map {
-            try summary(id: "bs-\($0)", second: 10 + $0, trick: .backsideThreeSixtyShuvit, outcome: .landed)
+            try summary(id: "bs-\($0)", second: 10 + $0, trick: .backsideShuvit, outcome: .landed)
         })
-        #expect(progressed.isTrickUnlocked(.frontsideThreeSixtyShuvit, in: fullShuvit))
+        #expect(progressed.isTrickUnlocked(.frontsideShuvit, in: shuvit))
     }
 
     @Test func masteryLivesInTheLatestFiveAttempts() throws {
@@ -85,11 +89,11 @@ struct PracticeProgressTests {
         #expect(progress.masteryReps(for: .flip) == 0)
     }
 
-    @Test func nextGoalWalksOnlyTheDetectorReadyLadder() throws {
+    @Test func nextGoalWalksOnlyThePlayableLadder() throws {
         let empty = PracticeProgress(summaries: [])
         #expect(empty.nextGoal() == PracticeGoal(
-            trickID: .backsideThreeSixtyShuvit,
-            pairOrder: 2,
+            trickID: .backsideShuvit,
+            pairOrder: 1,
             cleanReps: 0,
             requiredReps: 3
         ))
@@ -98,12 +102,12 @@ struct PracticeProgressTests {
             try summary(
                 id: "goal-bs-\($0)",
                 second: 30 - $0,
-                trick: .backsideThreeSixtyShuvit,
+                trick: .backsideShuvit,
                 outcome: .landed
             )
         })
-        #expect(primaryMastered.nextGoal()?.trickID == .frontsideThreeSixtyShuvit)
-        #expect(primaryMastered.nextGoal()?.pairOrder == 2)
+        #expect(primaryMastered.nextGoal()?.trickID == .frontsideShuvit)
+        #expect(primaryMastered.nextGoal()?.pairOrder == 1)
     }
 
     // MARK: - Helpers

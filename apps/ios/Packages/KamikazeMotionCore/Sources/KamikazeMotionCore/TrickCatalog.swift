@@ -2,6 +2,7 @@ import Foundation
 
 public enum TrickCatalogVersion {
     public static let physicalDatasetV1 = "trick-catalog-v0.2-iphone15plus-right"
+    public static let labelledDatasetV4 = "trick-catalog-v0.3-labelled-v4-iphone15plus-right"
 }
 
 public enum BuiltInTrickID: String, Codable, CaseIterable, Equatable, Sendable {
@@ -96,6 +97,10 @@ public struct TrickDefinition: Codable, Equatable, Sendable {
     public let targetAngularPathShare: Vector3?
     public let referenceDurationMs: Double
     public let requiresSeparableAxes: Bool
+    /// Optional identity guard for single-axis tricks: the largest inactive
+    /// signed rotation may not exceed this fraction of the target rotation.
+    /// Angular path may still contain intentional cancelling motion.
+    public let maximumInactiveNetRotationRatio: Double?
 
     public init(
         id: BuiltInTrickID,
@@ -104,7 +109,8 @@ public struct TrickDefinition: Codable, Equatable, Sendable {
         targetRotationDegrees: Vector3,
         targetAngularPathShare: Vector3? = nil,
         referenceDurationMs: Double,
-        requiresSeparableAxes: Bool = false
+        requiresSeparableAxes: Bool = false,
+        maximumInactiveNetRotationRatio: Double? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -113,6 +119,7 @@ public struct TrickDefinition: Codable, Equatable, Sendable {
         self.targetAngularPathShare = targetAngularPathShare
         self.referenceDurationMs = referenceDurationMs
         self.requiresSeparableAxes = requiresSeparableAxes
+        self.maximumInactiveNetRotationRatio = maximumInactiveNetRotationRatio
     }
 }
 
@@ -173,6 +180,32 @@ public struct TrickCatalog: Codable, Equatable, Sendable {
                 referenceDurationMs: 800
             ),
             TrickDefinition(
+                id: .doubleFlip,
+                displayName: "DOUBLE FLIP",
+                family: .flip,
+                targetRotationDegrees: Vector3(x: 0, y: y(735), z: 0),
+                targetAngularPathShare: Vector3(x: 0.09, y: 0.86, z: 0.05),
+                referenceDurationMs: 965
+            ),
+            TrickDefinition(
+                id: .backsideShuvit,
+                displayName: "BACKSIDE SHUVIT",
+                family: .shuvit,
+                targetRotationDegrees: Vector3(x: 0, y: 0, z: z(171)),
+                targetAngularPathShare: Vector3(x: 0.24, y: 0.23, z: 0.53),
+                referenceDurationMs: 745,
+                maximumInactiveNetRotationRatio: 1.0
+            ),
+            TrickDefinition(
+                id: .frontsideShuvit,
+                displayName: "FRONTSIDE SHUVIT",
+                family: .shuvit,
+                targetRotationDegrees: Vector3(x: 0, y: 0, z: z(-159)),
+                targetAngularPathShare: Vector3(x: 0.30, y: 0.31, z: 0.39),
+                referenceDurationMs: 730,
+                maximumInactiveNetRotationRatio: 1.0
+            ),
+            TrickDefinition(
                 id: .backsideThreeSixtyShuvit,
                 displayName: "BACKSIDE 360 SHUVIT",
                 family: .shuvit,
@@ -209,7 +242,7 @@ public struct TrickCatalog: Codable, Equatable, Sendable {
                 ),
             ]
         }
-        return Self(version: TrickCatalogVersion.physicalDatasetV1, gripHand: gripHand, definitions: definitions)
+        return Self(version: TrickCatalogVersion.labelledDatasetV4, gripHand: gripHand, definitions: definitions)
     }
 }
 
@@ -278,7 +311,7 @@ public struct TrickMatchResult: Codable, Equatable, Sendable {
 }
 
 public struct TrickMatchingPolicy: Equatable, Sendable {
-    public static let provisionalVersion = "rule-matcher-v0.2-angular-path"
+    public static let provisionalVersion = "rule-matcher-v0.3-labelled-v4-angular-path"
 
     /// Presentation hypotheses only. They must be tuned against labelled/holdout fixtures.
     public var recognizedPresentationFit = 0.75
@@ -415,10 +448,18 @@ public struct TrickMatcher: Sendable {
             let axisPath = value(path, axis: axis)
             return axisPath > 0 ? clamp(abs(value(measured, axis: axis)) / axisPath) : 0
         }
-        let axesAreSeparable = !definition.requiresSeparableAxes || (
+        let inactiveNetRatio = inactiveAxes
+            .map { abs(value(measured, axis: $0)) }
+            .max()
+            .map { $0 / max(1, activeAxes.map { abs(value(target, axis: $0)) }.max() ?? 1) }
+            ?? 0
+        let inactiveNetIsValid = definition.maximumInactiveNetRotationRatio.map {
+            inactiveNetRatio <= $0
+        } ?? true
+        let axesAreSeparable = inactiveNetIsValid && (!definition.requiresSeparableAxes || (
             minimumCoverage >= policy.comboMinimumAxisCoverage
                 && activeEfficiencies.allSatisfy { $0 >= policy.comboMinimumAxisEfficiency }
-        )
+        ))
         if !axesAreSeparable {
             // A partial/noisy component can remain visible for review, but cannot win as a combo.
             presentationFit = min(presentationFit * 0.35, policy.reviewPresentationFit - 0.01)

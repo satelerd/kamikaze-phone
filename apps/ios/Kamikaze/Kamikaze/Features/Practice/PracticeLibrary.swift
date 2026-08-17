@@ -2,9 +2,9 @@ import Foundation
 import KamikazeMotionCore
 
 /// Trick readiness in the practice pipeline, mirroring
-/// `docs/PRACTICE_PROGRESSION_V1.md`. Only `detectorReady` tricks may start a
-/// scored practice run; everything else routes to the Trick Lab so the app
-/// never pretends it can judge a motion it has no validated definition for.
+/// `docs/PRACTICE_PROGRESSION_V1.md`. Detector-ready and visibly-labelled beta
+/// candidates may start a scored practice run; evidence-only tricks route to
+/// Trick Lab so the app never pretends it can judge an unmodelled motion.
 nonisolated enum PracticeTrickReadiness: String, Equatable, Sendable {
     case collectingEvidence
     case candidateNeedsHoldout
@@ -16,6 +16,13 @@ nonisolated enum PracticeTrickReadiness: String, Equatable, Sendable {
         case .candidateNeedsHoldout: "NEEDS HOLDOUT"
         case .detectorReady: "READY"
         }
+    }
+
+    /// Candidate definitions are intentionally playable in the beta so the
+    /// rider can validate them in context. They stay visibly labelled BETA
+    /// until a separate physical holdout session passes.
+    var isPlayable: Bool {
+        self != .collectingEvidence
     }
 }
 
@@ -36,9 +43,9 @@ nonisolated struct PracticePair: Equatable, Sendable, Identifiable {
 
     var id: Int { order }
     var tricks: [PracticeTrickNode] { [primary, opposite] }
-    var isDetectorReady: Bool {
-        primary.readiness == .detectorReady && opposite.readiness == .detectorReady
-    }
+    var playableTricks: [PracticeTrickNode] { tricks.filter { $0.readiness.isPlayable } }
+    var isPracticePlayable: Bool { !playableTricks.isEmpty }
+    var containsCandidate: Bool { tricks.contains { $0.readiness == .candidateNeedsHoldout } }
 }
 
 /// The single next skill Profile can point at. It is derived from the same
@@ -51,9 +58,9 @@ nonisolated struct PracticeGoal: Equatable, Sendable {
 }
 
 /// The deliberate skill ladder. Readiness reflects the physically validated
-/// v0.2 matcher (2026-08-13/14 sessions): both 360 Shuvits, Flip/Reverse and
-/// Phone Flip/Reverse are detector-ready; 180 Shuvits and every Double are
-/// collection-only until their own sessions exist.
+/// v0.3 matcher: both 180 Shuvits and Double Flip now have V4-derived
+/// candidate definitions. They are playable, but stay visibly marked BETA
+/// until a new physical session validates them independently.
 nonisolated enum PracticeLibrary {
     static let pairs: [PracticePair] = [
         PracticePair(
@@ -61,12 +68,12 @@ nonisolated enum PracticeLibrary {
             title: "SHUVIT",
             primary: PracticeTrickNode(
                 trickID: .backsideShuvit,
-                readiness: .collectingEvidence,
+                readiness: .candidateNeedsHoldout,
                 coachingCue: "Half spin, screen stays up. Kill the flip axis."
             ),
             opposite: PracticeTrickNode(
                 trickID: .frontsideShuvit,
-                readiness: .collectingEvidence,
+                readiness: .candidateNeedsHoldout,
                 coachingCue: "Same half spin, opposite direction."
             )
         ),
@@ -103,7 +110,7 @@ nonisolated enum PracticeLibrary {
             title: "DOUBLE FLIP",
             primary: PracticeTrickNode(
                 trickID: .doubleFlip,
-                readiness: .collectingEvidence,
+                readiness: .candidateNeedsHoldout,
                 coachingCue: "Two full flips. Snap harder, catch later."
             ),
             opposite: PracticeTrickNode(
@@ -131,10 +138,10 @@ nonisolated enum PracticeLibrary {
             title: "DOUBLE PHONE FLIP",
             primary: PracticeTrickNode(
                 trickID: .doublePhoneFlip,
-                // Two consistent landed examples seed a development
-                // reference, but were used to derive it and cannot validate
-                // it. Keep automatic recognition locked until a new session.
-                readiness: .candidateNeedsHoldout,
+                // Two landed examples are not enough to define and validate
+                // this compound class. Keep collecting before making it a
+                // playable candidate.
+                readiness: .collectingEvidence,
                 coachingCue: "Double everything. Height buys time."
             ),
             opposite: PracticeTrickNode(
@@ -202,16 +209,17 @@ nonisolated struct PracticeProgress: Equatable, Sendable {
     }
 
     func isPairMastered(_ pair: PracticePair) -> Bool {
-        isMastered(pair.primary.trickID) && isMastered(pair.opposite.trickID)
+        let playable = pair.playableTricks
+        return !playable.isEmpty && playable.allSatisfy { isMastered($0.trickID) }
     }
 
-    /// A pair is playable when its tricks are detector-ready and every earlier
-    /// detector-ready pair is mastered. Collection-only pairs never block the
-    /// ladder — they cannot be judged yet, so they cannot gate progression.
+    /// A pair is playable when it contains at least one modelled trick and
+    /// every earlier playable pair is mastered. Collection-only directions do
+    /// not block a pair whose primary direction already has a candidate.
     func isPairUnlocked(_ pair: PracticePair) -> Bool {
-        guard pair.isDetectorReady else { return false }
+        guard pair.isPracticePlayable else { return false }
         for earlier in PracticeLibrary.pairs where earlier.order < pair.order {
-            if earlier.isDetectorReady, !isPairMastered(earlier) {
+            if earlier.isPracticePlayable, !isPairMastered(earlier) {
                 return false
             }
         }
@@ -222,16 +230,17 @@ nonisolated struct PracticeProgress: Equatable, Sendable {
     /// after three qualifying reps (automatic or human-corrected captures).
     func isTrickUnlocked(_ trickID: BuiltInTrickID, in pair: PracticePair) -> Bool {
         guard isPairUnlocked(pair) else { return false }
+        guard let node = pair.tricks.first(where: { $0.trickID == trickID }),
+              node.readiness.isPlayable else { return false }
         if trickID == pair.primary.trickID { return true }
         return isUnlockedByReps(pair.primary.trickID)
     }
 
-    /// First unmastered detector-ready skill in the authored ladder. Evidence
-    /// collection nodes are deliberately skipped because Profile should send
-    /// a player somewhere the app can currently judge.
+    /// First unmastered playable skill in the authored ladder. Evidence-only
+    /// nodes are skipped because Profile must point somewhere judgeable.
     func nextGoal() -> PracticeGoal? {
-        for pair in PracticeLibrary.pairs where pair.isDetectorReady {
-            for node in pair.tricks where !isMastered(node.trickID) {
+        for pair in PracticeLibrary.pairs where pair.isPracticePlayable {
+            for node in pair.playableTricks where !isMastered(node.trickID) {
                 return PracticeGoal(
                     trickID: node.trickID,
                     pairOrder: pair.order,
