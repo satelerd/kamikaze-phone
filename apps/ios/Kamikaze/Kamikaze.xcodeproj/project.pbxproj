@@ -425,7 +425,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Kamikaze can record an optional Camera Run so you can replay and share the trick you choose.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Kamikaze can include your voice in an optional Camera Run you start.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Kamikaze uses motion data to detect phone tricks, airtime and catches.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Kamikaze saves a replay or Camera Run to Photos only when you ask it to export.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -460,7 +463,10 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Kamikaze can record an optional Camera Run so you can replay and share the trick you choose.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Kamikaze can include your voice in an optional Camera Run you start.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Kamikaze uses motion data to detect phone tricks, airtime and catches.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Kamikaze saves a replay or Camera Run to Photos only when you ask it to export.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
