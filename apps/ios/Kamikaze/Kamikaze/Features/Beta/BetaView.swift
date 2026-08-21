@@ -126,9 +126,9 @@ struct BetaView: View {
                         .padding(.top, 8)
 
                     NavigationLink {
-                        CloudAccountPrototypeView()
+                        ClerkAccountSurface(clerk: KamikazeIdentityConfiguration.clerk)
                     } label: {
-                        Label("ACCOUNT + SYNC PROTOTYPE", systemImage: "person.crop.circle.badge.checkmark")
+                        Label("ACCOUNT", systemImage: "person.crop.circle.badge.checkmark")
                             .font(.system(size: 12, weight: .black, design: .rounded))
                             .frame(maxWidth: .infinity, minHeight: 50)
                     }

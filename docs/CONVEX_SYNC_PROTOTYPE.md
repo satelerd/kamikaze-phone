@@ -1,9 +1,9 @@
 # Convex sync prototype
 
 Status: bounded initial prototype. Its schema/functions are live on a
-development-only deployment; there is no production deployment, auth provider
-or player data. The implementation lives under `services/convex/` and
-`apps/ios/Kamikaze/Kamikaze/Cloud/`.
+development-only deployment; Clerk is the selected authentication integration,
+there is no production deployment or player data. The implementation lives
+under `services/convex/` and `apps/ios/Kamikaze/Kamikaze/Cloud/`.
 
 ## What is synced
 
@@ -63,51 +63,60 @@ it does not run a background upload loop, block capture, or delete an entry on a
 transient error. The states are `localOnly`, `offline`, `idle`, `syncing`,
 `needsAuthentication` and `failed`.
 
-`ConvexCloudClient` depends on the small `ConvexTransport` protocol, not on
-`ConvexMobile`. That keeps the current target compiling before the Xcode
-package dependency and runtime deployment URL are wired in. The eventual adapter should wrap
-one process-lifetime `ConvexClientWithAuth` and map its `mutation`/`subscribe`
-calls to the protocol. The Beta tab includes a product-facing account/sync
-prototype, but it labels identity honestly and never pretends its Sign in with
-Apple preview is a real session. `NativeRunModel` remains independent from
-sync availability.
+`ConvexCloudClient` depends on the small `ConvexTransport` protocol. The
+conditional `ClerkConvexTransport` implementation wraps one process-lifetime
+`ConvexClientWithAuth<String>` and maps its `mutation`/`subscribe` calls to the
+protocol once the official `ConvexMobile`, `ClerkConvex` and `ClerkKit` products
+are selected by the app target. The app composition boundary supplies
+`KamikazeIdentityConfiguration.convexDeploymentURL`, configures Clerk with a
+publishable key, calls `loginFromCache()` for a persisted session and injects
+the resulting `remote` into `CloudSyncCoordinator`. It must not log or pass
+Clerk secrets or raw JWTs. The Beta tab can still present an account/sync
+prototype, but it must label identity honestly until that real flow is wired.
+`NativeRunModel` remains independent from sync availability.
 
 Media bytes are deliberately a separate follow-up: call
 `media:generateUploadURL`, POST the file, then enqueue `media:register` with the
 returned Storage ID. The outbox currently syncs registration metadata, not raw
 motion samples.
 
-## Authentication recommendation
+## Authentication: Clerk + Sign in with Apple path
 
-Use Sign in with Apple as the iOS-facing sign-in experience, but put a
-supported OIDC provider between the Apple credential and Convex for the first
-production path:
+Clerk is the concrete provider for this prototype. Sign in with Apple remains
+the iOS-facing identity experience, configured in Clerk’s dashboard; Clerk
+verifies the Apple credential and supplies the OIDC session used by Convex.
+Complete the following manual setup without committing credentials:
 
-1. `AuthenticationServices` obtains the Apple authorization result and nonce.
-2. Auth0 (recommended first for the existing Swift client support) or Clerk
-   verifies Apple and issues the OIDC ID token used for Convex.
-3. The app supplies that refreshed ID token through the provider’s Convex
-   Swift integration and constructs `ConvexClientWithAuth`.
-4. The first authenticated call is `users:ensureCurrentUser`; all subsequent
-   functions derive ownership from the verified identity.
+1. In Clerk Dashboard, activate the Convex integration for the linked
+   application and configure Apple as a sign-in method if desired.
+2. Copy the Clerk Frontend API URL and set it on the Convex deployment as
+   `CLERK_JWT_ISSUER_DOMAIN` (see `services/convex/.env.example`). It must equal
+   the JWT `iss` claim exactly. `convex/auth.config.ts` uses the audience
+   `applicationID: "convex"`, so the Clerk JWT template/integration must issue
+   that audience.
+3. In Xcode, select the official `convex-swift` (`ConvexMobile`),
+   `clerk-convex-swift` (`ClerkConvex`) and Clerk iOS (`ClerkKit`) products.
+4. At app startup, configure Clerk with its publishable key only. Construct
+   `ConvexCloudClient.clerk(deploymentURL:)` using
+   `KamikazeIdentityConfiguration.convexDeploymentURL`, call
+   `loginFromCache()`, and observe the adapter’s `authState`.
+5. After an authenticated state, call `users:ensureCurrentUser` before draining
+   the outbox. The server derives ownership from the verified Clerk identity;
+   the app does not pass a user ID or manually attach a JWT.
 
-Convex’s current Swift docs document `ConvexMobile`, a process-lifetime
-`ConvexClient`, `ConvexClientWithAuth`, Auth0 support and a Clerk integration;
-the Swift package’s 0.8 auth lifecycle also allows providers to push refreshed
-tokens into the client. Convex’s auth docs state that OIDC issuer (`iss`) and
-application ID (`aud`) must match the configured provider exactly.
+The package adapter refreshes tokens through `ClerkConvexAuthProvider`. Never
+put a Clerk secret key, Convex deploy key, private key, ID token or upload URL
+in source, logs, tests or the iOS `.env`. If the product later changes away
+from Clerk, keep the same `ConvexTransport` boundary and replace only the
+authenticated adapter.
 
-If avoiding a third party is more important than time-to-production, use a
-small server-side Apple broker instead: verify Apple’s authorization code and
-nonce, mint a short-lived OIDC JWT with a stable `sub`, exact `iss`/`aud`,
-`iat`/`exp`, and publish a JWKS endpoint. Configure that issuer in
-`convex/auth.config.ts` and implement a custom Swift `AuthProvider` that
-refreshes tokens. Never mint or sign that JWT in the iOS app. Do not pass
-invented credentials or production IDs into this repository.
-
-Direct Apple-token validation by Convex is possible only after confirming the
-Apple token’s exact issuer, audience and refresh behavior for the chosen App
-ID/Service ID. It is not the default recommendation for this prototype.
+If a future deployment removes Clerk, use a supported OIDC broker or a
+server-side Apple broker: verify Apple’s authorization code and nonce, mint a
+short-lived OIDC JWT with a stable `sub`, exact `iss`/`aud`, `iat`/`exp`, and
+publish a JWKS endpoint. Configure that issuer in `convex/auth.config.ts` and
+implement a custom Swift `AuthProvider` that refreshes tokens. Never mint or
+sign that JWT in the iOS app. Direct Apple-token validation by Convex is not
+the default recommendation for this prototype.
 
 References:
 
@@ -115,6 +124,8 @@ References:
 - [Convex Swift type conversion](https://docs.convex.dev/client/swift/data-types)
 - [Convex authentication overview](https://docs.convex.dev/auth/overview)
 - [Custom OIDC provider configuration](https://docs.convex.dev/auth/advanced/custom-auth)
+- [Clerk native iOS Convex integration](https://clerk.com/docs/ios/reference/native-mobile/integrations/convex)
+- [Clerk Convex Swift package](https://github.com/clerk/clerk-convex-swift)
 - [Apple AuthenticationServices](https://developer.apple.com/documentation/authenticationservices)
 
 ## Privacy and deletion

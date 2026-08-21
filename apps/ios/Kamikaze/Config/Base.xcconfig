@@ -7,5 +7,14 @@ PRODUCT_BUNDLE_IDENTIFIER = tech.sateler.kamikazephone.dev
 MARKETING_VERSION = 0.1.0
 CURRENT_PROJECT_VERSION = 1
 
+// Public client identifiers are injected locally while development and
+// production Clerk/Convex instances are still separate. No server secret is
+// ever exposed to the iOS target.
+KAMIKAZE_CLERK_PUBLISHABLE_KEY =
+KAMIKAZE_CONVEX_DEPLOYMENT_HOST =
+#include? "Auth.local.xcconfig"
+INFOPLIST_KEY_KamikazeClerkPublishableKey = $(KAMIKAZE_CLERK_PUBLISHABLE_KEY)
+INFOPLIST_KEY_KamikazeConvexDeploymentHost = $(KAMIKAZE_CONVEX_DEPLOYMENT_HOST)
+
 // Personal Team details remain local and must never be committed.
 #include? "Signing.local.xcconfig"

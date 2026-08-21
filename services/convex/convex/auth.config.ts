@@ -1,13 +1,16 @@
-import { AuthConfig } from "convex/server";
+import type { AuthConfig } from "convex/server";
 
-// This development deployment intentionally starts without an identity
-// provider. Convex statically resolves every environment variable referenced
-// here, even behind a conditional, so optional process.env reads make a fresh
-// deployment fail before the offline-first prototype can be tested.
-//
-// When the product chooses Clerk/Auth0 + Sign in with Apple, replace this
-// empty list with that provider's checked-in public issuer/application ID
-// configuration. No provider secret belongs in this file.
+// Convex validates the `iss` claim against this public Clerk Frontend API URL
+// and the `aud` claim against the literal `convex` application ID. The value is
+// configured on the Convex deployment, never read from the iOS `.env` and
+// never accompanied by a Clerk secret key.
+declare const process: { env: Record<string, string | undefined> };
+
 export default {
-  providers: [],
+  providers: [
+    {
+      domain: process.env.CLERK_JWT_ISSUER_DOMAIN!,
+      applicationID: "convex",
+    },
+  ],
 } satisfies AuthConfig;

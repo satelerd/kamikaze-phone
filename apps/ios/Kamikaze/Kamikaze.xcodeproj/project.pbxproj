@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A10000000000000000000001 /* ClerkKit in Frameworks */ = {isa = PBXBuildFile; productRef = A30000000000000000000001 /* ClerkKit */; };
+		A10000000000000000000002 /* ClerkKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = A30000000000000000000002 /* ClerkKitUI */; };
+		A10000000000000000000003 /* ClerkConvex in Frameworks */ = {isa = PBXBuildFile; productRef = A30000000000000000000003 /* ClerkConvex */; };
+		A10000000000000000000004 /* ConvexMobile in Frameworks */ = {isa = PBXBuildFile; productRef = A30000000000000000000004 /* ConvexMobile */; };
 		D8CCAF06302CD1E400B39F30 /* KamikazeMotionCore in Frameworks */ = {isa = PBXBuildFile; productRef = D8CCAF05302CD1E400B39F30 /* KamikazeMotionCore */; };
 		D8CCAF09302CD1E400B39F30 /* KamikazeMotionApple in Frameworks */ = {isa = PBXBuildFile; productRef = D8CCAF08302CD1E400B39F30 /* KamikazeMotionApple */; };
 /* End PBXBuildFile section */
@@ -34,6 +38,7 @@
 		D8CCAEDA302CD1E400B39F30 /* KamikazeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KamikazeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8CCAF02302CD1E400B39F30 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		D8CCAF03302CD1E400B39F30 /* Signing.local.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.local.xcconfig.example; sourceTree = "<group>"; };
+		A40000000000000000000001 /* Auth.local.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Auth.local.xcconfig.example; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -59,6 +64,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10000000000000000000003 /* ClerkConvex in Frameworks */,
+				A10000000000000000000001 /* ClerkKit in Frameworks */,
+				A10000000000000000000002 /* ClerkKitUI in Frameworks */,
+				A10000000000000000000004 /* ConvexMobile in Frameworks */,
 				D8CCAF09302CD1E400B39F30 /* KamikazeMotionApple in Frameworks */,
 				D8CCAF06302CD1E400B39F30 /* KamikazeMotionCore in Frameworks */,
 			);
@@ -105,6 +114,7 @@
 		D8CCAF01302CD1E400B39F30 /* Config */ = {
 			isa = PBXGroup;
 			children = (
+				A40000000000000000000001 /* Auth.local.xcconfig.example */,
 				D8CCAF02302CD1E400B39F30 /* Base.xcconfig */,
 				D8CCAF03302CD1E400B39F30 /* Signing.local.xcconfig.example */,
 			);
@@ -131,6 +141,10 @@
 			);
 			name = Kamikaze;
 			packageProductDependencies = (
+				A30000000000000000000001 /* ClerkKit */,
+				A30000000000000000000002 /* ClerkKitUI */,
+				A30000000000000000000003 /* ClerkConvex */,
+				A30000000000000000000004 /* ConvexMobile */,
 				D8CCAF08302CD1E400B39F30 /* KamikazeMotionApple */,
 				D8CCAF05302CD1E400B39F30 /* KamikazeMotionCore */,
 			);
@@ -217,6 +231,9 @@
 			mainGroup = D8CCAEBA302CD1E300B39F30;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				A20000000000000000000001 /* XCRemoteSwiftPackageReference "clerk-ios" */,
+				A20000000000000000000002 /* XCRemoteSwiftPackageReference "clerk-convex-swift" */,
+				A20000000000000000000003 /* XCRemoteSwiftPackageReference "convex-swift" */,
 				D8CCAF07302CD1E400B39F30 /* XCLocalSwiftPackageReference "../Packages/KamikazeMotionApple" */,
 				D8CCAF04302CD1E400B39F30 /* XCLocalSwiftPackageReference "../Packages/KamikazeMotionCore" */,
 			);
@@ -633,7 +650,54 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		A20000000000000000000001 /* XCRemoteSwiftPackageReference "clerk-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/clerk/clerk-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.0;
+			};
+		};
+		A20000000000000000000002 /* XCRemoteSwiftPackageReference "clerk-convex-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/clerk/clerk-convex-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.1.0;
+			};
+		};
+		A20000000000000000000003 /* XCRemoteSwiftPackageReference "convex-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/get-convex/convex-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.8.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		A30000000000000000000001 /* ClerkKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000001 /* XCRemoteSwiftPackageReference "clerk-ios" */;
+			productName = ClerkKit;
+		};
+		A30000000000000000000002 /* ClerkKitUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000001 /* XCRemoteSwiftPackageReference "clerk-ios" */;
+			productName = ClerkKitUI;
+		};
+		A30000000000000000000003 /* ClerkConvex */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000002 /* XCRemoteSwiftPackageReference "clerk-convex-swift" */;
+			productName = ClerkConvex;
+		};
+		A30000000000000000000004 /* ConvexMobile */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A20000000000000000000003 /* XCRemoteSwiftPackageReference "convex-swift" */;
+			productName = ConvexMobile;
+		};
 		D8CCAF05302CD1E400B39F30 /* KamikazeMotionCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = D8CCAF04302CD1E400B39F30 /* XCLocalSwiftPackageReference "../Packages/KamikazeMotionCore" */;

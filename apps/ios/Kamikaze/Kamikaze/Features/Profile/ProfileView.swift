@@ -58,6 +58,16 @@ struct ProfileView: View {
                             Button(action: onReplayOnboarding) { settingsRow("REPLAY HOW TO PLAY", value: "→") }
                                 .buttonStyle(.plain)
                             Divider()
+                            NavigationLink {
+                                ClerkAccountSurface(clerk: KamikazeIdentityConfiguration.clerk)
+                            } label: {
+                                settingsRow(
+                                    "ACCOUNT",
+                                    value: KamikazeIdentityConfiguration.isConfigured ? "CLERK" : "SETUP"
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            Divider()
                             NavigationLink { WorkshopView() } label: { settingsRow("SENSOR WORKSHOP", value: "→") }
                                 .buttonStyle(.plain)
                         }

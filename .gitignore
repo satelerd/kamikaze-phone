@@ -26,6 +26,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
 .env*.local
 
 # vercel
@@ -41,6 +42,7 @@ next-env.d.ts
 **/*.xcuserstate
 **/xcuserdata/
 apps/ios/Kamikaze/Config/Signing.local.xcconfig
+apps/ios/Kamikaze/Config/Auth.local.xcconfig
 
 # Local raw motion imports. Promote only reviewed captures to fixtures/motion/.
 /datasets/inbox/

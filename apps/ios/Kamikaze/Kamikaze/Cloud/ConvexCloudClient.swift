@@ -83,12 +83,14 @@ nonisolated struct CloudEnsureUserResponse: Codable, Equatable, Sendable {
 /// `ConvexClientWithAuth` without leaking that package through the domain or
 /// tests.
 protocol ConvexTransport: Sendable {
+    @MainActor
     func query<Value: Decodable & Sendable>(
         _ function: String,
         arguments: CloudArguments,
         as type: Value.Type
     ) async throws -> Value
 
+    @MainActor
     func mutation<Value: Decodable & Sendable>(
         _ function: String,
         arguments: CloudArguments,
@@ -99,6 +101,7 @@ protocol ConvexTransport: Sendable {
 nonisolated struct UnconfiguredConvexTransport: ConvexTransport {
     init() {}
 
+    @MainActor
     func query<Value: Decodable & Sendable>(
         _ function: String,
         arguments: CloudArguments,
@@ -107,6 +110,7 @@ nonisolated struct UnconfiguredConvexTransport: ConvexTransport {
         throw CloudSyncError.notConfigured
     }
 
+    @MainActor
     func mutation<Value: Decodable & Sendable>(
         _ function: String,
         arguments: CloudArguments,

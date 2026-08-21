@@ -5,6 +5,7 @@
 //  Created by Daniel Sateler on 12-08-26.
 //
 
+import ClerkKit
 import SwiftUI
 
 @main
@@ -17,7 +18,12 @@ struct KamikazeApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if let clerk = KamikazeIdentityConfiguration.clerk {
+                ContentView()
+                    .environment(clerk)
+            } else {
+                ContentView()
+            }
         }
     }
 }
