@@ -9,6 +9,7 @@ nonisolated enum OnboardingStep: Int, CaseIterable, Equatable, Sendable {
     case board
     case safety
     case origin
+    case howToPlay
     case straightAir
     case shuvitLearn
     case shuvitTry

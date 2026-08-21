@@ -50,7 +50,7 @@ struct OnboardingChallengeTests {
 
     @Test func authoredStoryEndsWithLearnThenTry() {
         #expect(OnboardingStep.allCases == [
-            .board, .safety, .origin, .straightAir, .shuvitLearn, .shuvitTry,
+            .board, .safety, .origin, .howToPlay, .straightAir, .shuvitLearn, .shuvitTry,
             .flipLearn, .flipTry,
         ])
     }

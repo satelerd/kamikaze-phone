@@ -24,8 +24,10 @@ struct OnboardingView: View {
     @State private var airAttempts = 0
     @State private var shuvitAttempts = 0
     @State private var flipAttempts = 0
+    @State private var celebrationVisible = false
 
     @Environment(FeedbackCoordinator.self) private var feedback
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(onComplete: @escaping () -> Void) {
         self.onComplete = onComplete
@@ -62,6 +64,13 @@ struct OnboardingView: View {
                 actionArea
                     .padding(.horizontal, 22)
                     .padding(.bottom, 14)
+            }
+
+            if celebrationVisible {
+                OnboardingConfettiBurst()
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
         }
         .animation(.snappy, value: step)
@@ -148,6 +157,8 @@ struct OnboardingView: View {
             )
         case .origin:
             originPage
+        case .howToPlay:
+            howToPlayPage
         case .straightAir:
             straightAirPage
         case .shuvitLearn:
@@ -194,7 +205,7 @@ struct OnboardingView: View {
 
     private var originPage: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("THE ORIGINAL GAME")
+            Text("WHERE IT STARTED")
                 .font(.system(size: 9, weight: .black, design: .monospaced))
                 .foregroundStyle(KamikazeTheme.ion)
 
@@ -202,13 +213,14 @@ struct OnboardingView: View {
                 .font(.system(size: 84, weight: .black, design: .rounded))
                 .tracking(-5)
 
-            Text("THROW IT\nHIGHER.")
-                .font(.system(size: 48, weight: .black, design: .rounded))
+            Text("KAMIKAZE\nSTARTED HERE.")
+                .font(.system(size: 44, weight: .black, design: .rounded))
                 .tracking(-2.2)
 
-            Text("That was the whole game.")
-                .font(.system(size: 17, weight: .bold, design: .rounded))
+            Text("Throw your phone as high as you could. Height became your score — and you could compete with other players.")
+                .font(.system(size: 16, weight: .medium, design: .rounded))
                 .foregroundStyle(KamikazeTheme.muted)
+                .lineSpacing(5)
 
             Rectangle()
                 .fill(KamikazeTheme.frost.opacity(0.16))
@@ -219,11 +231,82 @@ struct OnboardingView: View {
                 Text("NOW")
                     .font(.system(size: 11, weight: .black, design: .monospaced))
                     .foregroundStyle(KamikazeTheme.volt)
-                Text("IT READS THE TRICK TOO.")
+                Text("LET'S TRY THE ORIGINAL.")
                     .font(.system(size: 23, weight: .black, design: .rounded))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var howToPlayPage: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            challengeHeader(
+                eyebrow: "HOW TO PLAY",
+                title: "THREE MOVES.\nTHAT'S IT.",
+                detail: "Start the detector before every throw."
+            )
+
+            VStack(spacing: 10) {
+                instructionRow(
+                    number: "1",
+                    title: "PRESS START",
+                    detail: "Tell Kamikaze you are ready.",
+                    symbol: "hand.tap.fill"
+                )
+                instructionRow(
+                    number: "2",
+                    title: "THROW + CATCH",
+                    detail: "The phone measures the entire movement.",
+                    symbol: "arrow.up.and.down"
+                )
+                instructionRow(
+                    number: "3",
+                    title: "HOLD STILL",
+                    detail: "Wait for the score to appear.",
+                    symbol: "scope"
+                )
+            }
+
+            Text("START → THROW → HOLD STILL → SCORE")
+                .font(.system(size: 11, weight: .black, design: .monospaced))
+                .foregroundStyle(KamikazeTheme.volt)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func instructionRow(
+        number: String,
+        title: String,
+        detail: String,
+        symbol: String
+    ) -> some View {
+        GlassSurface(role: .instrumentHUD, cornerRadius: 24) {
+            HStack(spacing: 14) {
+                Text(number)
+                    .font(.system(size: 24, weight: .black, design: .rounded))
+                    .foregroundStyle(.black)
+                    .frame(width: 44, height: 44)
+                    .background(KamikazeTheme.volt, in: Circle())
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 16, weight: .black, design: .rounded))
+                    Text(detail)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(KamikazeTheme.muted)
+                }
+
+                Spacer(minLength: 4)
+
+                Image(systemName: symbol)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(KamikazeTheme.ion)
+                    .frame(width: 30)
+            }
+            .padding(14)
+        }
     }
 
     private var minimumAirLabel: String {
@@ -267,9 +350,9 @@ struct OnboardingView: View {
     private var shuvitLearnPage: some View {
         VStack(alignment: .leading, spacing: 14) {
             challengeHeader(
-                eyebrow: "TRICK 01 · PREVIEW",
-                title: "WATCH A SHUVIT.",
-                detail: "Half turn. Screen stays up. Either direction counts."
+                eyebrow: "NOW LET'S PLAY FOR REAL",
+                title: "LEARN A\nSHUVIT.",
+                detail: "Rotate the phone 180°. Keep the screen facing up. Either direction counts."
             )
 
             ZStack(alignment: .topLeading) {
@@ -311,8 +394,8 @@ struct OnboardingView: View {
     private var flipLearnPage: some View {
         VStack(alignment: .leading, spacing: 14) {
             challengeHeader(
-                eyebrow: "TRICK 02 · PREVIEW",
-                title: "WATCH A FLIP.",
+                eyebrow: "SHUVIT CLEARED · TRICK 02",
+                title: "NICE. NOW\nLEARN A FLIP.",
                 detail: "One full turn over the long edge. Either direction counts."
             )
 
@@ -550,6 +633,8 @@ struct OnboardingView: View {
         case .safety:
             move(to: .origin)
         case .origin:
+            move(to: .howToPlay)
+        case .howToPlay:
             move(to: .straightAir)
         case .straightAir:
             if airPassed {
@@ -624,7 +709,7 @@ struct OnboardingView: View {
             flipReplay.pause()
             clearCompletedRunIfNeeded()
             run.start()
-        case .board, .safety, .origin:
+        case .board, .safety, .origin, .howToPlay:
             run.stop()
             targetReplay.pause()
             flipReplay.pause()
@@ -697,13 +782,14 @@ struct OnboardingView: View {
                 trickID: result.match.candidates.first?.definition.id
             )
             flipPassed = success
-        case .board, .safety, .origin, .shuvitLearn, .flipLearn:
+        case .board, .safety, .origin, .howToPlay, .shuvitLearn, .flipLearn:
             return
         }
 
         feedback.evidenceWindowActive = false
         feedback.play(success ? .landed(scoreBand: 1) : .missed)
         feedback.playDetectionSound(success: success)
+        if success { celebrate() }
     }
 
     private func bypassChallenge() {
@@ -728,10 +814,10 @@ struct OnboardingView: View {
 
     private var primaryActionTitle: String {
         switch step {
-        case .board, .safety: "CONTINUE"
-        case .origin: "TRY THE ORIGINAL"
+        case .board, .safety, .origin: "CONTINUE"
+        case .howToPlay: "TRY THE ORIGINAL"
         case .straightAir:
-            if airPassed { "NEXT: LEARN SHUVIT" }
+            if airPassed { "NEXT: LEARN A TRICK" }
             else if active { "CANCEL" }
             else if run.result != nil { "TRY AGAIN" }
             else { "START" }
@@ -774,7 +860,7 @@ struct OnboardingView: View {
         case .straightAir: airAttempts >= 3 && !airPassed
         case .shuvitTry: shuvitAttempts >= 3 && !shuvitPassed
         case .flipTry: flipAttempts >= 3 && !flipPassed
-        case .board, .safety, .origin, .shuvitLearn, .flipLearn: false
+        case .board, .safety, .origin, .howToPlay, .shuvitLearn, .flipLearn: false
         }
     }
 
@@ -783,7 +869,7 @@ struct OnboardingView: View {
         case .straightAir: airPassed
         case .shuvitTry: shuvitPassed
         case .flipTry: flipPassed
-        case .board, .safety, .origin, .shuvitLearn, .flipLearn: false
+        case .board, .safety, .origin, .howToPlay, .shuvitLearn, .flipLearn: false
         }
     }
 
@@ -856,10 +942,83 @@ struct OnboardingView: View {
     private var accent: Color {
         switch step {
         case .board, .origin: KamikazeTheme.ion
+        case .howToPlay: KamikazeTheme.volt
         case .safety, .straightAir: KamikazeTheme.hazard
         case .shuvitLearn, .shuvitTry: KamikazeTheme.volt
         case .flipLearn, .flipTry: KamikazeTheme.ion
         }
+    }
+
+    private func celebrate() {
+        guard !reduceMotion else { return }
+        celebrationVisible = false
+        Task { @MainActor in
+            await Task.yield()
+            celebrationVisible = true
+            try? await Task.sleep(for: .milliseconds(1_350))
+            withAnimation(.easeOut(duration: 0.2)) {
+                celebrationVisible = false
+            }
+        }
+    }
+}
+
+private struct OnboardingConfettiBurst: View {
+    @State private var released = false
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                ForEach(0 ..< 28, id: \.self) { index in
+                    OnboardingConfettiPiece(
+                        index: index,
+                        canvasSize: proxy.size,
+                        released: released
+                    )
+                }
+            }
+            .onAppear {
+                withAnimation(.easeOut(duration: 1.25)) {
+                    released = true
+                }
+            }
+        }
+        .ignoresSafeArea()
+    }
+}
+
+private struct OnboardingConfettiPiece: View {
+    let index: Int
+    let canvasSize: CGSize
+    let released: Bool
+
+    private static let colors: [Color] = [
+        KamikazeTheme.volt,
+        KamikazeTheme.ion,
+        KamikazeTheme.hazard,
+        KamikazeTheme.frost,
+    ]
+
+    private var angle: Double {
+        Double(index) / 28 * Double.pi * 2
+    }
+
+    private var radius: Double {
+        min(canvasSize.width, canvasSize.height)
+            * (0.28 + Double(index % 4) * 0.035)
+    }
+
+    var body: some View {
+        Capsule()
+            .fill(Self.colors[index % Self.colors.count])
+            .frame(width: index.isMultiple(of: 3) ? 12 : 7, height: 20)
+            .rotationEffect(.degrees(released ? Double(index * 61) : Double(index * 17)))
+            .position(x: canvasSize.width / 2, y: canvasSize.height * 0.44)
+            .offset(
+                x: released ? cos(angle) * radius : 0,
+                y: released ? sin(angle) * radius + 90 : 0
+            )
+            .opacity(released ? 0 : 1)
     }
 }
 
