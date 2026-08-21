@@ -1,0 +1,15 @@
+{
+  "name": "kamikaze-phone-flip-convex",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "convex dev",
+    "typecheck": "convex codegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "convex": "1.43.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.2"
+  }
+}
