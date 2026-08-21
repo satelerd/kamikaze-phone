@@ -1,4 +1,5 @@
 import AVFoundation
+import AVKit
 import SwiftUI
 import UIKit
 
@@ -31,6 +32,8 @@ struct CameraRunPrototypeView: View {
     @State private var errorMessage: String?
     @State private var recorders: [CameraRunCameraPosition: CameraRunVideoRecorder] = [:]
     @State private var savedTracks: [SavedCameraTrack] = []
+    @State private var savedPreviewPlayer: AVPlayer?
+    @State private var previewedTrackID: URL?
     @State private var isFinalizing = false
 
     init() {
@@ -96,7 +99,10 @@ struct CameraRunPrototypeView: View {
     private var cameraStage: some View {
         GlassSurface(role: .contentPanel, cornerRadius: 28) {
             ZStack(alignment: .topTrailing) {
-                if isPrepared {
+                if step == .edit, let savedPreviewPlayer {
+                    VideoPlayer(player: savedPreviewPlayer)
+                        .background(.black)
+                } else if isPrepared {
                     CameraRunPreview(session: capture.session)
                 } else {
                     LinearGradient(
@@ -206,20 +212,35 @@ struct CameraRunPrototypeView: View {
                                 .font(.system(size: 8, weight: .black, design: .monospaced))
                                 .foregroundStyle(KamikazeTheme.volt)
                             ForEach(savedTracks) { track in
-                                ShareLink(item: track.artifact.url) {
-                                    HStack {
-                                        Label(
-                                            "SHARE \(track.position.rawValue.uppercased()) MP4",
-                                            systemImage: track.position == .front ? "person.crop.rectangle" : "camera"
-                                        )
-                                        Spacer()
-                                        Text("\(track.artifact.frameCount)F · \(track.artifact.durationS, format: .number.precision(.fractionLength(1)))S")
-                                            .foregroundStyle(KamikazeTheme.muted)
+                                HStack(spacing: 10) {
+                                    Button {
+                                        showSavedTrack(track)
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: previewedTrackID == track.id ? "play.rectangle.fill" : "play.rectangle")
+                                                .foregroundStyle(previewedTrackID == track.id ? KamikazeTheme.volt : KamikazeTheme.ion)
+                                            Label(
+                                                "PREVIEW \(track.position.rawValue.uppercased())",
+                                                systemImage: track.position == .front ? "person.crop.rectangle" : "camera"
+                                            )
+                                            Spacer()
+                                            Text("\(track.artifact.frameCount)F · \(track.artifact.durationS, format: .number.precision(.fractionLength(1)))S")
+                                                .foregroundStyle(KamikazeTheme.muted)
+                                        }
+                                        .contentShape(Rectangle())
                                     }
-                                    .font(.system(size: 10, weight: .black, design: .rounded))
-                                    .frame(minHeight: 44)
+                                    .buttonStyle(.plain)
+
+                                    ShareLink(item: track.artifact.url) {
+                                        Image(systemName: "square.and.arrow.up")
+                                            .font(.system(size: 15, weight: .bold))
+                                            .frame(width: 42, height: 42)
+                                            .background(.white.opacity(0.06), in: Circle())
+                                    }
+                                    .accessibilityLabel("Share \(track.position.rawValue) camera MP4")
                                 }
-                                .buttonStyle(.plain)
+                                .font(.system(size: 10, weight: .black, design: .rounded))
+                                .frame(minHeight: 44)
                             }
                         }
                     }
@@ -250,6 +271,9 @@ struct CameraRunPrototypeView: View {
             .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.volt)
 
             Button("NEW CAMERA RUN") {
+                savedPreviewPlayer?.pause()
+                savedPreviewPlayer = nil
+                previewedTrackID = nil
                 step = .setup
                 errorMessage = nil
                 savedTracks = []
@@ -362,6 +386,9 @@ struct CameraRunPrototypeView: View {
                 }
             }
             savedTracks = completed.sorted { $0.position.rawValue < $1.position.rawValue }
+            if let firstTrack = savedTracks.first {
+                showSavedTrack(firstTrack)
+            }
             isFinalizing = false
             if showEditor {
                 withAnimation(.snappy) { step = .edit }
@@ -372,6 +399,12 @@ struct CameraRunPrototypeView: View {
                     : "Some camera tracks could not be saved. \(failures.joined(separator: " · "))"
             }
         }
+    }
+
+    private func showSavedTrack(_ track: SavedCameraTrack) {
+        savedPreviewPlayer?.pause()
+        savedPreviewPlayer = AVPlayer(url: track.artifact.url)
+        previewedTrackID = track.id
     }
 }
 
