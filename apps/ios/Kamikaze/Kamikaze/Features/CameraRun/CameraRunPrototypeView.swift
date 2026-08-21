@@ -144,7 +144,7 @@ struct CameraRunPrototypeView: View {
             GlassSurface(role: .instrumentHUD, cornerRadius: 22) {
                 HStack {
                     Circle().fill(KamikazeTheme.hazard).frame(width: 10, height: 10)
-                    rowTitle("RECORDING LOCALLY", detail: "Pre-talk → detected throw → post-talk share one monotonic timeline.")
+                    rowTitle("CAMERA SESSION LIVE", detail: "Pre-talk → detected throw → post-talk will share one monotonic timeline after recorder wiring is validated on device.")
                     Spacer()
                     Text(capture.activeMode == .multiCamera ? "2 CAM" : "1 CAM")
                         .font(.system(size: 9, weight: .black, design: .monospaced))
@@ -156,7 +156,7 @@ struct CameraRunPrototypeView: View {
                 capture.stop()
                 withAnimation(.snappy) { step = .edit }
             } label: {
-                Text("FINISH + EDIT")
+                Text("OPEN EDIT PROTOTYPE")
                     .font(.system(size: 16, weight: .black, design: .rounded))
                     .frame(maxWidth: .infinity, minHeight: 72)
             }
@@ -215,7 +215,7 @@ struct CameraRunPrototypeView: View {
     }
 
     private var prototypeBoundary: some View {
-        Text("PROTOTYPE · Local-only by default. Nothing uploads automatically. Camera videos require explicit export and explicit publishing consent.")
+        Text("PROTOTYPE · The live camera here validates permission and capability fallback; it does not yet save this preview. The measured replay exporter works separately. Nothing uploads automatically.")
             .font(.system(size: 9, weight: .medium, design: .monospaced))
             .foregroundStyle(KamikazeTheme.muted)
             .fixedSize(horizontal: false, vertical: true)
