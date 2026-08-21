@@ -35,6 +35,7 @@ struct CameraRunPrototypeView: View {
     @State private var savedPreviewPlayer: AVPlayer?
     @State private var previewedTrackID: URL?
     @State private var isFinalizing = false
+    @State private var isPreparingPreview = false
 
     init() {
         _capture = State(initialValue: CameraRunCaptureSession())
@@ -59,15 +60,33 @@ struct CameraRunPrototypeView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .task {
+            await preparePreview()
+        }
+        .onChange(of: position) { _, _ in
+            refreshPreviewForSetupChange()
+        }
+        .onChange(of: wantsBothCameras) { _, _ in
+            refreshPreviewForSetupChange()
+        }
         .onDisappear {
-            if capture.isRunning {
+            if step == .recording {
                 finishCameraRun(showEditor: false)
+            } else {
+                capture.stop()
+                capture.detachVideoRecorders()
             }
         }
         .alert("Camera Run", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
+            if shouldOfferCameraSettings {
+                Button("OPEN SETTINGS") {
+                    guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                    UIApplication.shared.open(url)
+                }
+            }
             Button("OK", role: .cancel) { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "Camera unavailable")
@@ -111,9 +130,14 @@ struct CameraRunPrototypeView: View {
                         endPoint: .bottomTrailing
                     )
                     VStack(spacing: 12) {
-                        Image(systemName: "video.badge.ellipsis")
-                            .font(.system(size: 42, weight: .medium))
-                        Text(step == .edit ? "NON-DESTRUCTIVE DRAFT" : "CAMERA PREVIEW")
+                        if isPreparingPreview {
+                            ProgressView()
+                                .tint(.white)
+                                .scaleEffect(1.15)
+                        } else {
+                            Image(systemName: "video.badge.ellipsis")
+                        }
+                        Text(stagePlaceholder)
                             .font(.system(size: 11, weight: .black, design: .monospaced))
                     }
                     .foregroundStyle(.white.opacity(0.74))
@@ -156,6 +180,7 @@ struct CameraRunPrototypeView: View {
                     .frame(maxWidth: .infinity, minHeight: 66)
             }
             .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.volt)
+            .disabled(isPreparingPreview)
         }
     }
 
@@ -319,22 +344,93 @@ struct CameraRunPrototypeView: View {
         }
     }
 
+    private var stagePlaceholder: String {
+        if step == .edit { return "NON-DESTRUCTIVE DRAFT" }
+        switch capture.state {
+        case .requestingPermission:
+            return "ALLOW CAMERA ACCESS"
+        case .unavailable:
+            return "CAMERA ACCESS NEEDED"
+        case .failed:
+            return "CAMERA COULD NOT START"
+        default:
+            return "STARTING CAMERA"
+        }
+    }
+
+    private var shouldOfferCameraSettings: Bool {
+        switch capture.state {
+        case .unavailable(.permissionDenied), .unavailable(.permissionRestricted):
+            return true
+        default:
+            return false
+        }
+    }
+
     private func prepareAndStart() {
         errorMessage = nil
         Task { @MainActor in
+            guard await preparePreview() else { return }
             do {
-                let activeMode = try await capture.prepare(
-                    position: position,
-                    mode: wantsBothCameras ? .multiCamera : .singleCamera
+                let gate = CameraRunStartGate(
+                    isPreparingPreview: isPreparingPreview,
+                    isSessionRunning: capture.isRunning,
+                    activeMode: capture.activeMode
                 )
+                guard gate.canAttachRecorders else {
+                    throw CameraRunCaptureError.configurationFailed("The camera preview is not ready.")
+                }
+                guard let activeMode = capture.activeMode else {
+                    throw CameraRunCaptureError.configurationFailed("The camera preview is not ready.")
+                }
                 try startRecorders(for: activeMode)
-                try capture.start()
                 withAnimation(.snappy) { step = .recording }
             } catch {
                 capture.detachVideoRecorders()
                 recorders.removeAll()
                 errorMessage = error.localizedDescription
             }
+        }
+    }
+
+    /// Camera access and the live preview are prepared as soon as this mode
+    /// appears. Starting a run only attaches local recorders; it does not tear
+    /// down and rebuild the capture graph underneath the preview.
+    @MainActor
+    @discardableResult
+    private func preparePreview() async -> Bool {
+        guard step == .setup else { return capture.isRunning }
+        if capture.isRunning, !isPreparingPreview { return true }
+        guard !isPreparingPreview else { return false }
+
+        isPreparingPreview = true
+        defer { isPreparingPreview = false }
+        errorMessage = nil
+
+        do {
+            capture.stop()
+            _ = try await capture.prepare(
+                position: position,
+                mode: wantsBothCameras ? .multiCamera : .singleCamera
+            )
+            guard !Task.isCancelled else {
+                capture.stop()
+                return false
+            }
+            try capture.start()
+            return true
+        } catch {
+            capture.stop()
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    private func refreshPreviewForSetupChange() {
+        guard step == .setup, !isPreparingPreview else { return }
+        capture.stop()
+        Task { @MainActor in
+            await preparePreview()
         }
     }
 

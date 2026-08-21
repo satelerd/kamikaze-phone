@@ -34,6 +34,39 @@ struct PhoneAppearanceTests {
         #expect(reloaded.equipped.formFactor == .proMax)
     }
 
+    @Test func launchWaitsOnlyForThePlayersRequestedImportedAsset() {
+        var procedural = PhoneAppearance.default
+        procedural.formFactor = .proMax
+        #expect(PhoneAppearanceLaunchGate.canRender(
+            appearance: procedural,
+            loadedAssets: [],
+            failedAssets: []
+        ))
+
+        var imported = PhoneAppearance.default
+        imported.formFactor = .paint
+        #expect(!PhoneAppearanceLaunchGate.canRender(
+            appearance: imported,
+            loadedAssets: [],
+            failedAssets: []
+        ))
+        #expect(PhoneAppearanceLaunchGate.canRender(
+            appearance: imported,
+            loadedAssets: [.paintable],
+            failedAssets: []
+        ))
+    }
+
+    @Test func failedImportedAssetFallsBackWithoutBlockingLaunch() {
+        var imported = PhoneAppearance.default
+        imported.formFactor = .real
+        #expect(PhoneAppearanceLaunchGate.canRender(
+            appearance: imported,
+            loadedAssets: [],
+            failedAssets: [.scanned]
+        ))
+    }
+
     @Test func masteryGatedCosmeticsFollowPracticeProgress() throws {
         let voltBody = try #require(CosmeticCatalog.body(id: "body-volt"))
         let freeBody = try #require(CosmeticCatalog.body(id: "body-graphite"))

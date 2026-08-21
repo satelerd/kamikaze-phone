@@ -493,3 +493,16 @@ nonisolated public struct CameraRunExportPlan: Codable, Equatable, Sendable {
         self.durationS = trim.durationS
     }
 }
+
+/// Keeps the UI's recording transition honest: a run may attach writers only
+/// after the requested preview graph is fully running. This prevents Start
+/// from racing camera permission/configuration or rebuilding a live session.
+nonisolated struct CameraRunStartGate: Equatable, Sendable {
+    let isPreparingPreview: Bool
+    let isSessionRunning: Bool
+    let activeMode: CameraRunCaptureMode?
+
+    var canAttachRecorders: Bool {
+        !isPreparingPreview && isSessionRunning && activeMode != nil
+    }
+}

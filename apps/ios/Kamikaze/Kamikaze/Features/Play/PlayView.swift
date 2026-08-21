@@ -6,6 +6,9 @@ struct PlayView: View {
     @State private var playMode = PlayMode.free
     @State private var followPrompt = FollowPromptDeck.first
     @State private var followQueue = FollowPromptDeck.shuffled(avoiding: FollowPromptDeck.first)
+    @State private var line = LineSessionState()
+    @State private var lineRearmTask: Task<Void, Never>?
+    @State private var showsCameraRun = false
     @Namespace private var glassNamespace
     @Environment(ExperienceCoordinator.self) private var experience
     @Environment(FeedbackCoordinator.self) private var feedback
@@ -21,7 +24,7 @@ struct PlayView: View {
 
     var body: some View {
         ZStack {
-            if run.result == nil {
+            if run.result == nil || playMode == .line || playMode == .camera {
                 ExperienceFieldBackground()
                 GlassCluster(spacing: 14) {
                     playContent
@@ -37,6 +40,7 @@ struct PlayView: View {
         .toolbar(.hidden, for: .navigationBar)
         .task { run.start() }
         .onDisappear {
+            lineRearmTask?.cancel()
             run.stop()
             experience.report(phase: .idle)
         }
@@ -50,8 +54,16 @@ struct PlayView: View {
         .onChange(of: classicModeEnabled) { _, enabled in
             if !enabled, playMode == .classic { playMode = .free }
         }
+        .navigationDestination(isPresented: $showsCameraRun) {
+            CameraRunPrototypeView()
+        }
         .fullScreenCover(item: Binding(
-            get: { run.result },
+            get: {
+                switch playMode {
+                case .free, .follow, .classic: run.result
+                case .line, .camera: nil
+                }
+            },
             set: { if $0 == nil { run.dismissResult() } }
         )) { result in
             switch playMode {
@@ -82,34 +94,41 @@ struct PlayView: View {
                     onAgain: run.dismissResultAndRearm,
                     onClose: run.dismissResult
                 )
+            case .line, .camera:
+                EmptyView()
             }
         }
     }
 
     private var playContent: some View {
         VStack(spacing: 16) {
-                // Same typographic voice as Setup's header. The phase story
-                // moved into the button and the HUD — no status subtitle.
-                Text(screenTitle)
-                    .font(.system(size: 40, weight: .black, design: .rounded))
-                    .tracking(-1.8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if playMode == .free {
+                    // Free is the canonical game surface. The other modes own
+                    // purpose-built instruments and do not repeat a masthead.
+                    Text("KAMIKAZE\nPHONE FLIP")
+                        .font(.system(size: 40, weight: .black, design: .rounded))
+                        .tracking(-1.8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 if availableModes.count > 1 {
                     modeSelector
                 }
 
-                if playMode == .follow {
+                if playMode == .line {
+                    lineLatestCard
+                    lineHistoryCard
+                } else if playMode == .follow {
                     followCallCard
                 } else if playMode == .classic {
                     classicBrief
                 }
 
-                // The phone floats directly over the field — no stage boxes.
-                LiveRunStage(run: run, accent: accent, initialZoom: 0.33)
-                    .frame(maxHeight: 520)
-
-                RunTelemetryHUD(run: run)
+                if playMode != .camera {
+                    // The phone floats directly over the field — no stage boxes.
+                    LiveRunStage(run: run, accent: accent, initialZoom: 0.33)
+                        .frame(maxHeight: playMode == .line ? 245 : 560)
+                }
 
                 if case let .failed(message) = run.phase {
                     Text(message)
@@ -119,22 +138,23 @@ struct PlayView: View {
                         .frame(maxWidth: .infinity)
                 }
 
-                Button {
-                    if active {
-                        run.cancel()
-                        feedback.play(.cancelled)
-                    } else {
-                        run.arm()
+                if playMode != .camera {
+                    Button {
+                        togglePrimaryAction()
+                    } label: {
+                        Text(primaryButtonLabel)
+                            .font(.system(size: 26, weight: .black, design: .rounded))
+                            .frame(maxWidth: .infinity, minHeight: 84)
                     }
-                } label: {
-                    Text(active ? "CANCEL" : primaryActionTitle)
-                        .font(.system(size: 26, weight: .black, design: .rounded))
-                        .frame(maxWidth: .infinity, minHeight: 84)
+                    .adaptiveGlassButton(
+                        prominent: true,
+                        tint: active ? KamikazeTheme.hazard : KamikazeTheme.ion
+                    )
+                    .disabled(lineRearmTask != nil)
+                    // Stable identity: arming morphs the same surface instead of
+                    // replacing the button.
+                    .kamikazeGlassID("play-primary-action", in: glassNamespace)
                 }
-                .adaptiveGlassButton(prominent: true, tint: active ? KamikazeTheme.hazard : KamikazeTheme.ion)
-                // Stable identity: arming morphs the same surface instead of
-                // replacing the button.
-                .kamikazeGlassID("play-primary-action", in: glassNamespace)
         }
         .padding(.horizontal, 18)
         .padding(.top, 12)
@@ -142,46 +162,183 @@ struct PlayView: View {
     }
 
     private var availableModes: [PlayMode] {
-        var modes: [PlayMode] = [.free]
+        var modes: [PlayMode] = [.free, .line]
         if followModeEnabled { modes.append(.follow) }
         if classicModeEnabled { modes.append(.classic) }
+        modes.append(.camera)
         return modes
-    }
-
-    private var screenTitle: String {
-        switch playMode {
-        case .free: "KAMIKAZE\nPHONE FLIP"
-        case .follow: "FOLLOW\nTHE CALL"
-        case .classic: "KAMIKAZE\nCLASSIC"
-        }
     }
 
     private var primaryActionTitle: String {
         switch playMode {
         case .free: "THROW"
+        case .line: "START LINE"
         case .follow: "START FOLLOW"
         case .classic: "START CLASSIC"
+        case .camera: "OPEN CAMERA RUN"
         }
     }
 
     private var modeSelector: some View {
-        HStack(spacing: 8) {
+        Menu {
             ForEach(availableModes) { mode in
-                Button(mode.title) {
-                    guard !active else { return }
-                    playMode = mode
+                Button {
+                    selectMode(mode)
+                } label: {
+                    Label {
+                        VStack(alignment: .leading) {
+                            Text(mode.title)
+                            Text(mode.detail)
+                        }
+                    } icon: {
+                        Image(systemName: mode == playMode ? "checkmark.circle.fill" : mode.symbol)
+                    }
                 }
-                .font(.system(size: 10, weight: .black, design: .monospaced))
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .background(
-                    (playMode == mode ? KamikazeTheme.volt : .white.opacity(0.07)),
-                    in: Capsule()
-                )
-                .foregroundStyle(playMode == mode ? Color.black : KamikazeTheme.frost)
-                .overlay(Capsule().stroke(.white.opacity(playMode == mode ? 0.35 : 0.1)))
-                .buttonStyle(.plain)
-                .disabled(active)
             }
+        } label: {
+            GlassSurface(role: .instrumentHUD, cornerRadius: 22) {
+                HStack(spacing: 12) {
+                    Image(systemName: playMode.symbol)
+                        .font(.system(size: 20, weight: .black))
+                        .foregroundStyle(KamikazeTheme.volt)
+                        .frame(width: 32)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("GAME MODE  /  \(playMode.title)")
+                            .font(.system(size: 11, weight: .black, design: .monospaced))
+                        Text(playMode.detail)
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(KamikazeTheme.muted)
+                            .lineLimit(2)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 12, weight: .black))
+                        .foregroundStyle(KamikazeTheme.ion)
+                }
+                .padding(.horizontal, 15)
+                .padding(.vertical, 12)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(isCapturingMotion)
+        .accessibilityHint("Opens the game mode list")
+    }
+
+    private var lineLatestCard: some View {
+        GlassSurface(role: .contentPanel, cornerRadius: 24) {
+            HStack(alignment: .center, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("LAST TRICK")
+                        .font(.system(size: 9, weight: .black, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.muted)
+                    if let latest = line.events.last {
+                        Text(latest.trickName.uppercased())
+                            .font(.system(size: 23, weight: .black, design: .rounded))
+                            .tracking(-0.6)
+                            .lineLimit(1)
+                        Text(latest.recognized ? "SEALED IN THE LINE" : "NO SCORE · KEEP MOVING")
+                            .font(.system(size: 8, weight: .black, design: .monospaced))
+                            .foregroundStyle(latest.recognized ? KamikazeTheme.volt : KamikazeTheme.hazard)
+                    } else {
+                        Text("READY")
+                            .font(.system(size: 23, weight: .black, design: .rounded))
+                        Text("THROW WHEN YOU WANT")
+                            .font(.system(size: 8, weight: .black, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.volt)
+                    }
+                }
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text(line.events.last.map { $0.recognized ? "+\($0.points)" : "—" } ?? "0")
+                        .font(.system(size: 37, weight: .black, design: .rounded))
+                        .tracking(-1.2)
+                        .foregroundStyle(line.events.last?.recognized == false ? KamikazeTheme.muted : KamikazeTheme.volt)
+                    Text("POINTS")
+                        .font(.system(size: 8, weight: .black, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.muted)
+                }
+            }
+            .padding(16)
+        }
+    }
+
+    private var lineHistoryCard: some View {
+        GlassSurface(role: .instrumentHUD, cornerRadius: 24) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("THIS LINE")
+                            .font(.system(size: 9, weight: .black, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.muted)
+                        Text("\(line.trickCount) \(line.trickCount == 1 ? "TRICK" : "TRICKS")")
+                            .font(.system(size: 10, weight: .black, design: .monospaced))
+                    }
+                    Spacer()
+                    Text("\(line.totalScore)")
+                        .font(.system(size: 32, weight: .black, design: .rounded))
+                        .tracking(-1)
+                    Text("PTS")
+                        .font(.system(size: 8, weight: .black, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.volt)
+                }
+
+                if line.events.isEmpty {
+                    Text("Your tricks will build from left to right.")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundStyle(KamikazeTheme.muted)
+                } else {
+                    ScrollViewReader { proxy in
+                        ScrollView(.horizontal) {
+                            HStack(spacing: 7) {
+                                ForEach(Array(line.events.enumerated()), id: \.element.id) { index, event in
+                                    HStack(spacing: 7) {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("\(index + 1)  \(event.trickName.uppercased())")
+                                                .font(.system(size: 8, weight: .black, design: .rounded))
+                                                .lineLimit(1)
+                                            Text(event.recognized ? "+\(event.points)" : "NO SCORE")
+                                                .font(.system(size: 8, weight: .black, design: .monospaced))
+                                                .foregroundStyle(event.recognized ? KamikazeTheme.volt : KamikazeTheme.hazard)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 8)
+                                        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
+                                        if index < line.events.count - 1 {
+                                            Image(systemName: "chevron.right")
+                                                .font(.system(size: 8, weight: .black))
+                                                .foregroundStyle(KamikazeTheme.muted.opacity(0.65))
+                                        }
+                                    }
+                                    .id(event.id)
+                                }
+                            }
+                        }
+                        .scrollIndicators(.hidden)
+                        .onChange(of: line.attemptCount) { _, _ in
+                            guard let latestID = line.events.last?.id else { return }
+                            withAnimation(.snappy) { proxy.scrollTo(latestID, anchor: .trailing) }
+                        }
+                    }
+                }
+
+                HStack(spacing: 9) {
+                    Circle()
+                        .fill(lineStatusColor)
+                        .frame(width: 8, height: 8)
+                    Text(lineStatusLabel)
+                        .font(.system(size: 9, weight: .black, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.muted)
+                    Spacer()
+                    if !line.events.isEmpty {
+                        Button("CLEAR LINE", systemImage: "arrow.counterclockwise") {
+                            withAnimation(.snappy) { line.reset() }
+                        }
+                        .font(.system(size: 8, weight: .black, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.ion)
+                    }
+                }
+            }
+            .padding(16)
         }
     }
 
@@ -228,6 +385,110 @@ struct PlayView: View {
         }
     }
 
+    private var isCapturingMotion: Bool {
+        switch run.phase {
+        case .motion, .settling: true
+        case .ready, .armed, .result, .unknown, .failed: false
+        }
+    }
+
+    private var primaryButtonLabel: String {
+        if playMode == .line {
+            if lineRearmTask != nil { return "LOCKING TRICK…" }
+            if active { return "PAUSE LINE" }
+            return line.attemptCount == 0 ? "START LINE" : "RESUME LINE"
+        }
+        return active ? "CANCEL" : primaryActionTitle
+    }
+
+    private var lineStatusLabel: String {
+        if lineRearmTask != nil { return "TRICK SEALED · REARMING" }
+        return switch run.phase {
+        case .armed: "LISTENING FOR THE NEXT TRICK"
+        case .motion: "TRICK IN MOTION"
+        case .settling: "WAITING FOR THE CATCH"
+        case .failed: "SENSOR NEEDS ATTENTION"
+        case .ready, .result, .unknown: "LINE PAUSED"
+        }
+    }
+
+    private var lineStatusColor: Color {
+        switch run.phase {
+        case .armed: KamikazeTheme.volt
+        case .motion, .settling: KamikazeTheme.hazard
+        case .result: KamikazeTheme.volt
+        case .ready, .unknown, .failed: KamikazeTheme.muted
+        }
+    }
+
+    private func togglePrimaryAction() {
+        if active {
+            lineRearmTask?.cancel()
+            lineRearmTask = nil
+            run.cancel()
+            feedback.play(.cancelled)
+        } else {
+            run.arm()
+        }
+    }
+
+    private func selectMode(_ mode: PlayMode) {
+        guard mode != playMode, !isCapturingMotion else { return }
+        lineRearmTask?.cancel()
+        lineRearmTask = nil
+
+        if run.result != nil {
+            run.dismissResult()
+        } else if active {
+            run.cancel()
+        }
+
+        if mode == .camera {
+            run.stop()
+            showsCameraRun = true
+            return
+        }
+
+        withAnimation(.snappy) { playMode = mode }
+        switch mode {
+        case .line:
+            scheduleLineRearm(delay: .milliseconds(180))
+        case .free, .follow, .classic:
+            run.start()
+        case .camera:
+            break
+        }
+    }
+
+    private func recordCurrentLineResult() {
+        guard playMode == .line, let result = run.result else { return }
+        let recognized = result.match.status == .recognized
+        let points = recognized ? (result.evaluation.score?.value ?? 0) : 0
+        withAnimation(.snappy) {
+            line.record(LineTrickEvent(
+                id: result.id,
+                trickName: result.displayName,
+                points: points,
+                recognized: recognized
+            ))
+        }
+        scheduleLineRearm(delay: .milliseconds(700))
+    }
+
+    private func scheduleLineRearm(delay: Duration) {
+        lineRearmTask?.cancel()
+        lineRearmTask = Task { @MainActor in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, playMode == .line else { return }
+            lineRearmTask = nil
+            if run.result != nil {
+                run.dismissResultAndRearm()
+            } else if !active {
+                run.arm()
+            }
+        }
+    }
+
     private func advanceFollowPrompt() {
         if followQueue.isEmpty {
             followQueue = FollowPromptDeck.shuffled(avoiding: followPrompt)
@@ -260,10 +521,12 @@ struct PlayView: View {
             // `result` is published before `phase` in NativeRunModel, so the
             // match status is already readable here.
             feedback.playDetectionSound(success: run.result?.match.status == .recognized)
+            recordCurrentLineResult()
         case .unknown:
             feedback.evidenceWindowActive = false
             feedback.play(.needsReview)
             feedback.playDetectionSound(success: false)
+            recordCurrentLineResult()
         case .ready, .failed:
             feedback.evidenceWindowActive = false
         }

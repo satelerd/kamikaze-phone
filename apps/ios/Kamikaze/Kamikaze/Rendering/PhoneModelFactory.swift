@@ -7,7 +7,7 @@ import UIKit
 /// every render path.
 enum PhoneModelFactory {
     /// The downloaded asset this appearance renders with, if any.
-    static func assetID(for formFactor: PhoneFormFactor) -> PhoneAssetID? {
+    nonisolated static func assetID(for formFactor: PhoneFormFactor) -> PhoneAssetID? {
         switch formFactor {
         case .real: .scanned
         case .paint: .paintable

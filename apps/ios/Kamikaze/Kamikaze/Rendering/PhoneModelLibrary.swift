@@ -21,17 +21,28 @@ final class PhoneModelLibrary {
     static let shared = PhoneModelLibrary()
 
     private(set) var loaded: [PhoneAssetID: Entity] = [:]
+    /// Assets that completed a load attempt but could not be decoded. The
+    /// launch gate treats these as resolved so a broken optional model can
+    /// fall back to procedural geometry instead of trapping the app on a
+    /// loading screen.
+    private(set) var failed: Set<PhoneAssetID> = []
     private var loading: Set<PhoneAssetID> = []
 
     private init() {}
 
     func preload() {
         for asset in PhoneAssetID.allCases {
-            guard loaded[asset] == nil, !loading.contains(asset) else { continue }
+            guard loaded[asset] == nil,
+                  !loading.contains(asset),
+                  !failed.contains(asset)
+            else { continue }
             loading.insert(asset)
             Task { @MainActor in
                 defer { loading.remove(asset) }
-                guard let entity = try? await Entity(named: asset.rawValue) else { return }
+                guard let entity = try? await Entity(named: asset.rawValue) else {
+                    failed.insert(asset)
+                    return
+                }
                 loaded[asset] = Self.normalized(entity)
             }
         }
@@ -115,6 +126,21 @@ final class PhoneModelLibrary {
         for child in entity.children {
             convertMaterials(child)
         }
+    }
+}
+
+/// Pure launch policy kept separate from RealityKit loading so the critical
+/// no-flash behavior is deterministic and unit-testable.
+nonisolated enum PhoneAppearanceLaunchGate {
+    static func canRender(
+        appearance: PhoneAppearance,
+        loadedAssets: Set<PhoneAssetID>,
+        failedAssets: Set<PhoneAssetID>
+    ) -> Bool {
+        guard let requestedAsset = PhoneModelFactory.assetID(for: appearance.formFactor) else {
+            return true
+        }
+        return loadedAssets.contains(requestedAsset) || failedAssets.contains(requestedAsset)
     }
 }
 
