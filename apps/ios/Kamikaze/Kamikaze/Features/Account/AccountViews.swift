@@ -46,6 +46,7 @@ struct AccountView: View {
                         canRequestDeletion: model.snapshot.canRequestDeletion,
                         isWorking: model.isWorking,
                         onManageAccount: onManageAccount,
+                        onSync: {},
                         onSignOut: { Task { await model.signOut() } },
                         onDeleteAccount: { Task { await model.requestDeleteAccount() } }
                     )
@@ -228,6 +229,7 @@ struct AccountSignedInView: View {
     let canRequestDeletion: Bool
     let isWorking: Bool
     let onManageAccount: () -> Void
+    let onSync: () -> Void
     let onSignOut: () -> Void
     let onDeleteAccount: () -> Void
 
@@ -278,7 +280,7 @@ struct AccountSignedInView: View {
                 .padding(16)
             }
 
-            AccountSyncCard(sync: sync)
+            AccountSyncCard(sync: sync, onSync: onSync)
 
             GlassSurface(role: .contentPanel, cornerRadius: 22) {
                 VStack(spacing: 0) {
@@ -348,6 +350,7 @@ struct AccountSignedInView: View {
 
 struct AccountSyncCard: View {
     let sync: AccountSyncSnapshot
+    let onSync: () -> Void
 
     var body: some View {
         GlassSurface(role: .instrumentHUD, cornerRadius: 22) {
@@ -368,11 +371,18 @@ struct AccountSyncCard: View {
                 HStack(spacing: 8) {
                     Image(systemName: "hand.raised.fill")
                         .foregroundStyle(KamikazeTheme.muted)
-                    Text("Future sync will send only the fields you opt into — never raw sensor data by default.")
+                    Text("Scores, trick labels and progression sync privately. Raw sensor data and camera files stay on this iPhone.")
                         .font(.system(size: 9, weight: .medium, design: .rounded))
                         .foregroundStyle(KamikazeTheme.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                Button(action: onSync) {
+                    Label(sync.state == .syncing ? "SYNCING…" : "SYNC NOW", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 10, weight: .black, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .adaptiveGlassButton(tint: KamikazeTheme.ion)
+                .disabled(sync.state == .syncing || sync.state == .needsAuthentication)
             }
             .padding(15)
         }

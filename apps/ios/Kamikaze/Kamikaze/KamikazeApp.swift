@@ -21,6 +21,7 @@ struct KamikazeApp: App {
             if let clerk = KamikazeIdentityConfiguration.clerk {
                 ContentView()
                     .environment(clerk)
+                    .task { KamikazeCloudSync.shared.start() }
             } else {
                 ContentView()
             }

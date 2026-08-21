@@ -298,11 +298,13 @@ final class NativeRunModel {
                 humanReview: review
             )
             try await analysisRepository.save(record)
-            try? await summaryRepository.upsert(AttemptSummaryV1(
+            let summary = AttemptSummaryV1(
                 attempt: current.capture.attempt,
                 analysis: record,
                 timezone: .current
-            ))
+            )
+            try await summaryRepository.upsert(summary)
+            await KamikazeCloudSync.shared.enqueue(summary)
             guard result?.id == current.id else { return nil }
             result = updated
             return updated
@@ -389,11 +391,13 @@ final class NativeRunModel {
                 try await analysisRepository.save(record)
                 // Best-effort: the Profile reconciler rebuilds any summary this
                 // write misses, so a failure here never loses evidence.
-                try? await summaryRepository.upsert(AttemptSummaryV1(
+                let summary = AttemptSummaryV1(
                     attempt: completed.capture.attempt,
                     analysis: record,
                     timezone: .current
-                ))
+                )
+                try await summaryRepository.upsert(summary)
+                await KamikazeCloudSync.shared.enqueue(summary)
             } catch {
                 // The result remains available in memory. Profile exposes any
                 // persistence failure when it refreshes instead of delaying

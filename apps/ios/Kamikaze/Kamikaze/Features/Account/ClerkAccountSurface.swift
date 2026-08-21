@@ -37,6 +37,7 @@ private struct ClerkConfiguredAccountSurface: View {
     @State private var profileIsPresented = false
     @State private var isWorking = false
     @State private var errorMessage: String?
+    @State private var cloudSync = KamikazeCloudSync.shared
 
     var body: some View {
         AccountSurfaceScaffold(
@@ -52,10 +53,11 @@ private struct ClerkConfiguredAccountSurface: View {
             } else if let user = clerk.user {
                 AccountSignedInView(
                     identity: accountIdentity(from: user),
-                    sync: .ready,
+                    sync: cloudSync.accountSnapshot,
                     canRequestDeletion: false,
                     isWorking: isWorking,
                     onManageAccount: { profileIsPresented = true },
+                    onSync: { Task { await cloudSync.syncNow() } },
                     onSignOut: signOut,
                     onDeleteAccount: {
                         errorMessage = AccountSessionError.deletionNotAvailable.localizedDescription

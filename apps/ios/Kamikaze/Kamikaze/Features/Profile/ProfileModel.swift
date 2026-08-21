@@ -127,6 +127,7 @@ final class ProfileModel {
                 timezone: .current
             )
             try await summaryRepository.upsert(summary)
+            await KamikazeCloudSync.shared.enqueue(summary)
             if let index = allSummaries.firstIndex(where: { $0.attemptID == attemptID }) {
                 allSummaries[index] = summary
             }
@@ -151,6 +152,7 @@ final class ProfileModel {
             try await attemptRepository.delete(id: id)
             try await analysisRepository.delete(attemptID: id)
             try await summaryRepository.remove(attemptID: id)
+            await KamikazeCloudSync.shared.enqueueAttemptDeletion(id: id)
             allSummaries.removeAll { $0.attemptID == id }
             visible.removeAll { $0.attemptID == id }
             totalCount = max(0, totalCount - 1)
