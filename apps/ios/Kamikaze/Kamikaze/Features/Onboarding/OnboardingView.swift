@@ -134,16 +134,16 @@ struct OnboardingView: View {
         switch step {
         case .board:
             staticPage(
-                eyebrow: "WELCOME TO KAMIKAZE",
+                eyebrow: "KAMIKAZE · PHONE FLIP",
                 title: "YOUR PHONE\nIS THE BOARD.",
-                body: "Throw it. Rotate it. Catch it. Kamikaze reads the motion, identifies the trick and rebuilds the throw in 3D.",
+                body: "Throw. Rotate. Catch.",
                 symbol: "iphone.gen3.radiowaves.left.and.right"
             )
         case .safety:
             staticPage(
                 eyebrow: "BEFORE YOU THROW",
-                title: "CHOOSE YOUR\nLEVEL OF CHAOS.",
-                body: "A case and a soft landing zone are smart. Going case-free is extremely Kamikaze—and entirely your call.",
+                title: "THROW\nSMART.",
+                body: "Use a case. Start over something soft.",
                 symbol: "shield.lefthalf.filled"
             )
         case .origin:
@@ -193,50 +193,35 @@ struct OnboardingView: View {
     }
 
     private var originPage: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("WHERE IT STARTED")
+        VStack(alignment: .leading, spacing: 20) {
+            Text("THE ORIGINAL GAME")
                 .font(.system(size: 9, weight: .black, design: .monospaced))
                 .foregroundStyle(KamikazeTheme.ion)
 
-            HStack(alignment: .firstTextBaseline) {
-                Text("2014")
-                    .font(.system(size: 82, weight: .black, design: .rounded))
-                    .tracking(-5)
-                Spacer()
-                Text("V1")
-                    .font(.system(size: 12, weight: .black, design: .monospaced))
-                    .foregroundStyle(KamikazeTheme.ion)
-            }
+            Text("2014")
+                .font(.system(size: 84, weight: .black, design: .rounded))
+                .tracking(-5)
 
-            Text("ONE THROW.\nONE NUMBER.")
-                .font(.system(size: 39, weight: .black, design: .rounded))
-                .tracking(-1.8)
+            Text("THROW IT\nHIGHER.")
+                .font(.system(size: 48, weight: .black, design: .rounded))
+                .tracking(-2.2)
 
-            GlassSurface(role: .instrumentHUD, cornerRadius: 24) {
-                HStack(spacing: 16) {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 42, weight: .black))
-                        .foregroundStyle(KamikazeTheme.hazard)
-                        .frame(width: 60)
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("THE ORIGINAL KAMIKAZE")
-                            .font(.system(size: 10, weight: .black, design: .monospaced))
-                        Text("Throw your phone straight up. The higher it went, the higher your score.")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .foregroundStyle(KamikazeTheme.muted)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(18)
-            }
-
-            Text("NOW THE PHONE CAN READ THE TRICK.")
-                .font(.system(size: 21, weight: .black, design: .rounded))
-                .foregroundStyle(KamikazeTheme.volt)
-            Text("We brought the original challenge back, then added real motion capture, trick detection, scoring, Practice and interactive 3D replay.")
-                .font(.system(size: 15, weight: .medium, design: .rounded))
+            Text("That was the whole game.")
+                .font(.system(size: 17, weight: .bold, design: .rounded))
                 .foregroundStyle(KamikazeTheme.muted)
-                .lineSpacing(4)
+
+            Rectangle()
+                .fill(KamikazeTheme.frost.opacity(0.16))
+                .frame(height: 1)
+                .padding(.vertical, 4)
+
+            HStack(alignment: .firstTextBaseline, spacing: 14) {
+                Text("NOW")
+                    .font(.system(size: 11, weight: .black, design: .monospaced))
+                    .foregroundStyle(KamikazeTheme.volt)
+                Text("IT READS THE TRICK TOO.")
+                    .font(.system(size: 23, weight: .black, design: .rounded))
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -248,36 +233,43 @@ struct OnboardingView: View {
     private var straightAirPage: some View {
         VStack(alignment: .leading, spacing: 14) {
             challengeHeader(
-                eyebrow: "THE 2014 TEST",
-                title: "GET SOME AIR.",
-                detail: "Throw it straight up and catch it. Rotation does not matter yet."
+                eyebrow: "ORIGINAL MODE",
+                title: "THROW YOUR PHONE\n\(minimumAirLabel)."
             )
+
+            throwLoopGuide
 
             challengeStage(kind: .straightAir)
 
-            HStack(spacing: 10) {
-                metricCard(
-                    value: lastHeightM.map { "\(Int(($0 * 100).rounded())) CM" } ?? "— CM",
-                    label: "ESTIMATED"
-                )
-                metricCard(value: minimumAirLabel, label: "MINIMUM")
+            if let lastHeightM {
+                GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("YOUR HEIGHT")
+                            .font(.system(size: 9, weight: .black, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.muted)
+                        Spacer()
+                        Text("\(Int((lastHeightM * 100).rounded())) CM")
+                            .font(.system(size: 28, weight: .black, design: .rounded))
+                            .foregroundStyle(accent)
+                    }
+                    .padding(15)
+                }
             }
 
             statusBlock(title: straightAirStatus.title, detail: straightAirStatus.detail)
 
-            Text("Height is estimated from measured air time using h = g·T²/8. The phone does not directly observe absolute vertical position.")
+            Text("HEIGHT ESTIMATED FROM AIR TIME")
                 .font(.system(size: 9, weight: .medium, design: .monospaced))
                 .foregroundStyle(KamikazeTheme.muted)
-                .lineSpacing(3)
         }
     }
 
     private var shuvitLearnPage: some View {
         VStack(alignment: .leading, spacing: 14) {
             challengeHeader(
-                eyebrow: "YOUR FIRST TRICK · LEARN",
-                title: "ADD A SHUVIT.",
-                detail: "Half spin around the screen axis. Keep the screen facing up."
+                eyebrow: "TRICK 01 · PREVIEW",
+                title: "WATCH A SHUVIT.",
+                detail: "Half turn. Screen stays up. Either direction counts."
             )
 
             ZStack(alignment: .topLeading) {
@@ -287,7 +279,7 @@ struct OnboardingView: View {
                     appearanceOverride: .demo,
                     screenLabel: "TARGET"
                 )
-                stageBadge("TARGET · SHUVIT", color: KamikazeTheme.volt)
+                stageBadge("3D PREVIEW · SHUVIT", color: KamikazeTheme.volt)
             }
             .frame(height: 340)
             .background(.black.opacity(0.14), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
@@ -295,33 +287,18 @@ struct OnboardingView: View {
 
             replayTransport(for: targetReplay, name: "Shuvit", tint: KamikazeTheme.volt)
 
-            GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
-                HStack(spacing: 14) {
-                    Image(systemName: "rotate.3d")
-                        .font(.system(size: 25, weight: .black))
-                        .foregroundStyle(KamikazeTheme.ion)
-                        .frame(width: 36)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("WATCH THE DIRECTION")
-                            .font(.system(size: 9, weight: .black, design: .monospaced))
-                        Text("Play it slowly, scrub the timeline, then drag the stage to inspect the axis.")
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundStyle(KamikazeTheme.muted)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(15)
-            }
         }
     }
 
     private var shuvitTryPage: some View {
         VStack(alignment: .leading, spacing: 14) {
             challengeHeader(
-                eyebrow: "YOUR FIRST TRICK · TRY",
-                title: "LAND THE SHUVIT.",
-                detail: "Only the exact half-spin target clears the tutorial."
+                eyebrow: "TRICK 01 · YOUR TURN",
+                title: "LAND A SHUVIT.",
+                detail: "Frontside or backside. Both count."
             )
+
+            throwLoopGuide
 
             challengeStage(kind: .shuvit)
 
@@ -334,9 +311,9 @@ struct OnboardingView: View {
     private var flipLearnPage: some View {
         VStack(alignment: .leading, spacing: 14) {
             challengeHeader(
-                eyebrow: "YOUR SECOND TRICK · LEARN",
-                title: "NOW FLIP IT.",
-                detail: "One full rotation end over end. Same throw, more commitment."
+                eyebrow: "TRICK 02 · PREVIEW",
+                title: "WATCH A FLIP.",
+                detail: "One full turn over the long edge. Either direction counts."
             )
 
             ZStack(alignment: .topLeading) {
@@ -346,7 +323,7 @@ struct OnboardingView: View {
                     appearanceOverride: .demo,
                     screenLabel: "TARGET"
                 )
-                stageBadge("TARGET · FLIP", color: KamikazeTheme.ion)
+                stageBadge("3D PREVIEW · FLIP", color: KamikazeTheme.ion)
             }
             .frame(height: 340)
             .background(.black.opacity(0.14), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
@@ -354,33 +331,18 @@ struct OnboardingView: View {
 
             replayTransport(for: flipReplay, name: "Flip", tint: KamikazeTheme.ion)
 
-            GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
-                HStack(spacing: 14) {
-                    Image(systemName: "rotate.3d")
-                        .font(.system(size: 25, weight: .black))
-                        .foregroundStyle(KamikazeTheme.ion)
-                        .frame(width: 36)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("WATCH THE AXIS")
-                            .font(.system(size: 9, weight: .black, design: .monospaced))
-                        Text("Play it slowly, scrub the timeline, then drag the stage to inspect the rotation.")
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundStyle(KamikazeTheme.muted)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(15)
-            }
         }
     }
 
     private var flipTryPage: some View {
         VStack(alignment: .leading, spacing: 14) {
             challengeHeader(
-                eyebrow: "YOUR SECOND TRICK · TRY",
-                title: "LAND THE FLIP.",
-                detail: "Only the exact full-rotation target clears the tutorial."
+                eyebrow: "TRICK 02 · YOUR TURN",
+                title: "LAND A FLIP.",
+                detail: "Flip or reverse flip. Both count."
             )
+
+            throwLoopGuide
 
             challengeStage(kind: .flip)
 
@@ -457,7 +419,11 @@ struct OnboardingView: View {
         }
     }
 
-    private func challengeHeader(eyebrow: String, title: String, detail: String) -> some View {
+    private func challengeHeader(
+        eyebrow: String,
+        title: String,
+        detail: String? = nil
+    ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(eyebrow)
                 .font(.system(size: 9, weight: .black, design: .monospaced))
@@ -465,25 +431,61 @@ struct OnboardingView: View {
             Text(title)
                 .font(.system(size: 37, weight: .black, design: .rounded))
                 .tracking(-1.7)
-            Text(detail)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(KamikazeTheme.muted)
+            if let detail {
+                Text(detail)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(KamikazeTheme.muted)
+            }
         }
     }
 
-    private func metricCard(value: String, label: String) -> some View {
-        GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(value)
-                    .font(.system(size: 25, weight: .black, design: .rounded))
-                    .foregroundStyle(value == minimumAirLabel ? KamikazeTheme.frost : accent)
-                Text(label)
-                    .font(.system(size: 8, weight: .black, design: .monospaced))
-                    .foregroundStyle(KamikazeTheme.muted)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(15)
+    /// The only interaction lesson a new player needs. It stays visible on
+    /// each playable step and highlights the phase the app is currently in.
+    private var throwLoopGuide: some View {
+        HStack(spacing: 5) {
+            throwLoopStep(number: "1", label: "START", phase: .start)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 8, weight: .black))
+                .foregroundStyle(KamikazeTheme.muted.opacity(0.6))
+            throwLoopStep(number: "2", label: "THROW", phase: .throwPhone)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 8, weight: .black))
+                .foregroundStyle(KamikazeTheme.muted.opacity(0.6))
+            throwLoopStep(number: "3", label: "RESULT", phase: .result)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("First press Start, then throw your phone, then check the result")
+    }
+
+    private func throwLoopStep(
+        number: String,
+        label: String,
+        phase: ThrowLoopPhase
+    ) -> some View {
+        let selected = currentThrowLoopPhase == phase
+        return HStack(spacing: 5) {
+            Text(number)
+                .foregroundStyle(selected ? .black : accent)
+            Text(label)
+                .foregroundStyle(selected ? .black : KamikazeTheme.frost)
+        }
+        .font(.system(size: 9, weight: .black, design: .monospaced))
+        .frame(maxWidth: .infinity, minHeight: 32)
+        .background(
+            selected ? accent : KamikazeTheme.frost.opacity(0.08),
+            in: Capsule()
+        )
+    }
+
+    private enum ThrowLoopPhase {
+        case start
+        case throwPhone
+        case result
+    }
+
+    private var currentThrowLoopPhase: ThrowLoopPhase {
+        if run.result != nil { return .result }
+        return active ? .throwPhone : .start
     }
 
     private func statusBlock(title: String, detail: String) -> some View {
@@ -730,21 +732,21 @@ struct OnboardingView: View {
         case .origin: "TRY THE ORIGINAL"
         case .straightAir:
             if airPassed { "NEXT: LEARN SHUVIT" }
-            else if active { "CANCEL THROW" }
-            else if run.result != nil { "TRY STRAIGHT AIR AGAIN" }
-            else { "START STRAIGHT AIR" }
+            else if active { "CANCEL" }
+            else if run.result != nil { "TRY AGAIN" }
+            else { "START" }
         case .shuvitLearn: "TRY THE SHUVIT"
         case .shuvitTry:
             if shuvitPassed { "NEXT: LEARN FLIP" }
-            else if active { "CANCEL THROW" }
-            else if run.result != nil { "TRY SHUVIT AGAIN" }
-            else { "START SHUVIT" }
+            else if active { "CANCEL" }
+            else if run.result != nil { "TRY AGAIN" }
+            else { "START" }
         case .flipLearn: "TRY THE FLIP"
         case .flipTry:
             if flipPassed { "ENTER KAMIKAZE" }
-            else if active { "CANCEL THROW" }
-            else if run.result != nil { "TRY FLIP AGAIN" }
-            else { "START FLIP" }
+            else if active { "CANCEL" }
+            else if run.result != nil { "TRY AGAIN" }
+            else { "START" }
         }
     }
 
@@ -787,66 +789,66 @@ struct OnboardingView: View {
 
     private var stageBadgeText: String {
         if currentChallengePassed { return "CLEARED" }
-        if run.result != nil { return "REPLAY · YOU" }
-        return active ? "CAPTURING" : "LIVE · LEVEL FIRST"
+        if run.result != nil { return "3 · RESULT" }
+        return active ? "2 · THROW" : "LIVE"
     }
 
     private var straightAirStatus: (title: String, detail: String) {
         if airPassed {
-            return ("AIR CLEARED", "You passed \(minimumAirLabel.lowercased()). Now turn that air into a trick.")
+            return ("CLEARED", "\(minimumAirLabel) or higher.")
         }
         if let lastHeightM {
             let centimeters = Int((lastHeightM * 100).rounded())
-            return ("\(centimeters) CM — GO HIGHER", "Keep the phone level and give it a little more air.")
+            return ("\(centimeters) CM", "Go a little higher.")
         }
         return switch run.phase {
-        case .ready: ("READY?", "Level the phone, start the test, then throw straight up.")
-        case .armed: ("THROW WHEN READY", "Catch it and hold still.")
-        case .motion: ("AIRBORNE", "Eyes on the catch.")
-        case .settling: ("HOLD THE CATCH", "Keep the phone still while the attempt closes.")
-        case .result, .unknown: ("CHECKING HEIGHT", "Reading the measured air window.")
+        case .ready: ("PRESS START", "Then throw straight up.")
+        case .armed: ("THROW NOW", "Catch it and hold still.")
+        case .motion: ("AIRBORNE", "Catch it.")
+        case .settling: ("HOLD STILL", "Almost done.")
+        case .result, .unknown: ("CHECKING", "Reading your air time.")
         case let .failed(message): ("MOTION SENSOR NEEDED", message)
         }
     }
 
     private var shuvitStatus: (title: String, detail: String) {
         if shuvitPassed {
-            return ("SHUVIT LANDED", "First trick down. One more to go: the flip.")
+            return ("SHUVIT LANDED", "Either direction counts.")
         }
         if let result = run.result {
             if let detected = result.evaluation.identity.trickID {
-                return ("THAT WAS \(detected.displayName)", "The target is BACKSIDE SHUVIT: one clean half-spin.")
+                return ("THAT WAS \(detected.displayName)", "Try one clean half-turn.")
             }
-            return ("NOT THE TARGET YET", "Replay the preview, then keep the screen facing up through the half-spin.")
+            return ("NOT QUITE", "Keep the screen up through the half-turn.")
         }
         return switch run.phase {
-        case .ready: ("READY TO TRY?", "Start, throw the half-spin and catch it flat.")
-        case .armed: ("THROW THE SHUVIT", "Half-spin around the screen axis.")
-        case .motion: ("TRICK IN MOTION", "Find the flat catch.")
-        case .settling: ("HOLD THE CATCH", "Keep it steady.")
-        case .result: ("CHECKING TARGET", "Comparing your throw with the Shuvit definition.")
-        case .unknown: ("NOT THE TARGET", "No trick was guessed.")
+        case .ready: ("PRESS START", "Then throw a half-turn.")
+        case .armed: ("THROW NOW", "Frontside or backside.")
+        case .motion: ("IN MOTION", "Catch it flat.")
+        case .settling: ("HOLD STILL", "Almost done.")
+        case .result: ("CHECKING", "Reading the rotation.")
+        case .unknown: ("NOT QUITE", "Try a clean half-turn.")
         case let .failed(message): ("MOTION SENSOR NEEDED", message)
         }
     }
 
     private var flipStatus: (title: String, detail: String) {
         if flipPassed {
-            return ("FLIP LANDED", "You cleared the tutorial. The rest of Kamikaze is open.")
+            return ("FLIP LANDED", "You are ready.")
         }
         if let result = run.result {
             if let detected = result.evaluation.identity.trickID {
-                return ("THAT WAS \(detected.displayName)", "The target is FLIP: one clean full rotation.")
+                return ("THAT WAS \(detected.displayName)", "Try one clean full turn.")
             }
-            return ("NOT THE TARGET YET", "Replay the preview, then send one committed full rotation.")
+            return ("NOT QUITE", "Try one clean full turn.")
         }
         return switch run.phase {
-        case .ready: ("READY TO TRY?", "Start, throw the full flip and catch it flat.")
-        case .armed: ("THROW THE FLIP", "One full rotation end over end.")
-        case .motion: ("TRICK IN MOTION", "Find the flat catch.")
-        case .settling: ("HOLD THE CATCH", "Keep it steady.")
-        case .result: ("CHECKING TARGET", "Comparing your throw with the Flip definition.")
-        case .unknown: ("NOT THE TARGET", "No trick was guessed.")
+        case .ready: ("PRESS START", "Then throw one full flip.")
+        case .armed: ("THROW NOW", "Either direction.")
+        case .motion: ("IN MOTION", "Catch it flat.")
+        case .settling: ("HOLD STILL", "Almost done.")
+        case .result: ("CHECKING", "Reading the rotation.")
+        case .unknown: ("NOT QUITE", "Try one clean full turn.")
         case let .failed(message): ("MOTION SENSOR NEEDED", message)
         }
     }

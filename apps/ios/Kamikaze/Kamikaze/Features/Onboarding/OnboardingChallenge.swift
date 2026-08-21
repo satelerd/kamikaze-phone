@@ -3,7 +3,8 @@ import KamikazeMotionCore
 
 /// Authored order for the first-run story. The last two steps deliberately
 /// split LEARN from TRY: a player sees the exact Shuvit motion before the app
-/// asks the detector to judge it.
+/// asks the detector to judge it. Direction is deliberately permissive here:
+/// Practice is where a player later learns an exact frontside/backside variant.
 nonisolated enum OnboardingStep: Int, CaseIterable, Equatable, Sendable {
     case board
     case safety
@@ -27,6 +28,16 @@ nonisolated enum OnboardingChallengeEvaluator {
     static let firstShuvit: BuiltInTrickID = .backsideShuvit
     static let firstFlip: BuiltInTrickID = .flip
 
+    static let acceptedShuvits: [BuiltInTrickID] = [
+        .backsideShuvit,
+        .frontsideShuvit,
+    ]
+
+    static let acceptedFlips: [BuiltInTrickID] = [
+        .flip,
+        .reverseFlip,
+    ]
+
     static func passesStraightAir(estimatedHeightM: Double?) -> Bool {
         guard let estimatedHeightM, estimatedHeightM.isFinite else { return false }
         return estimatedHeightM >= minimumStraightAirHeightM
@@ -36,13 +47,15 @@ nonisolated enum OnboardingChallengeEvaluator {
         status: TrickRecognitionStatus,
         trickID: BuiltInTrickID?
     ) -> Bool {
-        status == .recognized && trickID == firstShuvit
+        guard status == .recognized, let trickID else { return false }
+        return acceptedShuvits.contains(trickID)
     }
 
     static func passesFlip(
         status: TrickRecognitionStatus,
         trickID: BuiltInTrickID?
     ) -> Bool {
-        status == .recognized && trickID == firstFlip
+        guard status == .recognized, let trickID else { return false }
+        return acceptedFlips.contains(trickID)
     }
 }

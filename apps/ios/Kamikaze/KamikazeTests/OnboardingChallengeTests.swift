@@ -10,10 +10,14 @@ struct OnboardingChallengeTests {
         #expect(OnboardingChallengeEvaluator.passesStraightAir(estimatedHeightM: 0.64))
     }
 
-    @Test func shuvitRequiresTheExactRecognizedIdentity() {
+    @Test func shuvitAcceptsEitherRecognizedDirection() {
         #expect(OnboardingChallengeEvaluator.passesShuvit(
             status: .recognized,
             trickID: .backsideShuvit
+        ))
+        #expect(OnboardingChallengeEvaluator.passesShuvit(
+            status: .recognized,
+            trickID: .frontsideShuvit
         ))
         #expect(!OnboardingChallengeEvaluator.passesShuvit(
             status: .review,
@@ -25,10 +29,14 @@ struct OnboardingChallengeTests {
         ))
     }
 
-    @Test func flipRequiresTheExactRecognizedIdentity() {
+    @Test func flipAcceptsEitherRecognizedDirection() {
         #expect(OnboardingChallengeEvaluator.passesFlip(
             status: .recognized,
             trickID: .flip
+        ))
+        #expect(OnboardingChallengeEvaluator.passesFlip(
+            status: .recognized,
+            trickID: .reverseFlip
         ))
         #expect(!OnboardingChallengeEvaluator.passesFlip(
             status: .review,
