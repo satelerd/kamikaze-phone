@@ -9,6 +9,15 @@ The phone is the board. A single orbit records the trick around it. This is
 the clearest product story and the strongest starting point, but the generated
 concept contains too much phone hardware and glow for a final small icon.
 
+Daniel selected this direction for continued exploration. Color-only variants:
+
+- `01b-flip-trail-ion-blue.png` — electric ion blue;
+- `01c-flip-trail-hazard-red.png` — saturated hazard red;
+- `01d-flip-trail-blue-red.png` — blue phone with red trajectory.
+
+These retain the generated raster geometry for comparison; selecting a
+colorway still precedes the controlled vector redraw and small-size tests.
+
 ## 02 — Kinetic K
 
 The ballistic path becomes a `K`. It owns the brand initial and can become a
