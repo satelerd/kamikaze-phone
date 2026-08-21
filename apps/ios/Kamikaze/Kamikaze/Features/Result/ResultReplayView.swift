@@ -27,6 +27,7 @@ struct ResultReplayView: View {
     @State private var displayedResult: NativeRunResult
     @State private var replay: ReplayController
     @State private var showsCorrection = false
+    @State private var showsShareComposer = false
     @State private var isConfirming = false
     @State private var showsDeleteConfirmation = false
     @AppStorage(BetaFlags.verticalArc) private var verticalArc = true
@@ -135,6 +136,15 @@ struct ResultReplayView: View {
                         .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.ion)
                         .disabled(requiresReviewBeforeAgain && displayedResult.humanReview == nil)
 
+                    Button {
+                        showsShareComposer = true
+                    } label: {
+                        Label("SHARE RESULT", systemImage: "square.and.arrow.up")
+                            .font(.system(size: 13, weight: .black, design: .rounded))
+                            .frame(maxWidth: .infinity, minHeight: 54)
+                    }
+                    .adaptiveGlassButton(tint: accent)
+
                     scoreBreakdownCard
 
                     GlassSurface(role: .instrumentHUD, cornerRadius: 20) {
@@ -194,6 +204,9 @@ struct ResultReplayView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showsShareComposer) {
+            SocialShareComposerView(result: socialResultSnapshot)
+        }
     }
 
     private var accent: Color {
@@ -224,6 +237,21 @@ struct ResultReplayView: View {
 
     private var resultMetric: ResultMetricMode {
         ResultMetricMode(rawValue: resultMetricRaw) ?? .default
+    }
+
+    /// Display-safe projection only. Raw IMU evidence and local file URLs are
+    /// never part of the share draft unless the player explicitly opts in.
+    private var socialResultSnapshot: SocialResultSnapshot {
+        SocialResultSnapshot(
+            id: displayedResult.id,
+            trickName: displayedResult.displayName,
+            contextLabel: "RESULT  /  MOTION TAPE",
+            score: displayedGameScore,
+            fit: displayedResult.displayedFit,
+            durationMilliseconds: displayedResult.durationMs,
+            landed: displayedResult.humanReview.map { $0.outcome == .landed },
+            replayReference: "attempt/\(displayedResult.id)/replay"
+        )
     }
 
     private var primaryMetricValue: String {
