@@ -9,7 +9,10 @@ The phone is the board. A single orbit records the trick around it. This is
 the clearest product story and the strongest starting point, but the generated
 concept contains too much phone hardware and glow for a final small icon.
 
-Daniel selected this direction for continued exploration. Color-only variants:
+Daniel selected the original volt/yellow `01-flip-trail.png` as the official
+game mark. Its production App Icon source is the opaque 1024 px asset at
+`apps/ios/Kamikaze/Kamikaze/Assets.xcassets/AppIcon.appiconset/KamikazeFlipTrail.png`.
+Color-only explorations retained for history:
 
 - `01b-flip-trail-ion-blue.png` — electric ion blue;
 - `01c-flip-trail-hazard-red.png` — saturated hazard red;
