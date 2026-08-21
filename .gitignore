@@ -42,7 +42,7 @@ next-env.d.ts
 **/*.xcuserstate
 **/xcuserdata/
 apps/ios/Kamikaze/Config/Signing.local.xcconfig
-apps/ios/Kamikaze/Config/Auth.local.xcconfig
+apps/ios/Kamikaze/Kamikaze/App/KamikazeAuth.local.json
 
 # Local raw motion imports. Promote only reviewed captures to fixtures/motion/.
 /datasets/inbox/

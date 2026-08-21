@@ -58,16 +58,6 @@ struct ProfileView: View {
                             Button(action: onReplayOnboarding) { settingsRow("REPLAY HOW TO PLAY", value: "→") }
                                 .buttonStyle(.plain)
                             Divider()
-                            NavigationLink {
-                                ClerkAccountSurface(clerk: KamikazeIdentityConfiguration.clerk)
-                            } label: {
-                                settingsRow(
-                                    "ACCOUNT",
-                                    value: KamikazeIdentityConfiguration.isConfigured ? "CLERK" : "SETUP"
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            Divider()
                             NavigationLink { WorkshopView() } label: { settingsRow("SENSOR WORKSHOP", value: "→") }
                                 .buttonStyle(.plain)
                         }
@@ -160,13 +150,23 @@ struct ProfileView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             NavigationLink {
-                LockerView()
+                ClerkAccountSurface(clerk: KamikazeIdentityConfiguration.clerk)
             } label: {
-                Label("SETUP", systemImage: "slider.horizontal.3")
-                    .font(.system(size: 9, weight: .black, design: .monospaced))
-                    .frame(minWidth: 72, minHeight: 42)
+                Label(
+                    KamikazeIdentityConfiguration.hasActiveUser ? "ACCOUNT" : "SIGN IN",
+                    systemImage: KamikazeIdentityConfiguration.hasActiveUser
+                        ? "person.crop.circle.fill.badge.checkmark"
+                        : "person.crop.circle.badge.plus"
+                )
+                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .frame(minWidth: 96, minHeight: 50)
             }
-            .adaptiveGlassButton(tint: KamikazeTheme.ion)
+            .adaptiveGlassButton(
+                prominent: !KamikazeIdentityConfiguration.hasActiveUser,
+                tint: KamikazeIdentityConfiguration.hasActiveUser
+                    ? KamikazeTheme.ion
+                    : KamikazeTheme.volt
+            )
         }
     }
 

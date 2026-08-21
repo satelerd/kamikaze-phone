@@ -90,7 +90,7 @@ Complete the following manual setup without committing credentials:
 1. In Clerk Dashboard, activate the Convex integration for the linked
    application and configure Apple as a sign-in method if desired.
 2. Copy the Clerk Frontend API URL and set it on the Convex deployment as
-   `CLERK_JWT_ISSUER_DOMAIN` (see `services/convex/.env.example`). It must equal
+   `CLERK_FRONTEND_API_URL` (see `services/convex/.env.example`). It must equal
    the JWT `iss` claim exactly. `convex/auth.config.ts` uses the audience
    `applicationID: "convex"`, so the Clerk JWT template/integration must issue
    that audience.

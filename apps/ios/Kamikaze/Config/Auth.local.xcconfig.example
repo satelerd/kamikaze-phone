@@ -1,4 +1,0 @@
-// Copy this file to Auth.local.xcconfig. These are public client identifiers,
-// but keeping environment selection local prevents accidental dev/prod drift.
-KAMIKAZE_CLERK_PUBLISHABLE_KEY = pk_test_REPLACE_ME
-KAMIKAZE_CONVEX_DEPLOYMENT_HOST = REPLACE_ME.convex.cloud

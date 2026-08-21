@@ -38,7 +38,6 @@
 		D8CCAEDA302CD1E400B39F30 /* KamikazeUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KamikazeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8CCAF02302CD1E400B39F30 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		D8CCAF03302CD1E400B39F30 /* Signing.local.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.local.xcconfig.example; sourceTree = "<group>"; };
-		A40000000000000000000001 /* Auth.local.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Auth.local.xcconfig.example; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -114,7 +113,6 @@
 		D8CCAF01302CD1E400B39F30 /* Config */ = {
 			isa = PBXGroup;
 			children = (
-				A40000000000000000000001 /* Auth.local.xcconfig.example */,
 				D8CCAF02302CD1E400B39F30 /* Base.xcconfig */,
 				D8CCAF03302CD1E400B39F30 /* Signing.local.xcconfig.example */,
 			);

@@ -28,7 +28,7 @@ Frontend API URL. Set that URL on the Convex development deployment (the iOS
 `.env` is not read by the backend):
 
 ```sh
-npx convex env set CLERK_JWT_ISSUER_DOMAIN 'https://your-clerk-frontend-api.example'
+npx convex env set CLERK_FRONTEND_API_URL 'https://your-clerk-frontend-api.example'
 npx convex dev --once
 ```
 
@@ -49,9 +49,12 @@ products (the exact package versions are recorded in `Package.resolved`):
 3. `https://github.com/clerk/clerk-ios` → `ClerkKit` when it is not already
    available transitively.
 
-At the app composition boundary, call `Clerk.configure(publishableKey:)` with
-the publishable key only, obtain the deployment URL from
-`KamikazeIdentityConfiguration.convexDeploymentURL`, and construct
+For local iOS development, copy
+`Config/KamikazeAuth.local.json.example` to
+`Kamikaze/App/KamikazeAuth.local.json`; the ignored resource contains only the
+public Clerk publishable key and Convex deployment host. At the app composition
+boundary, call `Clerk.configure(publishableKey:)` with the publishable key only,
+obtain the deployment URL from `KamikazeIdentityConfiguration.convexDeploymentURL`, and construct
 `ConvexCloudClient.clerk(deploymentURL:)`. Keep the returned transport/client
 alive for the process lifetime. Call `loginFromCache()` after Clerk restores a
 session, observe `transport.authState`, and use `login()` only from the actual

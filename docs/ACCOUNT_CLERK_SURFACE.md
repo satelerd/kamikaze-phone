@@ -40,9 +40,14 @@ When configured, the bridge uses the official Clerk iOS 1.4 APIs:
 - `try await clerk.auth.signOut()` for the explicit sign-out row.
 - `.prefetchClerkImages()` for the avatar/profile image path.
 
-The root must provide a real `KamikazeClerkPublishableKey` (publishable keys
-only; never a Clerk secret key). Sign in with Apple also requires the Apple
-capability and provider setup in the Clerk Dashboard. The current bridge asks
+For local development, copy
+`Config/KamikazeAuth.local.json.example` to
+`Kamikaze/App/KamikazeAuth.local.json` and provide the real
+`KamikazeClerkPublishableKey` (publishable keys only; never a Clerk secret
+key). The local file is ignored by Git and bundled as an app resource. A
+release build can instead inject the same named value through its generated
+Info.plist. Sign in with Apple also requires the Apple capability and provider
+setup in the Clerk Dashboard. The current bridge asks
 for `.email` and `.fullName` through Clerk's native Apple helper, while the
 adapter derives the display name from `User.firstName`/`lastName` and the email
 from `User.primaryEmailAddress`.
