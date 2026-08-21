@@ -16,10 +16,12 @@ or automatic Photos write is included.
   latest real camera presentation timestamp. Multi-camera is attempted only
   when `AVCaptureMultiCamSession.isMultiCamSupported` and both lenses exist;
   any unsupported or failed graph falls back to one camera and reports the
-  selected mode.
-- `CameraRunVideoRecorder` can receive real sample buffers from the capture
-  session and write a video-only MP4. Microphone capture is intentionally not
-  requested by this slice.
+  selected mode. Camera samples are routed by physical position so front and
+  rear recorders cannot accidentally receive each other's frames.
+- `CameraRunVideoRecorder` receives real sample buffers from the capture
+  session and writes a video-only MP4 under Application Support. The Camera Run
+  screen finalizes those tracks and exposes each saved file through ShareLink.
+  Microphone capture is intentionally not requested by this slice.
 - `CameraRunDraftClip` keeps source replay frames and/or a camera URL immutable.
   `CameraRunEditorModel` changes only trim, vertical/layout and caption
   metadata. `CameraRunExportPlan` makes composition requirements explicit.

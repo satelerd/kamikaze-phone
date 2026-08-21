@@ -100,16 +100,24 @@ private final class CameraRunTimestampBox: @unchecked Sendable {
 }
 
 private final class CameraRunVideoSinkBox: @unchecked Sendable {
-    private let lock = OSAllocatedUnfairLock<CameraRunVideoRecorder?>(initialState: nil)
+    private let lock = OSAllocatedUnfairLock<[CameraRunCameraPosition: CameraRunVideoRecorder]>(
+        initialState: [:]
+    )
 
-    func set(_ recorder: CameraRunVideoRecorder?) {
-        lock.withLock { $0 = recorder }
+    func set(_ recorder: CameraRunVideoRecorder?, for position: CameraRunCameraPosition) {
+        lock.withLock { recorders in
+            recorders[position] = recorder
+        }
     }
 
-    func append(_ sampleBuffer: CMSampleBuffer) {
+    func clear() {
+        lock.withLock { $0.removeAll() }
+    }
+
+    func append(_ sampleBuffer: CMSampleBuffer, from position: CameraRunCameraPosition) {
         let sample = CameraRunSampleBufferBox(sampleBuffer)
-        lock.withLock { recorder in
-            recorder?.consume(sample.value)
+        lock.withLock { recorders in
+            recorders[position]?.consume(sample.value)
         }
     }
 }
@@ -125,10 +133,16 @@ nonisolated private final class CameraRunSampleBufferBox: @unchecked Sendable {
 private final class CameraRunSampleBufferDelegate: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
     private let timestamps: CameraRunTimestampBox
     private let sink: CameraRunVideoSinkBox
+    private let position: CameraRunCameraPosition
 
-    init(timestamps: CameraRunTimestampBox, sink: CameraRunVideoSinkBox) {
+    init(
+        timestamps: CameraRunTimestampBox,
+        sink: CameraRunVideoSinkBox,
+        position: CameraRunCameraPosition
+    ) {
         self.timestamps = timestamps
         self.sink = sink
+        self.position = position
     }
 
     func captureOutput(
@@ -140,7 +154,7 @@ private final class CameraRunSampleBufferDelegate: NSObject, AVCaptureVideoDataO
         if presentationTime.isValid, presentationTime.seconds.isFinite {
             timestamps.record(presentationTime.seconds)
         }
-        sink.append(sampleBuffer)
+        sink.append(sampleBuffer, from: position)
     }
 }
 
@@ -271,8 +285,15 @@ public final class CameraRunCaptureSession {
         #endif
     }
 
-    public func attachVideoRecorder(_ recorder: CameraRunVideoRecorder?) {
-        videoSink.set(recorder)
+    public func attachVideoRecorder(
+        _ recorder: CameraRunVideoRecorder?,
+        for position: CameraRunCameraPosition
+    ) {
+        videoSink.set(recorder, for: position)
+    }
+
+    public func detachVideoRecorders() {
+        videoSink.clear()
     }
 
     public func start() throws {
@@ -328,7 +349,11 @@ public final class CameraRunCaptureSession {
         newSession.addInput(input)
         let output = AVCaptureVideoDataOutput()
         output.alwaysDiscardsLateVideoFrames = true
-        let delegate = CameraRunSampleBufferDelegate(timestamps: timestamps, sink: videoSink)
+        let delegate = CameraRunSampleBufferDelegate(
+            timestamps: timestamps,
+            sink: videoSink,
+            position: position
+        )
         let queue = DispatchQueue(label: "kamikaze.camera-run.video.single", qos: .userInitiated)
         output.setSampleBufferDelegate(delegate, queue: queue)
         guard newSession.canAddOutput(output) else {
@@ -362,8 +387,16 @@ public final class CameraRunCaptureSession {
             let rearOutput = AVCaptureVideoDataOutput()
             frontOutput.alwaysDiscardsLateVideoFrames = true
             rearOutput.alwaysDiscardsLateVideoFrames = true
-            let frontDelegate = CameraRunSampleBufferDelegate(timestamps: timestamps, sink: videoSink)
-            let rearDelegate = CameraRunSampleBufferDelegate(timestamps: timestamps, sink: videoSink)
+            let frontDelegate = CameraRunSampleBufferDelegate(
+                timestamps: timestamps,
+                sink: videoSink,
+                position: .front
+            )
+            let rearDelegate = CameraRunSampleBufferDelegate(
+                timestamps: timestamps,
+                sink: videoSink,
+                position: .rear
+            )
             frontOutput.setSampleBufferDelegate(
                 frontDelegate,
                 queue: DispatchQueue(label: "kamikaze.camera-run.video.front", qos: .userInitiated)

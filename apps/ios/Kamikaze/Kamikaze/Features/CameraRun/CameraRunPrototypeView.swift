@@ -7,6 +7,13 @@ import UIKit
 /// capability fallback and non-destructive edit contract tangible without
 /// presenting unfinished media as a published feature.
 struct CameraRunPrototypeView: View {
+    private struct SavedCameraTrack: Identifiable {
+        let position: CameraRunCameraPosition
+        let artifact: CameraRunRecordingArtifact
+
+        var id: URL { artifact.url }
+    }
+
     private enum Step: String {
         case setup = "SETUP"
         case recording = "CAMERA RUN"
@@ -16,12 +23,15 @@ struct CameraRunPrototypeView: View {
     @State private var capture: CameraRunCaptureSession
     @State private var step: Step = .setup
     @State private var position: CameraRunCameraPosition = .rear
-    @State private var wantsBothCameras = true
+    @State private var wantsBothCameras = false
     @State private var caption = ""
     @State private var trimStart = 0.0
     @State private var trimEnd = 1.0
     @State private var layout: CameraRunLayoutPreset = .pictureInPicture
     @State private var errorMessage: String?
+    @State private var recorders: [CameraRunCameraPosition: CameraRunVideoRecorder] = [:]
+    @State private var savedTracks: [SavedCameraTrack] = []
+    @State private var isFinalizing = false
 
     init() {
         _capture = State(initialValue: CameraRunCaptureSession())
@@ -46,7 +56,11 @@ struct CameraRunPrototypeView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .onDisappear { capture.stop() }
+        .onDisappear {
+            if capture.isRunning {
+                finishCameraRun(showEditor: false)
+            }
+        }
         .alert("Camera Run", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -144,7 +158,7 @@ struct CameraRunPrototypeView: View {
             GlassSurface(role: .instrumentHUD, cornerRadius: 22) {
                 HStack {
                     Circle().fill(KamikazeTheme.hazard).frame(width: 10, height: 10)
-                    rowTitle("CAMERA SESSION LIVE", detail: "Pre-talk → detected throw → post-talk will share one monotonic timeline after recorder wiring is validated on device.")
+                    rowTitle("RECORDING LOCALLY", detail: "Front and rear are written as separate MP4 tracks when MultiCam is available. Nothing is uploaded.")
                     Spacer()
                     Text(capture.activeMode == .multiCamera ? "2 CAM" : "1 CAM")
                         .font(.system(size: 9, weight: .black, design: .monospaced))
@@ -153,14 +167,20 @@ struct CameraRunPrototypeView: View {
                 .padding(16)
             }
             Button {
-                capture.stop()
-                withAnimation(.snappy) { step = .edit }
+                finishCameraRun(showEditor: true)
             } label: {
-                Text("OPEN EDIT PROTOTYPE")
+                if isFinalizing {
+                    ProgressView()
+                        .tint(KamikazeTheme.pitch)
+                        .frame(maxWidth: .infinity, minHeight: 72)
+                } else {
+                    Text("FINISH + EDIT")
                     .font(.system(size: 16, weight: .black, design: .rounded))
                     .frame(maxWidth: .infinity, minHeight: 72)
+                }
             }
             .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.hazard)
+            .disabled(isFinalizing)
         }
     }
 
@@ -178,6 +198,31 @@ struct CameraRunPrototypeView: View {
                         Text("PIP").tag(CameraRunLayoutPreset.pictureInPicture)
                     }
                     .pickerStyle(.segmented)
+
+                    if !savedTracks.isEmpty {
+                        Divider().overlay(.white.opacity(0.08))
+                        VStack(alignment: .leading, spacing: 9) {
+                            Text("SAVED SOURCE TRACKS")
+                                .font(.system(size: 8, weight: .black, design: .monospaced))
+                                .foregroundStyle(KamikazeTheme.volt)
+                            ForEach(savedTracks) { track in
+                                ShareLink(item: track.artifact.url) {
+                                    HStack {
+                                        Label(
+                                            "SHARE \(track.position.rawValue.uppercased()) MP4",
+                                            systemImage: track.position == .front ? "person.crop.rectangle" : "camera"
+                                        )
+                                        Spacer()
+                                        Text("\(track.artifact.frameCount)F · \(track.artifact.durationS, format: .number.precision(.fractionLength(1)))S")
+                                            .foregroundStyle(KamikazeTheme.muted)
+                                    }
+                                    .font(.system(size: 10, weight: .black, design: .rounded))
+                                    .frame(minHeight: 44)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
                     VStack(spacing: 4) {
                         HStack {
                             Text("IN  \(Int(trimStart * 100))%")
@@ -207,6 +252,7 @@ struct CameraRunPrototypeView: View {
             Button("NEW CAMERA RUN") {
                 step = .setup
                 errorMessage = nil
+                savedTracks = []
             }
             .font(.system(size: 11, weight: .black, design: .rounded))
             .frame(maxWidth: .infinity, minHeight: 48)
@@ -215,7 +261,7 @@ struct CameraRunPrototypeView: View {
     }
 
     private var prototypeBoundary: some View {
-        Text("PROTOTYPE · The live camera here validates permission and capability fallback; it does not yet save this preview. The measured replay exporter works separately. Nothing uploads automatically.")
+        Text("PROTOTYPE · Camera source tracks now persist locally and can be shared from the editor. Audio and the final front/rear/replay composition remain separate device-validation gates. Nothing uploads automatically.")
             .font(.system(size: 9, weight: .medium, design: .monospaced))
             .foregroundStyle(KamikazeTheme.muted)
             .fixedSize(horizontal: false, vertical: true)
@@ -253,14 +299,77 @@ struct CameraRunPrototypeView: View {
         errorMessage = nil
         Task { @MainActor in
             do {
-                _ = try await capture.prepare(
+                let activeMode = try await capture.prepare(
                     position: position,
                     mode: wantsBothCameras ? .multiCamera : .singleCamera
                 )
+                try startRecorders(for: activeMode)
                 try capture.start()
                 withAnimation(.snappy) { step = .recording }
             } catch {
+                capture.detachVideoRecorders()
+                recorders.removeAll()
                 errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func startRecorders(for mode: CameraRunCaptureMode) throws {
+        let positions: [CameraRunCameraPosition]
+        if mode == .multiCamera {
+            positions = [.front, .rear]
+        } else {
+            positions = [capture.activePosition ?? position]
+        }
+
+        let runDirectory = URL.applicationSupportDirectory
+            .appending(path: "CameraRuns", directoryHint: .isDirectory)
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        var started: [CameraRunCameraPosition: CameraRunVideoRecorder] = [:]
+
+        for cameraPosition in positions {
+            let outputURL = runDirectory.appending(path: "\(cameraPosition.rawValue).mp4")
+            let recorder = CameraRunVideoRecorder(outputURL: outputURL)
+            try recorder.start()
+            capture.attachVideoRecorder(recorder, for: cameraPosition)
+            started[cameraPosition] = recorder
+        }
+        recorders = started
+    }
+
+    private func finishCameraRun(showEditor: Bool) {
+        guard !recorders.isEmpty, !isFinalizing else {
+            capture.stop()
+            if showEditor { withAnimation(.snappy) { step = .edit } }
+            return
+        }
+
+        capture.stop()
+        capture.detachVideoRecorders()
+        let pending = recorders
+        recorders.removeAll()
+        isFinalizing = true
+
+        Task { @MainActor in
+            var completed: [SavedCameraTrack] = []
+            var failures: [String] = []
+            for (cameraPosition, recorder) in pending {
+                do {
+                    let artifact = try await recorder.finish()
+                    completed.append(SavedCameraTrack(position: cameraPosition, artifact: artifact))
+                } catch {
+                    failures.append("\(cameraPosition.rawValue): \(error.localizedDescription)")
+                }
+            }
+            savedTracks = completed.sorted { $0.position.rawValue < $1.position.rawValue }
+            isFinalizing = false
+            if showEditor {
+                withAnimation(.snappy) { step = .edit }
+            }
+            if !failures.isEmpty {
+                errorMessage = completed.isEmpty
+                    ? "No camera track could be saved. \(failures.joined(separator: " · "))"
+                    : "Some camera tracks could not be saved. \(failures.joined(separator: " · "))"
             }
         }
     }

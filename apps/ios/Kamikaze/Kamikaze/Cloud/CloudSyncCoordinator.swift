@@ -102,7 +102,7 @@ actor CloudSyncCoordinator {
                 case .unauthenticated:
                     authFailure = true
                 default:
-                    try? await outbox.markFailure(
+                    _ = try? await outbox.markFailure(
                         mutationID: entry.mutationID,
                         error: lastError ?? "sync failed",
                         now: now,
@@ -112,7 +112,7 @@ actor CloudSyncCoordinator {
                 break
             } catch {
                 lastError = String(describing: error)
-                try? await outbox.markFailure(
+                _ = try? await outbox.markFailure(
                     mutationID: entry.mutationID,
                     error: lastError ?? "sync failed",
                     now: now,
