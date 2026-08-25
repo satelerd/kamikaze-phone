@@ -120,11 +120,17 @@ struct PlayView: View {
                 }
 
                 if availableModes.count > 1 {
-                    modeSelector
-                }
-
-                if playMode != .camera {
-                    cameraCaptureControl
+                    GeometryReader { proxy in
+                        let spacing: CGFloat = 10
+                        let availableWidth = max(0, proxy.size.width - spacing)
+                        HStack(spacing: spacing) {
+                            modeSelector
+                                .frame(width: availableWidth * 0.66)
+                            cameraCaptureControl
+                                .frame(width: availableWidth * 0.34)
+                        }
+                    }
+                    .frame(height: 66)
                 }
 
                 if playMode == .line {
@@ -254,35 +260,29 @@ struct PlayView: View {
             Task { await playCamera.toggle() }
         } label: {
             GlassSurface(role: .instrumentHUD, cornerRadius: 19) {
-                HStack(spacing: 11) {
+                HStack(spacing: 7) {
                     Image(systemName: playCamera.isEnabled ? "video.fill" : "video.slash")
                         .font(.system(size: 16, weight: .black))
                         .foregroundStyle(playCamera.isEnabled ? KamikazeTheme.volt : KamikazeTheme.muted)
-                        .frame(width: 28)
+                        .frame(width: 22)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("CAMERA V2")
+                        Text("CAMERA")
                             .font(.system(size: 9, weight: .black, design: .monospaced))
-                        Text(playCamera.statusLabel)
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                        Text(playCamera.isEnabled ? "ON" : "OFF")
+                            .font(.system(size: 11, weight: .black, design: .rounded))
                             .foregroundStyle(playCamera.isEnabled ? KamikazeTheme.frost : KamikazeTheme.muted)
                     }
                     Spacer()
                     if playCamera.isPreparing {
                         ProgressView().tint(KamikazeTheme.volt)
                     } else {
-                        Text(playCamera.isEnabled ? "ON" : "OFF")
-                            .font(.system(size: 9, weight: .black, design: .monospaced))
-                            .foregroundStyle(playCamera.isEnabled ? KamikazeTheme.pitch : KamikazeTheme.muted)
-                            .padding(.horizontal, 11)
-                            .padding(.vertical, 7)
-                            .background(
-                                playCamera.isEnabled ? KamikazeTheme.volt : .white.opacity(0.07),
-                                in: Capsule()
-                            )
+                        Circle()
+                            .fill(playCamera.isEnabled ? KamikazeTheme.volt : .white.opacity(0.10))
+                            .frame(width: 9, height: 9)
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 11)
+                .padding(.horizontal, 11)
+                .frame(maxHeight: .infinity)
             }
         }
         .buttonStyle(.plain)

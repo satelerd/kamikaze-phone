@@ -18,6 +18,63 @@ nonisolated enum CameraReplayTiming {
         }
         return min(artifact.durationS, max(0, offset + replayTimeS))
     }
+
+    /// Builds an editor timeline from the entire recorded source. The phone
+    /// holds its initial pose during the introduction, executes measured
+    /// motion at the original host-clock offset, then holds the catch while
+    /// the camera keeps recording the reaction.
+    static func fullTakeFrames(
+        motionFrames: [ReplayFrame],
+        motionCaptureStartS: Double,
+        artifact: CameraRunRecordingArtifact
+    ) -> [ReplayFrame] {
+        let normalized = ReplayBuilder.normalized(motionFrames)
+        guard let first = normalized.first, let last = normalized.last else { return [] }
+
+        let motionDurationS = max(0, last.timestampMs / 1_000)
+        let offsetS: Double
+        if let sourceStart = artifact.sourceStartTimestampS {
+            offsetS = min(artifact.durationS, max(0, motionCaptureStartS - sourceStart))
+        } else {
+            offsetS = max(0, (artifact.durationS - motionDurationS) / 2)
+        }
+        let offsetMs = offsetS * 1_000
+        let durationMs = max(artifact.durationS * 1_000, offsetMs + last.timestampMs)
+
+        var output = normalized.map { frame in
+            ReplayFrame(
+                timestampMs: offsetMs + frame.timestampMs,
+                progress: 0,
+                quaternion: frame.quaternion,
+                accelG: frame.accelG,
+                gyroDps: frame.gyroDps
+            )
+        }
+        if offsetMs > 0 {
+            output.insert(ReplayFrame(
+                timestampMs: 0,
+                progress: 0,
+                quaternion: first.quaternion,
+                accelG: first.accelG,
+                gyroDps: 0
+            ), at: 0)
+        }
+        if let final = output.last, final.timestampMs < durationMs {
+            output.append(ReplayFrame(
+                timestampMs: durationMs,
+                progress: 1,
+                quaternion: last.quaternion,
+                accelG: last.accelG,
+                gyroDps: 0
+            ))
+        }
+        guard durationMs > 0 else { return output }
+        return output.map { frame in
+            var updated = frame
+            updated.progress = min(1, max(0, frame.timestampMs / durationMs))
+            return updated
+        }
+    }
 }
 
 /// Reuses the exact same ReplayPhoneView transport while projecting the saved
@@ -30,9 +87,30 @@ struct CameraReplayPhoneView: View {
     let arcWindow: FreefallWindow?
     let take: PlayCameraTake?
     let motionCaptureStartS: Double
+    /// Editor timelines already use camera-source time, so their offset is 0.
+    /// Result timelines leave this nil and align from monotonic timestamps.
+    let videoTimelineOffsetS: Double?
 
     @State private var player: AVPlayer?
     @State private var material: VideoMaterial?
+
+    init(
+        controller: ReplayController,
+        accent: Color,
+        targetFrames: [ReplayFrame]? = nil,
+        arcWindow: FreefallWindow? = nil,
+        take: PlayCameraTake?,
+        motionCaptureStartS: Double,
+        videoTimelineOffsetS: Double? = nil
+    ) {
+        self.controller = controller
+        self.accent = accent
+        self.targetFrames = targetFrames
+        self.arcWindow = arcWindow
+        self.take = take
+        self.motionCaptureStartS = motionCaptureStartS
+        self.videoTimelineOffsetS = videoTimelineOffsetS
+    }
 
     var body: some View {
         ReplayPhoneView(
@@ -79,7 +157,9 @@ struct CameraReplayPhoneView: View {
 
     private func synchronize(forceSeek: Bool) {
         guard let player, let artifact = take?.front else { return }
-        let targetS = CameraReplayTiming.videoTime(
+        let targetS = videoTimelineOffsetS.map {
+            min(artifact.durationS, max(0, $0 + controller.playheadMs / 1_000))
+        } ?? CameraReplayTiming.videoTime(
             replayTimeS: controller.playheadMs / 1_000,
             replayDurationS: controller.durationMs / 1_000,
             motionCaptureStartS: motionCaptureStartS,

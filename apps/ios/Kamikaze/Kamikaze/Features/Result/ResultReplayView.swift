@@ -135,10 +135,6 @@ struct ResultReplayView: View {
                         motionCaptureStartS: displayedResult.capture.attempt.boundaries.captureStartS
                     )
 
-                    if let cameraTake {
-                        cameraTakeCard(cameraTake)
-                    }
-
                     if let practiceTarget, displayedResult.humanReview == nil {
                         practiceConfirmRow(target: practiceTarget)
                     }
@@ -178,6 +174,12 @@ struct ResultReplayView: View {
                             }
                         }
                         .padding(16)
+                    }
+
+                    // Editing is intentionally near the correction action,
+                    // after the player has seen the replay, score and stats.
+                    if let cameraTake {
+                        cameraTakeCard(cameraTake)
                     }
 
                     // Deliberately far from THROW AGAIN so a fast re-throw tap

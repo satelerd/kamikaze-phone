@@ -120,7 +120,10 @@ final class PlayCameraCaptureModel {
         }
     }
 
-    func finishAttempt(attemptID: String, postRoll: Duration = .milliseconds(650)) async {
+    /// Keep recording after detection so the source take includes the human
+    /// reaction. The immediate Result remains trick-focused; the editor owns
+    /// this longer intro/trick/reaction timeline.
+    func finishAttempt(attemptID: String, postRoll: Duration = .milliseconds(2_500)) async {
         guard isRecording else { return }
         try? await Task.sleep(for: postRoll)
         guard !Task.isCancelled else { return }
@@ -165,7 +168,7 @@ final class PlayCameraCaptureModel {
 
     func waitUntilAttemptIsSealed() async {
         let clock = ContinuousClock()
-        let deadline = clock.now + .seconds(3)
+        let deadline = clock.now + .seconds(6)
         while isRecording, clock.now < deadline {
             try? await Task.sleep(for: .milliseconds(40))
         }

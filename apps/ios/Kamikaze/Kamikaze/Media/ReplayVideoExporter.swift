@@ -356,7 +356,7 @@ final class RealityKitReplayFrameRenderer: ReplayVideoFrameRenderer {
         ) else { return }
         var material = UnlitMaterial()
         material.color = .init(tint: .white, texture: .init(texture))
-        PhoneModelFactory.applyScreenMaterial(to: phone, material: material)
+        PhoneModelFactory.applyScreenMaterial(to: phone, material: material, rotate180: true)
     }
 
     private func prepareScene(for canvas: ReplayVideoCanvas) throws {
@@ -379,7 +379,9 @@ final class RealityKitReplayFrameRenderer: ReplayVideoFrameRenderer {
         phone.name = "export-phone"
         // ARView's non-AR camera sits at the origin and looks down -Z. Keep
         // the phone's pivot intact and move only its world position.
-        phone.position.z = -0.49
+        // A social vertical cut should read the phone immediately. The
+        // previous distance left it visually tiny on an iPhone screen.
+        phone.position.z = -0.36
         anchor.addChild(phone)
         anchor.addChild(PhoneModelFactory.makeLightRig())
         view.scene.addAnchor(anchor)

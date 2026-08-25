@@ -1,4 +1,5 @@
 import Foundation
+import KamikazeMotionCore
 import Testing
 @testable import Kamikaze
 
@@ -59,5 +60,34 @@ struct CameraReplayTimingTests {
         #expect(decoded.sourceStartTimestampS == nil)
         #expect(decoded.sourceEndTimestampS == nil)
         #expect(decoded.frameCount == 90)
+    }
+
+    @Test func fullTakeTimelinePadsIntroAndReactionAroundMeasuredMotion() {
+        let identity = Quaternion(w: 1, x: 0, y: 0, z: 0)
+        let rotated = Quaternion(w: 0, x: 0, y: 1, z: 0)
+        let motion = [
+            ReplayFrame(timestampMs: 0, progress: 0, quaternion: identity, accelG: 1, gyroDps: 0),
+            ReplayFrame(timestampMs: 800, progress: 1, quaternion: rotated, accelG: 1, gyroDps: 400),
+        ]
+        let artifact = CameraRunRecordingArtifact(
+            url: URL(fileURLWithPath: "/tmp/front.mp4"),
+            durationS: 5,
+            frameCount: 150,
+            sourceStartTimestampS: 100,
+            sourceEndTimestampS: 105
+        )
+
+        let frames = CameraReplayTiming.fullTakeFrames(
+            motionFrames: motion,
+            motionCaptureStartS: 101.2,
+            artifact: artifact
+        )
+
+        #expect(abs((frames.first?.timestampMs ?? .infinity) - 0) < 0.001)
+        #expect(abs(frames[1].timestampMs - 1_200) < 0.001)
+        #expect(abs((frames.last?.timestampMs ?? .infinity) - 5_000) < 0.001)
+        #expect(frames.first?.quaternion == identity)
+        #expect(frames.last?.quaternion == rotated)
+        #expect(frames.last?.progress == 1)
     }
 }

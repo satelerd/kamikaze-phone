@@ -41,7 +41,7 @@ struct ReplayPhoneScene: View {
                 screenLabel: screenLabel
             )
             if let phone, let screenVideoMaterial {
-                PhoneModelFactory.applyScreenMaterial(to: phone, material: screenVideoMaterial)
+                PhoneModelFactory.applyScreenMaterial(to: phone, material: screenVideoMaterial, rotate180: true)
             }
             content.add(PhoneModelFactory.makeLightRig())
 
@@ -72,7 +72,7 @@ struct ReplayPhoneScene: View {
                 screenLabel: screenLabel
             )
             if let phone, let screenVideoMaterial {
-                PhoneModelFactory.applyScreenMaterial(to: phone, material: screenVideoMaterial)
+                PhoneModelFactory.applyScreenMaterial(to: phone, material: screenVideoMaterial, rotate180: true)
             }
             guard let camera = content.entities.first(where: { $0.name == "replay-camera" }) else { return }
 

@@ -53,6 +53,7 @@ struct CameraRunPrototypeView: View {
     @State private var isSavingToPhotos = false
     @State private var seededResult: NativeRunResult?
     @Environment(AppearanceStore.self) private var appearance
+    @Environment(\.dismiss) private var dismiss
 
     init(editSeed: CameraRunEditSeed? = nil) {
         _capture = State(initialValue: CameraRunCaptureSession())
@@ -130,9 +131,21 @@ struct CameraRunPrototypeView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("CAMERA RUNS")
-                .font(.system(size: 38, weight: .black, design: .rounded))
-                .tracking(-1.7)
+            HStack(alignment: .top) {
+                Text("CAMERA RUNS")
+                    .font(.system(size: 38, weight: .black, design: .rounded))
+                    .tracking(-1.7)
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .black))
+                        .frame(width: 44, height: 44)
+                }
+                .adaptiveGlassButton()
+                .accessibilityLabel("Back to result")
+            }
             Text("TALK. THROW. CATCH. CUT IT YOUR WAY.")
                 .font(.system(size: 9, weight: .black, design: .monospaced))
                 .foregroundStyle(KamikazeTheme.ion)
@@ -376,7 +389,7 @@ struct CameraRunPrototypeView: View {
             }
 
             if let result = editingResult, !isRendering {
-                CameraRunMeasuredReplayCard(result: result)
+                CameraRunMeasuredReplayCard(result: result, take: editingTake)
                 replayStoryCutControls
             }
 
@@ -539,6 +552,17 @@ struct CameraRunPrototypeView: View {
 
     private var editingResult: NativeRunResult? {
         seededResult ?? run.result
+    }
+
+    private var editingTake: PlayCameraTake? {
+        guard let result = editingResult, !savedTracks.isEmpty else { return nil }
+        let artifacts = Dictionary(uniqueKeysWithValues: savedTracks.map { ($0.position, $0.artifact) })
+        return PlayCameraTake(
+            id: "camera-editor-\(result.id)",
+            attemptID: result.id,
+            artifacts: artifacts,
+            capturedWith: artifacts.count > 1 ? .multiCamera : .singleCamera
+        )
     }
 
     private var stageBadge: String {
@@ -909,28 +933,51 @@ private struct CameraRunStoryTimelinePreview: View {
 
 private struct CameraRunMeasuredReplayCard: View {
     let result: NativeRunResult
+    let take: PlayCameraTake?
     let freefall: FreefallWindow?
+    let videoTimelineOffsetS: Double?
     @State private var replay: ReplayController
 
-    init(result: NativeRunResult) {
+    init(result: NativeRunResult, take: PlayCameraTake?) {
         self.result = result
-        let frames = ReplayBuilder.normalized(ReplayBuilder.buildFrames(
+        self.take = take
+        let motionFrames = ReplayBuilder.normalized(ReplayBuilder.buildFrames(
             payload: result.capture.samplePayload,
             boundaries: result.capture.attempt.boundaries
         ))
-        freefall = ReplayBuilder.freefallWindow(in: frames)
+        let frames: [ReplayFrame]
+        if let artifact = take?.front {
+            frames = CameraReplayTiming.fullTakeFrames(
+                motionFrames: motionFrames,
+                motionCaptureStartS: result.capture.attempt.boundaries.captureStartS,
+                artifact: artifact
+            )
+            videoTimelineOffsetS = 0
+            // The editor timeline includes non-motion time. Keep the phone at
+            // origin rather than fabricating an arc across the introduction.
+            freefall = nil
+        } else {
+            frames = motionFrames
+            videoTimelineOffsetS = nil
+            freefall = ReplayBuilder.freefallWindow(in: frames)
+        }
         _replay = State(initialValue: ReplayController(frames: frames))
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("MEASURED TRICK REPLAY  /  \(result.displayName)")
+            Text(take?.front == nil
+                 ? "MEASURED TRICK REPLAY  /  \(result.displayName)"
+                 : "FULL TAKE  /  INTRO · \(result.displayName) · REACTION")
                 .font(.system(size: 10, weight: .black, design: .monospaced))
                 .foregroundStyle(KamikazeTheme.volt)
-            ReplayPhoneView(
+            CameraReplayPhoneView(
                 controller: replay,
                 accent: KamikazeTheme.volt,
-                arcWindow: freefall
+                arcWindow: freefall,
+                take: take,
+                motionCaptureStartS: result.capture.attempt.boundaries.captureStartS,
+                videoTimelineOffsetS: videoTimelineOffsetS
             )
         }
         .onAppear { replay.play() }

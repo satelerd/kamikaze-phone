@@ -150,7 +150,8 @@ enum PhoneModelFactory {
     /// hardware remain untouched.
     static func applyScreenMaterial(
         to entity: Entity,
-        material: any RealityKit.Material
+        material: any RealityKit.Material,
+        rotate180: Bool = false
     ) {
         let name = entity.name.lowercased()
         let isProceduralScreen = name == "phone-screen"
@@ -159,9 +160,19 @@ enum PhoneModelFactory {
            var model = entity.components[ModelComponent.self] {
             model.materials = model.materials.map { _ in material }
             entity.components.set(model)
+            // Video textures arrive in camera/display coordinates while the
+            // authored screen mesh uses RealityKit texture coordinates. Turn
+            // only the display plane once; never rotate the phone shell.
+            if rotate180,
+               !entity.children.contains(where: { $0.name == "video-screen-rotated-180" }) {
+                entity.orientation *= simd_quatf(angle: .pi, axis: SIMD3(0, 0, 1))
+                let marker = Entity()
+                marker.name = "video-screen-rotated-180"
+                entity.addChild(marker)
+            }
         }
         for child in entity.children {
-            applyScreenMaterial(to: child, material: material)
+            applyScreenMaterial(to: child, material: material, rotate180: rotate180)
         }
     }
 
