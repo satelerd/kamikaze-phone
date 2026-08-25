@@ -7,7 +7,10 @@ import UIKit
 @preconcurrency import AVFoundation
 @testable import Kamikaze
 
-@Suite("Camera Run video composition")
+// AVAssetExportSession and the off-screen RealityKit snapshotter both use
+// simulator media services. Running these integration tests concurrently can
+// make the service cancel an otherwise valid export with "Operation Stopped".
+@Suite("Camera Run video composition", .serialized)
 struct CameraRunVideoComposerTests {
     private let canvas = CGSize(width: 1_080, height: 1_920)
 
@@ -68,6 +71,62 @@ struct CameraRunVideoComposerTests {
         #expect(abs(rendered.height - destination.height) < 0.01)
     }
 
+    @Test("story cut keeps camera intro and reaction around replay")
+    func storyCutTimeline() throws {
+        let plan = try CameraRunReplayTimelinePlan.make(
+            cameraDurationS: 10,
+            replayDurationS: 2,
+            transition: CameraRunReplayTransition(
+                entryProgress: 0.3,
+                resumeProgress: 0.7,
+                style: .cut,
+                durationS: 0.4
+            )
+        )
+
+        #expect(abs(plan.cameraIntroDurationS - 3) < 0.000_001)
+        #expect(abs(plan.cameraSkippedDurationS - 4) < 0.000_001)
+        #expect(abs(plan.cameraOutroDurationS - 3) < 0.000_001)
+        #expect(abs(plan.replayStartS - 3) < 0.000_001)
+        #expect(abs(plan.cameraOutroStartS - 5) < 0.000_001)
+        #expect(plan.entryTransitionDurationS == 0)
+        #expect(plan.exitTransitionDurationS == 0)
+        #expect(plan.outputDurationS == 8)
+    }
+
+    @Test("dissolves overlap sources without overlapping each other")
+    func storyDissolveTimeline() throws {
+        let plan = try CameraRunReplayTimelinePlan.make(
+            cameraDurationS: 10,
+            replayDurationS: 2,
+            transition: CameraRunReplayTransition(
+                entryProgress: 0.3,
+                resumeProgress: 0.7,
+                style: .crossDissolve,
+                durationS: 0.5
+            )
+        )
+
+        #expect(plan.replayStartS == 2.5)
+        #expect(plan.cameraOutroStartS == 4)
+        #expect(plan.entryTransitionDurationS == 0.5)
+        #expect(plan.exitTransitionDurationS == 0.5)
+        #expect(plan.outputDurationS == 7)
+
+        let shortReplay = try CameraRunReplayTimelinePlan.make(
+            cameraDurationS: 10,
+            replayDurationS: 0.4,
+            transition: CameraRunReplayTransition(
+                entryProgress: 0.3,
+                resumeProgress: 0.7,
+                style: .crossDissolve,
+                durationS: 1
+            )
+        )
+        #expect(shortReplay.entryTransitionDurationS == 0.2)
+        #expect(shortReplay.exitTransitionDurationS == 0.2)
+    }
+
     @Test("real AVFoundation export combines two source videos")
     func exportsDualCameraVideo() async throws {
         let directory = FileManager.default.temporaryDirectory
@@ -103,6 +162,53 @@ struct CameraRunVideoComposerTests {
         let duration = try await outputAsset.load(.duration)
         #expect(tracks.count == 1)
         #expect(CMTimeGetSeconds(duration) > 0.65)
+    }
+
+    @Test("real export dissolves camera into replay and returns to camera")
+    @MainActor
+    func exportsStoryCut() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "kamikaze-story-cut-test-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let cameraURL = directory.appending(path: "camera.mp4")
+        let replayURL = directory.appending(path: "replay.mp4")
+        try await makeSyntheticVideo(at: cameraURL, color: .init(red: 0.1, green: 0.2, blue: 0.8, alpha: 1))
+        try await makeSyntheticVideo(at: replayURL, color: .init(red: 0.7, green: 0.9, blue: 0.1, alpha: 1))
+
+        let outputURL = directory.appending(path: "story.mp4")
+        let artifact = try await CameraRunVideoComposer().composeReplay(
+            cameraArtifact: CameraRunVideoCompositionArtifact(
+                url: cameraURL,
+                durationS: 1,
+                canvas: CGSize(width: 160, height: 284),
+                sourceCount: 1
+            ),
+            replayArtifact: ReplayVideoArtifact(
+                url: replayURL,
+                durationS: 1,
+                frameCount: 12,
+                canvas: ReplayVideoCanvas(width: 160, height: 284)
+            ),
+            transition: CameraRunReplayTransition(
+                entryProgress: 0.3,
+                resumeProgress: 0.7,
+                style: .crossDissolve,
+                durationS: 0.1
+            ),
+            outputURL: outputURL,
+            frameRate: 24
+        )
+
+        #expect(FileManager.default.fileExists(atPath: artifact.url.path))
+        #expect(artifact.durationS > 1.35)
+        #expect(artifact.durationS < 1.7)
+        let outputAsset = AVURLAsset(url: artifact.url)
+        let tracks = try await outputAsset.loadTracks(withMediaType: .video)
+        let duration = try await outputAsset.load(.duration)
+        #expect(tracks.count == 1)
+        #expect(abs(CMTimeGetSeconds(duration) - artifact.durationS) < 0.1)
     }
 
     @Test("RealityKit renderer snapshots the configured 3D phone")

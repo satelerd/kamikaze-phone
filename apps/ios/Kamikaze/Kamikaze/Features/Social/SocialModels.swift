@@ -62,9 +62,23 @@ nonisolated enum SocialFeedScope: String, CaseIterable, Equatable, Sendable, Ide
 }
 
 nonisolated enum SocialPostState: String, Codable, Equatable, Sendable {
+    case draft
     case published
+    /// Kept for decoding prototype data. New unpublish operations return a
+    /// post to `draft`, where it can be edited and published again.
     case unpublished
     case deleted
+}
+
+/// The social object is broader than a single detected attempt. Starting with
+/// this vocabulary lets the same safe publishing boundary grow into lines and
+/// community-authored trick proposals without treating either as raw media.
+nonisolated enum SocialContentKind: String, Codable, CaseIterable, Equatable, Sendable, Identifiable {
+    case run
+    case line
+    case trickProposal
+
+    var id: String { rawValue }
 }
 
 /// Reactions are lightweight acknowledgements, not a score or ranking system.
@@ -243,6 +257,10 @@ nonisolated struct SocialUploadConsent: Codable, Equatable, Hashable, Sendable {
 }
 
 nonisolated struct SocialShareDraft: Codable, Equatable, Sendable {
+    /// Stable client identity makes offline saves and Convex retries
+    /// idempotent. It is never derived from a local filesystem path.
+    let id: String
+    var contentKind: SocialContentKind
     let result: SocialResultSnapshot
     var caption: String
     var audience: SocialAudience
@@ -251,6 +269,8 @@ nonisolated struct SocialShareDraft: Codable, Equatable, Sendable {
     var uploadConsent: SocialUploadConsent
 
     init(
+        id: String = UUID().uuidString,
+        contentKind: SocialContentKind = .run,
         result: SocialResultSnapshot,
         caption: String = "",
         audience: SocialAudience = .private,
@@ -258,6 +278,8 @@ nonisolated struct SocialShareDraft: Codable, Equatable, Sendable {
         includeSensorEvidence: Bool = false,
         uploadConsent: SocialUploadConsent = SocialUploadConsent()
     ) {
+        self.id = id
+        self.contentKind = contentKind
         self.result = result
         self.caption = caption
         self.audience = audience
@@ -319,6 +341,7 @@ nonisolated struct SocialComment: Codable, Equatable, Hashable, Sendable, Identi
 
 nonisolated struct SocialPost: Codable, Equatable, Sendable, Identifiable {
     let id: String
+    let contentKind: SocialContentKind
     /// Stable local attempt reference. It is separate from the post ID so a
     /// player can unpublish/delete a social record without deleting evidence.
     let attemptID: String
@@ -336,6 +359,36 @@ nonisolated struct SocialPost: Codable, Equatable, Sendable, Identifiable {
     var isVisible: Bool { state == .published }
     var hasReplayVideo: Bool { attachments.contains { $0.kind == .replayVideo } }
     var hasSensorEvidence: Bool { attachments.contains { $0.kind == .sensorEvidence } }
+
+    init(
+        id: String,
+        contentKind: SocialContentKind = .run,
+        attemptID: String,
+        author: SocialUser,
+        result: SocialResultSnapshot,
+        caption: String,
+        audience: SocialAudience,
+        attachments: [SocialAttachment],
+        publishedAt: Date,
+        state: SocialPostState,
+        counts: SocialEngagementCounts,
+        viewerReaction: SocialReaction?,
+        commentPreview: [SocialComment]
+    ) {
+        self.id = id
+        self.contentKind = contentKind
+        self.attemptID = attemptID
+        self.author = author
+        self.result = result
+        self.caption = caption
+        self.audience = audience
+        self.attachments = attachments
+        self.publishedAt = publishedAt
+        self.state = state
+        self.counts = counts
+        self.viewerReaction = viewerReaction
+        self.commentPreview = commentPreview
+    }
 }
 
 nonisolated struct SocialProfileSummary: Codable, Equatable, Sendable {
@@ -399,7 +452,9 @@ nonisolated enum SocialRepositoryError: Error, Equatable, Sendable {
 /// prototype; no request, auth, or network code belongs in Social views.
 protocol SocialRepository: Sendable {
     func fetchFeed(scope: SocialFeedScope) async throws -> [SocialPost]
+    func fetchMyDrafts() async throws -> [SocialPost]
     func fetchProfileSummary() async throws -> SocialProfileSummary
+    func saveDraft(_ draft: SocialShareDraft) async throws -> SocialPost
     func publish(_ draft: SocialShareDraft) async throws -> SocialPost
     func unpublish(postID: String) async throws
     func deletePost(postID: String) async throws

@@ -31,6 +31,10 @@ struct CameraRunPrototypeView: View {
     @State private var trimStart = 0.0
     @State private var trimEnd = 1.0
     @State private var layout: CameraRunLayoutPreset = .pictureInPicture
+    @State private var replayEntry = 0.42
+    @State private var replayResume = 0.68
+    @State private var replayTransitionStyle: CameraRunReplayTransitionStyle = .crossDissolve
+    @State private var replayTransitionDurationS = 0.25
     @State private var errorMessage: String?
     @State private var recorders: [CameraRunCameraPosition: CameraRunVideoRecorder] = [:]
     @State private var savedTracks: [SavedCameraTrack] = []
@@ -338,6 +342,7 @@ struct CameraRunPrototypeView: View {
 
             if let result = run.result {
                 CameraRunMeasuredReplayCard(result: result)
+                replayStoryCutControls
             }
 
             Button {
@@ -408,6 +413,10 @@ struct CameraRunPrototypeView: View {
                 savedTracks = []
                 renderedArtifact = nil
                 run.dismissResult()
+                replayEntry = 0.42
+                replayResume = 0.68
+                replayTransitionStyle = .crossDissolve
+                replayTransitionDurationS = 0.25
             }
             .font(.system(size: 11, weight: .black, design: .rounded))
             .frame(maxWidth: .infinity, minHeight: 48)
@@ -416,10 +425,61 @@ struct CameraRunPrototypeView: View {
     }
 
     private var prototypeBoundary: some View {
-        Text("BETA · Front/rear clips can be trimmed, composed and captioned. A measured 3D replay is appended to the finished video. Audio mixing and timeline overlays come next. Nothing uploads automatically.")
+        Text("BETA · Front/rear clips stay untouched while the export cuts from camera to the measured 3D replay and back. Audio capture/mixing remains a separate next layer; this pass never fabricates sound. Nothing uploads automatically.")
             .font(.system(size: 9, weight: .medium, design: .monospaced))
             .foregroundStyle(KamikazeTheme.muted)
             .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var replayStoryCutControls: some View {
+        GlassSurface(role: .contentPanel, cornerRadius: 22) {
+            VStack(alignment: .leading, spacing: 15) {
+                rowTitle(
+                    "STORY CUT",
+                    detail: "Keep your intro, replace the throw window with measured 3D, then return to the camera for the reaction. Sources stay untouched."
+                )
+
+                CameraRunStoryTimelinePreview(
+                    replayEntry: replayEntry,
+                    replayResume: replayResume
+                )
+
+                Picker("Transition", selection: $replayTransitionStyle) {
+                    Text("CUT").tag(CameraRunReplayTransitionStyle.cut)
+                    Text("DISSOLVE").tag(CameraRunReplayTransitionStyle.crossDissolve)
+                }
+                .pickerStyle(.segmented)
+
+                VStack(spacing: 5) {
+                    HStack {
+                        Text("3D IN  \(Int(replayEntry * 100))%")
+                        Spacer()
+                        Text("CAMERA BACK  \(Int(replayResume * 100))%")
+                    }
+                    .font(.system(size: 8, weight: .black, design: .monospaced))
+                    .foregroundStyle(KamikazeTheme.muted)
+                    Slider(value: $replayEntry, in: 0...max(0, replayResume - 0.05))
+                        .tint(KamikazeTheme.ion)
+                    Slider(value: $replayResume, in: min(1, replayEntry + 0.05)...1)
+                        .tint(KamikazeTheme.volt)
+                }
+
+                if replayTransitionStyle == .crossDissolve {
+                    VStack(spacing: 5) {
+                        HStack {
+                            Text("DISSOLVE")
+                            Spacer()
+                            Text("\(replayTransitionDurationS, format: .number.precision(.fractionLength(2)))S")
+                        }
+                        .font(.system(size: 8, weight: .black, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.muted)
+                        Slider(value: $replayTransitionDurationS, in: 0.10...0.60)
+                            .tint(KamikazeTheme.volt)
+                    }
+                }
+            }
+            .padding(16)
+        }
     }
 
     private func rowTitle(_ title: String, detail: String) -> some View {
@@ -694,9 +754,15 @@ struct CameraRunPrototypeView: View {
                         accent: UIColor(KamikazeTheme.volt)
                     )
                 )
-                artifact = try await composer.appendReplay(
+                artifact = try await composer.composeReplay(
                     cameraArtifact: cameraArtifact,
                     replayArtifact: replayArtifact,
+                    transition: CameraRunReplayTransition(
+                        entryProgress: replayEntry,
+                        resumeProgress: replayResume,
+                        style: replayTransitionStyle,
+                        durationS: replayTransitionDurationS
+                    ),
                     outputURL: finalOutputURL
                 )
                 try? FileManager.default.removeItem(at: cameraArtifact.url)
@@ -725,6 +791,58 @@ struct CameraRunPrototypeView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+private struct CameraRunStoryTimelinePreview: View {
+    let replayEntry: Double
+    let replayResume: Double
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = max(0, proxy.size.width - 6)
+            let entry = min(1, max(0, replayEntry))
+            let resume = min(1, max(entry, replayResume))
+            HStack(spacing: 3) {
+                timelineSegment(
+                    "CAM",
+                    color: KamikazeTheme.ion,
+                    foreground: .white,
+                    width: width * entry
+                )
+                timelineSegment(
+                    "3D",
+                    color: KamikazeTheme.volt,
+                    foreground: KamikazeTheme.pitch,
+                    width: width * (resume - entry)
+                )
+                timelineSegment(
+                    "BACK",
+                    color: KamikazeTheme.hazard,
+                    foreground: .white,
+                    width: width * (1 - resume)
+                )
+            }
+        }
+        .frame(height: 34)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "Camera until \(Int(replayEntry * 100)) percent, measured replay, then camera returns at \(Int(replayResume * 100)) percent"
+        )
+    }
+
+    private func timelineSegment(
+        _ label: String,
+        color: Color,
+        foreground: Color,
+        width: CGFloat
+    ) -> some View {
+        Text(label)
+            .font(.system(size: 7, weight: .black, design: .monospaced))
+            .foregroundStyle(foreground)
+            .frame(width: width)
+            .frame(maxHeight: .infinity)
+            .background(color.opacity(0.78), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 

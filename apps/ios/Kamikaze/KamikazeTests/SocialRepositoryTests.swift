@@ -28,6 +28,34 @@ final class SocialRepositoryTests: XCTestCase {
         XCTAssertEqual(post.caption, "Card only")
     }
 
+    func testDraftKeepsStableIdentityUntilPublished() async throws {
+        let repository = MockSocialRepository()
+        let draft = SocialShareDraft(
+            id: "draft-line-1",
+            contentKind: .line,
+            result: .demo,
+            caption: "Working title",
+            audience: .private
+        )
+
+        let saved = try await repository.saveDraft(draft)
+        XCTAssertEqual(saved.id, draft.id)
+        XCTAssertEqual(saved.state, .draft)
+        XCTAssertEqual(saved.contentKind, .line)
+        let feedBeforePublish = try await repository.fetchFeed(scope: .following)
+        let draftsBeforePublish = try await repository.fetchMyDrafts()
+        XCTAssertTrue(feedBeforePublish.allSatisfy { $0.id != draft.id })
+        XCTAssertEqual(draftsBeforePublish.map(\.id), [draft.id])
+
+        let published = try await repository.publish(draft)
+        XCTAssertEqual(published.id, draft.id)
+        XCTAssertEqual(published.state, .published)
+        let draftsAfterPublish = try await repository.fetchMyDrafts()
+        let feedAfterPublish = try await repository.fetchFeed(scope: .following)
+        XCTAssertTrue(draftsAfterPublish.isEmpty)
+        XCTAssertEqual(feedAfterPublish.filter { $0.id == draft.id }.count, 1)
+    }
+
     func testPublishWithSensorEvidenceRequiresExplicitConsent() async throws {
         let repository = MockSocialRepository()
         var draft = SocialShareDraft(
@@ -75,7 +103,9 @@ final class SocialRepositoryTests: XCTestCase {
 
         try await repository.unpublish(postID: post.id)
         let afterUnpublish = try await repository.fetchFeed(scope: .following)
+        let draftsAfterUnpublish = try await repository.fetchMyDrafts()
         XCTAssertFalse(afterUnpublish.contains { $0.id == post.id })
+        XCTAssertEqual(draftsAfterUnpublish.map(\.id), [post.id])
 
         try await repository.deletePost(postID: post.id)
         do {
@@ -99,5 +129,17 @@ final class SocialRepositoryTests: XCTestCase {
         try await repository.submitModeration(request)
         let discover = try await repository.fetchFeed(scope: .discover)
         XCTAssertFalse(discover.contains { $0.author.id == post.author.id })
+    }
+
+    func testCommentsReceiveDistinctStableIDs() async throws {
+        let repository = MockSocialRepository()
+        let post = try await repository.publish(SocialShareDraft(result: .demo))
+
+        let first = try await repository.addComment("First", to: post.id)
+        let second = try await repository.addComment("Second", to: post.id)
+
+        XCTAssertNotEqual(first.id, second.id)
+        XCTAssertTrue(first.id.hasPrefix("comment-local-"))
+        XCTAssertTrue(second.id.hasPrefix("comment-local-"))
     }
 }

@@ -122,6 +122,96 @@ nonisolated public enum CameraRunVideoLayoutPlanner {
     }
 }
 
+nonisolated public enum CameraRunReplayTransitionStyle: String, Codable, CaseIterable, Equatable, Sendable {
+    case cut
+    case crossDissolve
+}
+
+/// Non-destructive description of where the measured replay replaces the
+/// camera footage. Progress values address the already-trimmed camera edit:
+/// camera plays until `entryProgress`, the replay takes the full canvas, then
+/// camera resumes at `resumeProgress` so both the intro and reaction survive.
+nonisolated public struct CameraRunReplayTransition: Codable, Equatable, Sendable {
+    public var entryProgress: Double
+    public var resumeProgress: Double
+    public var style: CameraRunReplayTransitionStyle
+    public var durationS: Double
+
+    public init(
+        entryProgress: Double = 0.42,
+        resumeProgress: Double = 0.68,
+        style: CameraRunReplayTransitionStyle = .crossDissolve,
+        durationS: Double = 0.25
+    ) {
+        self.entryProgress = entryProgress
+        self.resumeProgress = resumeProgress
+        self.style = style
+        self.durationS = durationS
+    }
+
+    public static let endCard = CameraRunReplayTransition(
+        entryProgress: 1,
+        resumeProgress: 1,
+        style: .cut,
+        durationS: 0
+    )
+}
+
+/// Exact timing math used by the compositor and editor UI. Keeping it pure
+/// makes the authored cut inspectable without decoding or rewriting sources.
+nonisolated public struct CameraRunReplayTimelinePlan: Equatable, Sendable {
+    public let entryProgress: Double
+    public let resumeProgress: Double
+    public let cameraIntroDurationS: Double
+    public let cameraSkippedDurationS: Double
+    public let cameraOutroDurationS: Double
+    public let replayStartS: Double
+    public let cameraOutroStartS: Double
+    public let entryTransitionDurationS: Double
+    public let exitTransitionDurationS: Double
+    public let outputDurationS: Double
+
+    public static func make(
+        cameraDurationS: Double,
+        replayDurationS: Double,
+        transition: CameraRunReplayTransition
+    ) throws -> CameraRunReplayTimelinePlan {
+        guard cameraDurationS.isFinite, cameraDurationS > 0,
+              replayDurationS.isFinite, replayDurationS > 0 else {
+            throw CameraRunVideoCompositionError.invalidDuration
+        }
+
+        let entry = min(1, max(0, transition.entryProgress.isFinite ? transition.entryProgress : 0))
+        let resume = min(1, max(entry, transition.resumeProgress.isFinite ? transition.resumeProgress : entry))
+        let intro = cameraDurationS * entry
+        let skipped = cameraDurationS * (resume - entry)
+        let outro = cameraDurationS * (1 - resume)
+        let requestedDissolve = transition.style == .crossDissolve
+            ? max(0, transition.durationS.isFinite ? transition.durationS : 0)
+            : 0
+        // Reserve half the replay for each possible edge so two dissolves can
+        // never overlap each other, even on a very short measured replay.
+        let entryDissolve = min(requestedDissolve, intro, replayDurationS / 2)
+        let exitDissolve = min(requestedDissolve, outro, replayDurationS / 2)
+        let replayStart = intro - entryDissolve
+        let outroStart = replayStart + replayDurationS - exitDissolve
+        let total = outroStart + outro
+
+        return CameraRunReplayTimelinePlan(
+            entryProgress: entry,
+            resumeProgress: resume,
+            cameraIntroDurationS: intro,
+            cameraSkippedDurationS: skipped,
+            cameraOutroDurationS: outro,
+            replayStartS: replayStart,
+            cameraOutroStartS: outroStart,
+            entryTransitionDurationS: entryDissolve,
+            exitTransitionDurationS: exitDissolve,
+            outputDurationS: total
+        )
+    }
+}
+
 @MainActor
 public final class CameraRunVideoComposer {
     private struct LoadedSource {
@@ -292,13 +382,31 @@ public final class CameraRunVideoComposer {
         }
     }
 
-    /// Adds the measured RealityKit replay as an end card after the edited
-    /// camera footage. Keeping it sequential in this beta preserves the full
-    /// pre-talk/throw/post-talk cut while giving the replay its entire canvas;
-    /// a later editor can expose overlay timing without changing either source.
+    /// Backwards-compatible end-card export. New Camera Run edits should call
+    /// `composeReplay` with their authored transition.
     public func appendReplay(
         cameraArtifact: CameraRunVideoCompositionArtifact,
         replayArtifact: ReplayVideoArtifact,
+        outputURL: URL,
+        frameRate: Int = 30
+    ) async throws -> CameraRunVideoCompositionArtifact {
+        try await composeReplay(
+            cameraArtifact: cameraArtifact,
+            replayArtifact: replayArtifact,
+            transition: .endCard,
+            outputURL: outputURL,
+            frameRate: frameRate
+        )
+    }
+
+    /// Builds a social-first three-act edit: camera intro, measured 3D replay,
+    /// camera reaction. Camera and replay artifacts remain untouched; only a
+    /// new composition is written. Audio is deliberately not synthesized or
+    /// replaced by this video-only pass.
+    public func composeReplay(
+        cameraArtifact: CameraRunVideoCompositionArtifact,
+        replayArtifact: ReplayVideoArtifact,
+        transition: CameraRunReplayTransition,
         outputURL: URL,
         frameRate: Int = 30
     ) async throws -> CameraRunVideoCompositionArtifact {
@@ -323,19 +431,24 @@ public final class CameraRunVideoComposer {
         }
         let cameraDurationS = CMTimeGetSeconds(camera.duration)
         let replayDurationS = CMTimeGetSeconds(replay.duration)
-        guard cameraDurationS > 0, replayDurationS > 0 else {
-            throw CameraRunVideoCompositionError.invalidDuration
-        }
+        let plan = try CameraRunReplayTimelinePlan.make(
+            cameraDurationS: cameraDurationS,
+            replayDurationS: replayDurationS,
+            transition: transition
+        )
 
         try FileManager.default.createDirectory(
             at: outputURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
         let composition = AVMutableComposition()
-        guard let cameraTrack = composition.addMutableTrack(
+        guard let cameraIntroTrack = composition.addMutableTrack(
             withMediaType: .video,
             preferredTrackID: kCMPersistentTrackID_Invalid
         ), let replayTrack = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ), let cameraOutroTrack = composition.addMutableTrack(
             withMediaType: .video,
             preferredTrackID: kCMPersistentTrackID_Invalid
         ) else {
@@ -343,45 +456,152 @@ public final class CameraRunVideoComposer {
         }
 
         do {
-            try cameraTrack.insertTimeRange(
-                CMTimeRange(start: .zero, duration: camera.duration),
-                of: camera.track,
-                at: .zero
-            )
+            if plan.cameraIntroDurationS > 0 {
+                try cameraIntroTrack.insertTimeRange(
+                    CMTimeRange(
+                        start: .zero,
+                        duration: CMTime(seconds: plan.cameraIntroDurationS, preferredTimescale: 600)
+                    ),
+                    of: camera.track,
+                    at: .zero
+                )
+            }
             try replayTrack.insertTimeRange(
                 CMTimeRange(start: .zero, duration: replay.duration),
                 of: replay.track,
-                at: camera.duration
+                at: CMTime(seconds: plan.replayStartS, preferredTimescale: 600)
             )
+            if plan.cameraOutroDurationS > 0 {
+                try cameraOutroTrack.insertTimeRange(
+                    CMTimeRange(
+                        start: CMTime(seconds: cameraDurationS * plan.resumeProgress, preferredTimescale: 600),
+                        duration: CMTime(seconds: plan.cameraOutroDurationS, preferredTimescale: 600)
+                    ),
+                    of: camera.track,
+                    at: CMTime(seconds: plan.cameraOutroStartS, preferredTimescale: 600)
+                )
+            }
         } catch {
             throw CameraRunVideoCompositionError.exportFailed(error.localizedDescription)
         }
 
         let destination = CGRect(origin: .zero, size: canvas)
-        let cameraLayer = AVMutableVideoCompositionLayerInstruction(assetTrack: cameraTrack)
-        cameraLayer.setTransform(Self.aspectFillTransform(
+        let cameraTransform = Self.aspectFillTransform(
             naturalSize: camera.naturalSize,
             preferredTransform: camera.preferredTransform,
             destination: destination
-        ), at: .zero)
-        let replayLayer = AVMutableVideoCompositionLayerInstruction(assetTrack: replayTrack)
-        replayLayer.setTransform(Self.aspectFillTransform(
+        )
+        let replayTransform = Self.aspectFillTransform(
             naturalSize: replay.naturalSize,
             preferredTransform: replay.preferredTransform,
             destination: destination
-        ), at: camera.duration)
+        )
 
-        let cameraInstruction = AVMutableVideoCompositionInstruction()
-        cameraInstruction.timeRange = CMTimeRange(start: .zero, duration: camera.duration)
-        cameraInstruction.layerInstructions = [cameraLayer]
-        let replayInstruction = AVMutableVideoCompositionInstruction()
-        replayInstruction.timeRange = CMTimeRange(start: camera.duration, duration: replay.duration)
-        replayInstruction.layerInstructions = [replayLayer]
+        func layer(
+            track: AVCompositionTrack,
+            transform: CGAffineTransform,
+            transformTimeS: Double
+        ) -> AVMutableVideoCompositionLayerInstruction {
+            let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
+            layer.setTransform(
+                transform,
+                at: CMTime(seconds: transformTimeS, preferredTimescale: 600)
+            )
+            return layer
+        }
+
+        var instructions: [AVMutableVideoCompositionInstruction] = []
+        func addInstruction(startS: Double, durationS: Double, layers: [AVVideoCompositionLayerInstruction]) {
+            guard durationS > 0 else { return }
+            let instruction = AVMutableVideoCompositionInstruction()
+            instruction.timeRange = CMTimeRange(
+                start: CMTime(seconds: startS, preferredTimescale: 600),
+                duration: CMTime(seconds: durationS, preferredTimescale: 600)
+            )
+            instruction.layerInstructions = layers
+            instructions.append(instruction)
+        }
+
+        let entryTransitionStartS = plan.replayStartS
+        addInstruction(
+            startS: 0,
+            durationS: entryTransitionStartS,
+            layers: [layer(track: cameraIntroTrack, transform: cameraTransform, transformTimeS: 0)]
+        )
+        if plan.entryTransitionDurationS > 0 {
+            let range = CMTimeRange(
+                start: CMTime(seconds: entryTransitionStartS, preferredTimescale: 600),
+                duration: CMTime(seconds: plan.entryTransitionDurationS, preferredTimescale: 600)
+            )
+            let introTransitionLayer = layer(
+                track: cameraIntroTrack,
+                transform: cameraTransform,
+                transformTimeS: 0
+            )
+            let replayTransitionLayer = layer(
+                track: replayTrack,
+                transform: replayTransform,
+                transformTimeS: plan.replayStartS
+            )
+            introTransitionLayer.setOpacityRamp(fromStartOpacity: 1, toEndOpacity: 0, timeRange: range)
+            replayTransitionLayer.setOpacityRamp(fromStartOpacity: 0, toEndOpacity: 1, timeRange: range)
+            addInstruction(
+                startS: entryTransitionStartS,
+                durationS: plan.entryTransitionDurationS,
+                layers: [replayTransitionLayer, introTransitionLayer]
+            )
+        }
+
+        let replaySoloStartS = plan.cameraIntroDurationS
+        let replaySoloEndS = plan.cameraOutroStartS
+        addInstruction(
+            startS: replaySoloStartS,
+            durationS: replaySoloEndS - replaySoloStartS,
+            layers: [layer(
+                track: replayTrack,
+                transform: replayTransform,
+                transformTimeS: plan.replayStartS
+            )]
+        )
+
+        let replayEndS = plan.replayStartS + replayDurationS
+        if plan.exitTransitionDurationS > 0 {
+            let range = CMTimeRange(
+                start: CMTime(seconds: plan.cameraOutroStartS, preferredTimescale: 600),
+                duration: CMTime(seconds: plan.exitTransitionDurationS, preferredTimescale: 600)
+            )
+            let replayTransitionLayer = layer(
+                track: replayTrack,
+                transform: replayTransform,
+                transformTimeS: plan.replayStartS
+            )
+            let outroTransitionLayer = layer(
+                track: cameraOutroTrack,
+                transform: cameraTransform,
+                transformTimeS: plan.cameraOutroStartS
+            )
+            replayTransitionLayer.setOpacityRamp(fromStartOpacity: 1, toEndOpacity: 0, timeRange: range)
+            outroTransitionLayer.setOpacityRamp(fromStartOpacity: 0, toEndOpacity: 1, timeRange: range)
+            addInstruction(
+                startS: plan.cameraOutroStartS,
+                durationS: plan.exitTransitionDurationS,
+                layers: [outroTransitionLayer, replayTransitionLayer]
+            )
+        }
+        addInstruction(
+            startS: replayEndS,
+            durationS: plan.outputDurationS - replayEndS,
+            layers: [layer(
+                track: cameraOutroTrack,
+                transform: cameraTransform,
+                transformTimeS: plan.cameraOutroStartS
+            )]
+        )
 
         let videoComposition = AVMutableVideoComposition()
         videoComposition.renderSize = canvas
         videoComposition.frameDuration = CMTime(value: 1, timescale: CMTimeScale(frameRate))
-        videoComposition.instructions = [cameraInstruction, replayInstruction]
+        videoComposition.instructions = instructions
 
         guard let exporter = AVAssetExportSession(
             asset: composition,
@@ -401,7 +621,7 @@ public final class CameraRunVideoComposer {
 
         return CameraRunVideoCompositionArtifact(
             url: outputURL,
-            durationS: cameraDurationS + replayDurationS,
+            durationS: plan.outputDurationS,
             canvas: canvas,
             sourceCount: cameraArtifact.sourceCount
         )

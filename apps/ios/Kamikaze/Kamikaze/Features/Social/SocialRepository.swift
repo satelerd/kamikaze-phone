@@ -255,6 +255,12 @@ actor MockSocialRepository: SocialRepository {
             .sorted { $0.publishedAt > $1.publishedAt }
     }
 
+    func fetchMyDrafts() async throws -> [SocialPost] {
+        postsByID.values
+            .filter { $0.author.id == viewer.id && ($0.state == .draft || $0.state == .unpublished) }
+            .sorted { $0.publishedAt > $1.publishedAt }
+    }
+
     func fetchProfileSummary() async throws -> SocialProfileSummary {
         let publishedCount = postsByID.values.count {
             $0.author.id == viewer.id && $0.state == .published
@@ -276,8 +282,8 @@ actor MockSocialRepository: SocialRepository {
             )
         }
 
-        let postID = "post-local-\(nextPostNumber)"
-        nextPostNumber += 1
+        let postID = draft.id
+        if postsByID[postID] == nil { nextPostNumber += 1 }
         var attachments: [SocialAttachment] = []
         if draft.includeReplayVideo {
             attachments.append(SocialAttachment(
@@ -298,6 +304,7 @@ actor MockSocialRepository: SocialRepository {
 
         let post = SocialPost(
             id: postID,
+            contentKind: draft.contentKind,
             attemptID: draft.result.id,
             author: viewer,
             result: draft.result,
@@ -311,14 +318,40 @@ actor MockSocialRepository: SocialRepository {
             commentPreview: []
         )
         postsByID[post.id] = post
+        postOrder.removeAll { $0 == post.id }
         postOrder.insert(post.id, at: 0)
+        return post
+    }
+
+    func saveDraft(_ draft: SocialShareDraft) async throws -> SocialPost {
+        guard draft.trimmedCaption.count <= 280 else {
+            throw SocialRepositoryError.validation("Keep the caption under 280 characters.")
+        }
+        let existing = postsByID[draft.id]
+        let post = SocialPost(
+            id: draft.id,
+            contentKind: draft.contentKind,
+            attemptID: draft.result.id,
+            author: viewer,
+            result: draft.result,
+            caption: draft.trimmedCaption,
+            audience: draft.audience,
+            attachments: [],
+            publishedAt: existing?.publishedAt ?? .now,
+            state: .draft,
+            counts: existing?.counts ?? SocialEngagementCounts(),
+            viewerReaction: existing?.viewerReaction,
+            commentPreview: existing?.commentPreview ?? []
+        )
+        postsByID[post.id] = post
+        if !postOrder.contains(post.id) { postOrder.insert(post.id, at: 0) }
         return post
     }
 
     func unpublish(postID: String) async throws {
         guard let post = postsByID[postID] else { throw SocialRepositoryError.notFound }
         guard post.author.id == viewer.id else { throw SocialRepositoryError.unauthorized }
-        postsByID[postID] = replacing(post, state: .unpublished)
+        postsByID[postID] = replacing(post, state: .draft)
     }
 
     func deletePost(postID: String) async throws {
@@ -365,7 +398,7 @@ actor MockSocialRepository: SocialRepository {
             throw SocialRepositoryError.validation("Comments are 1–280 characters.")
         }
         let comment = SocialComment(
-            id: "comment-local-(nextCommentNumber)",
+            id: "comment-local-\(nextCommentNumber)",
             postID: postID,
             author: viewer,
             body: cleanBody,
@@ -410,6 +443,7 @@ actor MockSocialRepository: SocialRepository {
     ) -> SocialPost {
         SocialPost(
             id: post.id,
+            contentKind: post.contentKind,
             attemptID: post.attemptID,
             author: post.author,
             result: post.result,
