@@ -36,8 +36,8 @@ struct KamikazeRootView: View {
                 Tab(AppTab.profile.title, systemImage: AppTab.profile.symbol, value: AppTab.profile) {
                     NavigationStack { ProfileView(onReplayOnboarding: { onboardingComplete = false }) }
                 }
-                Tab(AppTab.beta.title, systemImage: AppTab.beta.symbol, value: AppTab.beta) {
-                    NavigationStack { BetaView() }
+                Tab(AppTab.feed.title, systemImage: AppTab.feed.symbol, value: AppTab.feed) {
+                    NavigationStack { SocialFeedView() }
                 }
             }
             .environment(experience)

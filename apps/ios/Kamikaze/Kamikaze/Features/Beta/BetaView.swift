@@ -144,15 +144,6 @@ struct BetaView: View {
                     .adaptiveGlassButton(tint: KamikazeTheme.hazard)
 
                     NavigationLink {
-                        SocialFeedView()
-                    } label: {
-                        Label("SOCIAL FEED", systemImage: "person.2.wave.2")
-                            .font(.system(size: 12, weight: .black, design: .rounded))
-                            .frame(maxWidth: .infinity, minHeight: 50)
-                    }
-                    .adaptiveGlassButton(tint: KamikazeTheme.volt)
-
-                    NavigationLink {
                         CommunityTrickExchangeView()
                     } label: {
                         Label("TRICK EXCHANGE", systemImage: "arrow.triangle.2.circlepath.circle")

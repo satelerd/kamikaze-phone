@@ -127,14 +127,17 @@ final class SocialFeedModel {
     }
 }
 
-/// Following and Discover are intentionally one surface with a local/mock
-/// repository. The main app can place this view under Beta or a future social
-/// route without adding a second feed implementation.
+/// Following and Discover share the player-facing Feed tab. The repository
+/// boundary remains injectable while Convex publishing evolves; the view has
+/// no manual refresh affordance because the production source is reactive.
 struct SocialFeedView: View {
     @State private var model: SocialFeedModel
     @State private var commentsPost: SocialPost?
     @State private var moderationPost: SocialPost?
     @State private var pendingManagement: SocialPendingPostAction?
+    @State private var selectedProfile: SocialUser?
+    @State private var activePostID: String?
+    @State private var showsTrickExchange = false
 
     init(repository: any SocialRepository = MockSocialRepository()) {
         _model = State(initialValue: SocialFeedModel(repository: repository))
@@ -170,9 +173,9 @@ struct SocialFeedView: View {
                             detail: model.scope == .following
                                 ? "Follow a rider or publish a result to start a calm, chronological feed."
                                 : "Public results will appear here when riders choose to share them.",
-                            actionTitle: "REFRESH"
+                            actionTitle: "CREATE A TRICK"
                         ) {
-                            Task { await model.load() }
+                            showsTrickExchange = true
                         }
                     } else {
                         feedNote
@@ -180,6 +183,15 @@ struct SocialFeedView: View {
                             SocialPostCard(
                                 post: post,
                                 viewerID: model.viewerID,
+                                isReplayActive: activePostID == post.id,
+                                onVisibilityChanged: { visible in
+                                    if visible {
+                                        activePostID = post.id
+                                    } else if activePostID == post.id {
+                                        activePostID = nil
+                                    }
+                                },
+                                onOpenProfile: { selectedProfile = post.author },
                                 onReaction: { reaction in
                                     Task { await model.react(reaction, on: post) }
                                 },
@@ -202,13 +214,19 @@ struct SocialFeedView: View {
                 .padding(20)
                 .padding(.bottom, 100)
             }
-            .refreshable {
-                await model.load()
-            }
         }
         .toolbar(.hidden, for: .navigationBar)
         .task {
             await model.load()
+        }
+        .navigationDestination(item: $selectedProfile) { profile in
+            SocialPublicProfileView(
+                user: profile,
+                posts: model.posts.filter { $0.author.id == profile.id }
+            )
+        }
+        .navigationDestination(isPresented: $showsTrickExchange) {
+            CommunityTrickExchangeView()
         }
         .sheet(item: $commentsPost) { post in
             SocialCommentsSheet(post: post) { body in
@@ -275,15 +293,15 @@ struct SocialFeedView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Button {
-                Task { await model.load() }
+            NavigationLink {
+                CommunityTrickExchangeView()
             } label: {
-                Image(systemName: model.isLoading ? "arrow.triangle.2.circlepath" : "arrow.clockwise")
-                    .rotationEffect(.degrees(model.isLoading ? 180 : 0))
+                Image(systemName: "plus")
+                    .font(.system(size: 15, weight: .black))
                     .frame(width: 44, height: 44)
             }
-            .adaptiveGlassButton(tint: KamikazeTheme.ion)
-            .accessibilityLabel("Refresh social feed")
+            .adaptiveGlassButton(tint: KamikazeTheme.volt)
+            .accessibilityLabel("Create or teach a community trick")
         }
     }
 
@@ -291,7 +309,7 @@ struct SocialFeedView: View {
         HStack(spacing: 8) {
             Image(systemName: "arrow.down.right.and.arrow.up.left")
                 .foregroundStyle(KamikazeTheme.volt)
-            Text("CHRONOLOGICAL  ·  NO LEADERBOARDS  ·  NO STREAK PRESSURE")
+            Text("AUTOPLAY 3D  ·  CHRONOLOGICAL  ·  NO STREAK PRESSURE")
                 .font(.system(size: 8, weight: .black, design: .monospaced))
                 .foregroundStyle(KamikazeTheme.muted)
             Spacer(minLength: 0)

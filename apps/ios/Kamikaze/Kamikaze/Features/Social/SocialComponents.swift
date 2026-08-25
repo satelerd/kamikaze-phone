@@ -181,14 +181,17 @@ struct PublishedResultCardView: View {
     let result: SocialResultSnapshot
     var compact: Bool = false
     var attachments: [SocialAttachment] = []
+    var showsVisual = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 10 : 14) {
-            SocialResultVisual(result: result, compact: compact)
-                .accessibilityHidden(true)
+            if showsVisual {
+                SocialResultVisual(result: result, compact: compact)
+                    .accessibilityHidden(true)
+            }
 
             HStack(alignment: .bottom, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -328,6 +331,9 @@ private struct SocialMetricValue: View {
 struct SocialPostCard: View {
     let post: SocialPost
     let viewerID: String
+    let isReplayActive: Bool
+    let onVisibilityChanged: (Bool) -> Void
+    let onOpenProfile: () -> Void
     let onReaction: (SocialReaction?) -> Void
     let onComment: () -> Void
     let onUnpublish: () -> Void
@@ -338,14 +344,20 @@ struct SocialPostCard: View {
         GlassSurface(role: .contentPanel, cornerRadius: 26) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
-                    SocialAvatarView(user: post.author, size: 40)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(post.author.displayName)
-                            .font(.system(size: 13, weight: .black, design: .rounded))
-                        Text("@\(post.author.handle)  ·  \(relativeDate(post.publishedAt))")
-                            .font(.system(size: 8, weight: .bold, design: .monospaced))
-                            .foregroundStyle(KamikazeTheme.muted)
+                    Button(action: onOpenProfile) {
+                        HStack(spacing: 10) {
+                            SocialAvatarView(user: post.author, size: 40)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(post.author.displayName)
+                                    .font(.system(size: 13, weight: .black, design: .rounded))
+                                Text("@\(post.author.handle)  ·  \(relativeDate(post.publishedAt))")
+                                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(KamikazeTheme.muted)
+                            }
+                        }
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens this rider's profile")
                     Spacer()
                     SocialPill(
                         title: post.audience.title,
@@ -362,10 +374,15 @@ struct SocialPostCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
+                if isReplayActive {
+                    SocialFeedReplayView(post: post, isActive: true)
+                }
+
                 PublishedResultCardView(
                     result: post.result,
                     compact: true,
-                    attachments: post.attachments
+                    attachments: post.attachments,
+                    showsVisual: !isReplayActive
                 )
 
                 SocialReactionBar(
@@ -398,6 +415,9 @@ struct SocialPostCard: View {
                 }
             }
             .padding(16)
+        }
+        .onScrollVisibilityChange(threshold: 0.62) { visible in
+            onVisibilityChanged(visible)
         }
     }
 

@@ -14,7 +14,7 @@ struct KamikazeTests {
     /// at the far-right edge, after the player-facing ME destination.
     @MainActor
     @Test func appHasTheApprovedTabs() {
-        #expect(AppTab.allCases == [.play, .practice, .locker, .profile, .beta])
+        #expect(AppTab.allCases == [.play, .practice, .locker, .profile, .feed])
     }
 
 }
