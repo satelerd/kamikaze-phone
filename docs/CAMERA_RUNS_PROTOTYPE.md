@@ -4,6 +4,32 @@ This slice is a bounded native prototype for measured replay export and the
 Camera Run media spine. It is local-only: no account, cloud sync, social upload
 or automatic Photos write is included.
 
+## Camera V2 product direction
+
+`Camera Run` remains the advanced beta bench, but camera capture should not stay
+a separate game mode. The next player-facing slice treats camera as an optional
+capture layer that can be enabled from Free, Follow, Classic or a future Line
+mode:
+
+1. Front and rear sources record against the same monotonic run clock whenever
+   multi-camera is supported; constrained devices use an explicit fallback.
+2. The live front feed becomes the screen material of the existing 3D phone,
+   instead of replacing the phone stage with a flat camera preview.
+3. The phone keeps its measured live/replay orientation while the mapped front
+   video stays time-aligned. Original camera tracks remain immutable; the
+   mapped screen is a composition choice, never destructive preprocessing.
+4. A completed result offers a quick ready-to-share composition plus an
+   `EDIT VIDEO` route into the existing advanced editor for trims, source
+   selection and alternate cuts.
+5. The result replay and final export must use the same time mapping. A live
+   preview that merely looks synchronized is not sufficient evidence that the
+   rendered artifact is synchronized.
+
+Before building the screen material, close the current physical-device export
+failure reported as `Operation Stopped` and preserve its underlying error,
+export stage and cancellation reason in diagnostics. Do not replace the error
+with a generic success/fallback artifact.
+
 ## Contracts
 
 - `CameraRunTimeline` is the shared monotonic timebase. It stores ordered

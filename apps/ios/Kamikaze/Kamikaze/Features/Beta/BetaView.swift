@@ -146,11 +146,20 @@ struct BetaView: View {
                     NavigationLink {
                         SocialFeedView()
                     } label: {
-                        Label("COMMUNITY PROTOTYPE", systemImage: "person.2.wave.2")
+                        Label("SOCIAL FEED", systemImage: "person.2.wave.2")
                             .font(.system(size: 12, weight: .black, design: .rounded))
                             .frame(maxWidth: .infinity, minHeight: 50)
                     }
                     .adaptiveGlassButton(tint: KamikazeTheme.volt)
+
+                    NavigationLink {
+                        CommunityTrickExchangeView()
+                    } label: {
+                        Label("TRICK EXCHANGE", systemImage: "arrow.triangle.2.circlepath.circle")
+                            .font(.system(size: 12, weight: .black, design: .rounded))
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                    }
+                    .adaptiveGlassButton(tint: KamikazeTheme.hazard)
 
                     NavigationLink {
                         SocialShareComposerView(result: .demo)

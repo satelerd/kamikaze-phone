@@ -20,6 +20,7 @@ struct ProfileView: View {
                     identityHeader
                     riderStage
                     nextSkillCard
+                    communityCard
                     motionTapeCard
                     activityCard
                     recentCard
@@ -197,6 +198,47 @@ struct ProfileView: View {
                 .padding(12)
             }
         }
+    }
+
+    /// Community is a player destination, not a developer switch. The feed is
+    /// still backed by the local preview repository, so the card promises
+    /// discovery and sharing intent without implying that cloud sync is live.
+    private var communityCard: some View {
+        NavigationLink {
+            SocialFeedView()
+        } label: {
+            GlassSurface(role: .interactiveCard, cornerRadius: 24) {
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(KamikazeTheme.ion.opacity(0.17))
+                        Image(systemName: "person.2.wave.2.fill")
+                            .font(.system(size: 22, weight: .black))
+                            .foregroundStyle(KamikazeTheme.ion)
+                    }
+                    .frame(width: 54, height: 54)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("COMMUNITY  /  LOCAL PREVIEW")
+                            .font(.system(size: 8, weight: .black, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.ion)
+                        Text("FOLLOW THE THROW")
+                            .font(.system(size: 18, weight: .black, design: .rounded))
+                        Text("See shared runs, react and test the social flow before cloud publishing goes live.")
+                            .font(.system(size: 9, weight: .medium, design: .rounded))
+                            .foregroundStyle(KamikazeTheme.muted)
+                            .lineLimit(2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .black))
+                        .foregroundStyle(KamikazeTheme.ion)
+                }
+                .padding(15)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
