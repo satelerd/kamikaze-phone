@@ -1,5 +1,6 @@
 import AVFoundation
 import AVKit
+import KamikazeMotionCore
 import SwiftUI
 import UIKit
 
@@ -22,6 +23,7 @@ struct CameraRunPrototypeView: View {
     }
 
     @State private var capture: CameraRunCaptureSession
+    @State private var run = NativeRunModel()
     @State private var step: Step = .setup
     @State private var position: CameraRunCameraPosition = .rear
     @State private var wantsBothCameras = false
@@ -34,8 +36,12 @@ struct CameraRunPrototypeView: View {
     @State private var savedTracks: [SavedCameraTrack] = []
     @State private var savedPreviewPlayer: AVPlayer?
     @State private var previewedTrackID: URL?
+    @State private var renderedArtifact: CameraRunVideoCompositionArtifact?
     @State private var isFinalizing = false
     @State private var isPreparingPreview = false
+    @State private var isRendering = false
+    @State private var isSavingToPhotos = false
+    @Environment(AppearanceStore.self) private var appearance
 
     init() {
         _capture = State(initialValue: CameraRunCaptureSession())
@@ -61,6 +67,7 @@ struct CameraRunPrototypeView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .task {
+            run.start()
             await preparePreview()
         }
         .onChange(of: position) { _, _ in
@@ -70,6 +77,7 @@ struct CameraRunPrototypeView: View {
             refreshPreviewForSetupChange()
         }
         .onDisappear {
+            run.stop()
             Task { @MainActor in
                 if step == .recording {
                     await finishCameraRun(showEditor: false)
@@ -199,6 +207,44 @@ struct CameraRunPrototypeView: View {
                 }
                 .padding(16)
             }
+
+            if let result = run.result {
+                GlassSurface(role: .contentPanel, cornerRadius: 22) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 24, weight: .black))
+                            .foregroundStyle(KamikazeTheme.volt)
+                        rowTitle(
+                            "\(result.displayName) CAPTURED",
+                            detail: "Motion evidence is sealed. Keep talking, then finish when you want to edit the complete Camera Run."
+                        )
+                        Spacer()
+                    }
+                    .padding(16)
+                }
+            } else if run.canArm {
+                Button {
+                    run.arm()
+                } label: {
+                    Label("ARM THE THROW", systemImage: "gyroscope")
+                        .font(.system(size: 15, weight: .black, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 62)
+                }
+                .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.ion)
+            } else {
+                GlassSurface(role: .instrumentHUD, cornerRadius: 22) {
+                    HStack(spacing: 12) {
+                        ProgressView().tint(KamikazeTheme.volt)
+                        rowTitle(
+                            motionPhaseTitle,
+                            detail: "Throw once, catch it and hold it steady. Camera recording continues after detection."
+                        )
+                        Spacer()
+                    }
+                    .padding(16)
+                }
+            }
+
             Button {
                 Task { @MainActor in
                     await finishCameraRun(showEditor: true)
@@ -290,14 +336,68 @@ struct CameraRunPrototypeView: View {
                 .padding(16)
             }
 
+            if let result = run.result {
+                CameraRunMeasuredReplayCard(result: result)
+            }
+
             Button {
-                errorMessage = "The edit contract and measured replay exporter are working. Dual-camera composition and Photos export remain device-validation gates in this prototype."
+                Task { @MainActor in
+                    await renderFinalVideo()
+                }
             } label: {
-                Label("RENDER SHARE VIDEO", systemImage: "square.and.arrow.up")
+                if isRendering {
+                    HStack(spacing: 10) {
+                        ProgressView().tint(KamikazeTheme.pitch)
+                        Text("RENDERING CAMERA RUN")
+                    }
                     .font(.system(size: 14, weight: .black, design: .rounded))
                     .frame(maxWidth: .infinity, minHeight: 62)
+                } else {
+                    Label(
+                        renderedArtifact == nil ? "RENDER SHARE VIDEO" : "RENDER CHANGES",
+                        systemImage: "wand.and.stars.inverse"
+                    )
+                    .font(.system(size: 14, weight: .black, design: .rounded))
+                    .frame(maxWidth: .infinity, minHeight: 62)
+                }
             }
             .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.volt)
+            .disabled(isRendering || savedTracks.isEmpty)
+
+            if let renderedArtifact {
+                GlassSurface(role: .instrumentHUD, cornerRadius: 22) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        rowTitle(
+                            "FINAL VIDEO READY",
+                            detail: "\(renderedArtifact.sourceCount) camera track\(renderedArtifact.sourceCount == 1 ? "" : "s") · \(String(format: "%.1f", renderedArtifact.durationS)) seconds · original sources preserved."
+                        )
+                        HStack(spacing: 10) {
+                            ShareLink(item: renderedArtifact.url) {
+                                Label("SHARE", systemImage: "square.and.arrow.up")
+                                    .frame(maxWidth: .infinity, minHeight: 48)
+                            }
+                            .adaptiveGlassButton(tint: KamikazeTheme.ion)
+
+                            Button {
+                                Task { @MainActor in
+                                    await saveRenderedVideoToPhotos()
+                                }
+                            } label: {
+                                if isSavingToPhotos {
+                                    ProgressView().frame(maxWidth: .infinity, minHeight: 48)
+                                } else {
+                                    Label("SAVE", systemImage: "square.and.arrow.down")
+                                        .frame(maxWidth: .infinity, minHeight: 48)
+                                }
+                            }
+                            .adaptiveGlassButton(tint: KamikazeTheme.volt)
+                            .disabled(isSavingToPhotos)
+                        }
+                        .font(.system(size: 10, weight: .black, design: .rounded))
+                    }
+                    .padding(16)
+                }
+            }
 
             Button("NEW CAMERA RUN") {
                 savedPreviewPlayer?.pause()
@@ -306,6 +406,8 @@ struct CameraRunPrototypeView: View {
                 step = .setup
                 errorMessage = nil
                 savedTracks = []
+                renderedArtifact = nil
+                run.dismissResult()
             }
             .font(.system(size: 11, weight: .black, design: .rounded))
             .frame(maxWidth: .infinity, minHeight: 48)
@@ -314,7 +416,7 @@ struct CameraRunPrototypeView: View {
     }
 
     private var prototypeBoundary: some View {
-        Text("PROTOTYPE · Camera source tracks now persist locally and can be shared from the editor. Audio and the final front/rear/replay composition remain separate device-validation gates. Nothing uploads automatically.")
+        Text("BETA · Front/rear clips can be trimmed, composed and captioned. A measured 3D replay is appended to the finished video. Audio mixing and timeline overlays come next. Nothing uploads automatically.")
             .font(.system(size: 9, weight: .medium, design: .monospaced))
             .foregroundStyle(KamikazeTheme.muted)
             .fixedSize(horizontal: false, vertical: true)
@@ -338,13 +440,24 @@ struct CameraRunPrototypeView: View {
     }
 
     private var stageBadge: String {
-        switch capture.state {
+        if step == .recording, run.result != nil { return "MOTION CAPTURED" }
+        return switch capture.state {
         case .idle: "LOCAL · NOT RECORDING"
         case .requestingPermission: "REQUESTING CAMERA"
         case let .ready(mode, _), let .running(mode, _): mode == .multiCamera ? "FRONT + REAR" : "SINGLE CAMERA"
         case .interrupted: "INTERRUPTED"
         case .unavailable: "DEVICE GATE"
         case .failed: "CAMERA ERROR"
+        }
+    }
+
+    private var motionPhaseTitle: String {
+        switch run.phase {
+        case .armed: "WAITING FOR THROW"
+        case .motion: "TRICK IN MOTION"
+        case .settling: "HOLD THE CATCH"
+        case .failed: "MOTION ERROR"
+        case .ready, .result, .unknown: "MOTION READY"
         }
     }
 
@@ -463,6 +576,9 @@ struct CameraRunPrototypeView: View {
 
     @MainActor
     private func finishCameraRun(showEditor: Bool) async {
+        if run.result == nil {
+            run.cancel()
+        }
         guard !recorders.isEmpty, !isFinalizing else {
             await capture.stop()
             if showEditor { withAnimation(.snappy) { step = .edit } }
@@ -506,6 +622,140 @@ struct CameraRunPrototypeView: View {
         savedPreviewPlayer?.pause()
         savedPreviewPlayer = AVPlayer(url: track.artifact.url)
         previewedTrackID = track.id
+    }
+
+    @MainActor
+    private func renderFinalVideo() async {
+        guard !savedTracks.isEmpty, !isRendering else { return }
+        isRendering = true
+        defer { isRendering = false }
+        errorMessage = nil
+
+        let sourceDuration = savedTracks.map(\.artifact.durationS).min() ?? 0
+        guard sourceDuration > 0 else {
+            errorMessage = CameraRunVideoCompositionError.invalidDuration.localizedDescription
+            return
+        }
+        let boundedStart = min(trimStart, max(0, trimEnd - 0.05))
+        let boundedEnd = max(trimEnd, min(1, boundedStart + 0.05))
+        let trim = CameraRunTrim(
+            startS: sourceDuration * boundedStart,
+            endS: sourceDuration * boundedEnd
+        )
+        let captions: [CameraRunCaption]
+        let cleanCaption = caption.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleanCaption.isEmpty {
+            captions = []
+        } else {
+            captions = [CameraRunCaption(
+                text: cleanCaption,
+                startS: trim.startS,
+                endS: trim.endS,
+                placement: .bottom
+            )]
+        }
+
+        let outputDirectory = URL.applicationSupportDirectory
+            .appending(path: "CameraRuns", directoryHint: .isDirectory)
+            .appending(path: "Exports", directoryHint: .isDirectory)
+        let exportID = UUID().uuidString
+        let finalOutputURL = outputDirectory.appending(path: "kamikaze-camera-run-\(exportID).mp4")
+        let cameraOutputURL = run.result == nil
+            ? finalOutputURL
+            : outputDirectory.appending(path: "camera-cut-\(exportID).mp4")
+        let request = CameraRunVideoCompositionRequest(
+            sources: savedTracks.map {
+                CameraRunVideoSource(position: $0.position, url: $0.artifact.url)
+            },
+            edit: CameraRunEdit(
+                trim: trim,
+                layout: CameraRunLayout(preset: layout),
+                captions: captions
+            ),
+            outputURL: cameraOutputURL
+        )
+
+        do {
+            let composer = CameraRunVideoComposer()
+            let cameraArtifact = try await composer.export(request)
+            let artifact: CameraRunVideoCompositionArtifact
+            if let result = run.result {
+                let replayURL = outputDirectory.appending(path: "measured-replay-\(exportID).mp4")
+                let replayRequest = ReplayVideoExportRequest(
+                    capture: result.capture,
+                    outputURL: replayURL,
+                    canvas: ReplayVideoCanvas(width: 720, height: 1_280),
+                    frameRate: 30
+                )
+                let replayArtifact = try await ReplayVideoExporter().export(
+                    replayRequest,
+                    renderer: RealityKitReplayFrameRenderer(
+                        appearance: appearance.effective,
+                        accent: UIColor(KamikazeTheme.volt)
+                    )
+                )
+                artifact = try await composer.appendReplay(
+                    cameraArtifact: cameraArtifact,
+                    replayArtifact: replayArtifact,
+                    outputURL: finalOutputURL
+                )
+                try? FileManager.default.removeItem(at: cameraArtifact.url)
+                try? FileManager.default.removeItem(at: replayArtifact.url)
+            } else {
+                artifact = cameraArtifact
+            }
+            renderedArtifact = artifact
+            savedPreviewPlayer?.pause()
+            savedPreviewPlayer = AVPlayer(url: artifact.url)
+            previewedTrackID = artifact.url
+            savedPreviewPlayer?.play()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    @MainActor
+    private func saveRenderedVideoToPhotos() async {
+        guard let renderedArtifact, !isSavingToPhotos else { return }
+        isSavingToPhotos = true
+        defer { isSavingToPhotos = false }
+        do {
+            try await CameraRunVideoComposer().saveToPhotos(renderedArtifact)
+            errorMessage = "Saved the finished Camera Run to Photos."
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+private struct CameraRunMeasuredReplayCard: View {
+    let result: NativeRunResult
+    let freefall: FreefallWindow?
+    @State private var replay: ReplayController
+
+    init(result: NativeRunResult) {
+        self.result = result
+        let frames = ReplayBuilder.normalized(ReplayBuilder.buildFrames(
+            payload: result.capture.samplePayload,
+            boundaries: result.capture.attempt.boundaries
+        ))
+        freefall = ReplayBuilder.freefallWindow(in: frames)
+        _replay = State(initialValue: ReplayController(frames: frames))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("MEASURED TRICK REPLAY  /  \(result.displayName)")
+                .font(.system(size: 10, weight: .black, design: .monospaced))
+                .foregroundStyle(KamikazeTheme.volt)
+            ReplayPhoneView(
+                controller: replay,
+                accent: KamikazeTheme.volt,
+                arcWindow: freefall
+            )
+        }
+        .onAppear { replay.play() }
+        .onDisappear { replay.pause() }
     }
 }
 

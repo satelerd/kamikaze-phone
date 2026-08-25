@@ -2,6 +2,7 @@ import CoreGraphics
 import CoreVideo
 import Foundation
 import KamikazeMotionCore
+import RealityKit
 import UIKit
 @preconcurrency import AVFoundation
 
@@ -164,7 +165,7 @@ public protocol ReplayVideoFrameRenderer {
         for frame: ReplayFrame,
         canvas: ReplayVideoCanvas,
         caption: CameraRunCaption?
-    ) throws -> CGImage
+    ) async throws -> CGImage
 }
 
 /// A lightweight vertical renderer for the prototype.  It draws the measured
@@ -179,7 +180,7 @@ public struct CoreGraphicsReplayFrameRenderer: ReplayVideoFrameRenderer {
         for frame: ReplayFrame,
         canvas: ReplayVideoCanvas,
         caption: CameraRunCaption?
-    ) throws -> CGImage {
+    ) async throws -> CGImage {
         guard canvas.width > 0, canvas.height > 0 else {
             throw ReplayVideoExportError.invalidCanvas
         }
@@ -270,6 +271,147 @@ public struct CoreGraphicsReplayFrameRenderer: ReplayVideoFrameRenderer {
         let sinZ = 2 * (quaternion.w * quaternion.z + quaternion.x * quaternion.y)
         let cosZ = 1 - 2 * (quaternion.y * quaternion.y + quaternion.z * quaternion.z)
         return atan2(sinZ, cosZ)
+    }
+}
+
+/// Real 3D renderer for exported replays. It uses the same authored phone,
+/// materials and light rig as live/replay RealityViews, then snapshots a
+/// non-AR RealityKit scene at each measured quaternion. The renderer owns one
+/// scene for the complete export; it never rebuilds the model per frame.
+@MainActor
+final class RealityKitReplayFrameRenderer: ReplayVideoFrameRenderer {
+    private let appearance: PhoneAppearance
+    private let accent: UIColor
+    private var arView: ARView?
+    private var phone: Entity?
+    private var activeCanvas: ReplayVideoCanvas?
+
+    init(appearance: PhoneAppearance, accent: UIColor) {
+        self.appearance = appearance
+        self.accent = accent
+    }
+
+    func image(
+        for frame: ReplayFrame,
+        canvas: ReplayVideoCanvas,
+        caption: CameraRunCaption?
+    ) async throws -> CGImage {
+        try prepareScene(for: canvas)
+        guard let arView, let phone else {
+            throw ReplayVideoExportError.renderFailed("RealityKit scene was not created.")
+        }
+        phone.orientation = simd_quatf(
+            ix: Float(frame.quaternion.x),
+            iy: Float(frame.quaternion.y),
+            iz: Float(frame.quaternion.z),
+            r: Float(frame.quaternion.w)
+        )
+
+        let snapshot: UIImage = try await withCheckedThrowingContinuation { continuation in
+            arView.snapshot(saveToHDR: false) { image in
+                guard let image else {
+                    continuation.resume(throwing: ReplayVideoExportError.renderFailed(
+                        "RealityKit returned no snapshot."
+                    ))
+                    return
+                }
+                continuation.resume(returning: image)
+            }
+        }
+        return try Self.drawExportFrame(
+            snapshot: snapshot,
+            frame: frame,
+            canvas: canvas,
+            caption: caption
+        )
+    }
+
+    private func prepareScene(for canvas: ReplayVideoCanvas) throws {
+        guard canvas.width > 0, canvas.height > 0 else {
+            throw ReplayVideoExportError.invalidCanvas
+        }
+        guard arView == nil || activeCanvas != canvas else { return }
+
+        let size = CGSize(width: canvas.width, height: canvas.height)
+        let view = ARView(
+            frame: CGRect(origin: .zero, size: size),
+            cameraMode: .nonAR,
+            automaticallyConfigureSession: false
+        )
+        view.contentScaleFactor = 1
+        view.environment.background = .color(UIColor(red: 0.02, green: 0.025, blue: 0.04, alpha: 1))
+
+        let anchor = AnchorEntity(world: .zero)
+        let phone = PhoneModelFactory.makePhone(appearance: appearance, accent: accent)
+        phone.name = "export-phone"
+        // ARView's non-AR camera sits at the origin and looks down -Z. Keep
+        // the phone's pivot intact and move only its world position.
+        phone.position.z = -0.49
+        anchor.addChild(phone)
+        anchor.addChild(PhoneModelFactory.makeLightRig())
+        view.scene.addAnchor(anchor)
+
+        arView = view
+        self.phone = phone
+        activeCanvas = canvas
+    }
+
+    private static func drawExportFrame(
+        snapshot: UIImage,
+        frame: ReplayFrame,
+        canvas: ReplayVideoCanvas,
+        caption: CameraRunCaption?
+    ) throws -> CGImage {
+        let size = CGSize(width: canvas.width, height: canvas.height)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            snapshot.draw(in: CGRect(origin: .zero, size: size))
+
+            let title: [NSAttributedString.Key: Any] = [
+                .font: UIFont.monospacedSystemFont(ofSize: size.width * 0.033, weight: .black),
+                .foregroundColor: UIColor.white
+            ]
+            NSString(string: "KAMIKAZE · MEASURED REPLAY").draw(
+                at: CGPoint(x: size.width * 0.06, y: size.height * 0.055),
+                withAttributes: title
+            )
+            let telemetry: [NSAttributedString.Key: Any] = [
+                .font: UIFont.monospacedSystemFont(ofSize: size.width * 0.026, weight: .bold),
+                .foregroundColor: UIColor(red: 0.84, green: 1, blue: 0.29, alpha: 1)
+            ]
+            NSString(string: String(format: "%.0f MS  ·  %.0f°/S", frame.timestampMs, frame.gyroDps)).draw(
+                at: CGPoint(x: size.width * 0.06, y: size.height * 0.91),
+                withAttributes: telemetry
+            )
+
+            if let caption, !caption.text.isEmpty {
+                let style = NSMutableParagraphStyle()
+                style.alignment = .center
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .font: UIFont.systemFont(ofSize: size.width * 0.055, weight: .black),
+                    .foregroundColor: UIColor.white,
+                    .paragraphStyle: style,
+                    .strokeColor: UIColor.black,
+                    .strokeWidth: -3
+                ]
+                let y: CGFloat
+                switch caption.placement {
+                case .top: y = size.height * 0.12
+                case .center: y = size.height * 0.48
+                case .bottom: y = size.height * 0.80
+                }
+                NSString(string: caption.text).draw(
+                    in: CGRect(x: size.width * 0.06, y: y, width: size.width * 0.88, height: size.height * 0.12),
+                    withAttributes: attributes
+                )
+            }
+        }
+        guard let cgImage = image.cgImage else {
+            throw ReplayVideoExportError.renderFailed("RealityKit snapshot could not be rasterized.")
+        }
+        return cgImage
     }
 }
 
@@ -373,7 +515,7 @@ public final class ReplayVideoExporter {
                 }
                 let image: CGImage
                 do {
-                    image = try renderer.image(
+                    image = try await renderer.image(
                         for: sourceFrame,
                         canvas: plan.canvas,
                         caption: caption
