@@ -5,10 +5,25 @@ import SwiftUI
 /// Cosmetic form families. Gameplay math never changes with the cosmetic
 /// model; geometry is authored per family in `DeviceShapeDefinition`.
 nonisolated enum PhoneFormFactor: String, Codable, CaseIterable, Equatable, Sendable, Identifiable {
+    // Legacy procedural IDs remain decodable so existing players never lose
+    // their equipped appearance after the catalog becomes model-specific.
     case compact
     case standard
     case plus
     case proMax = "pro-max"
+    case iPhone15 = "iphone-15"
+    case iPhone15Plus = "iphone-15-plus"
+    case iPhone15Pro = "iphone-15-pro"
+    case iPhone15ProMax = "iphone-15-pro-max"
+    case iPhone16 = "iphone-16"
+    case iPhone16Plus = "iphone-16-plus"
+    case iPhone16Pro = "iphone-16-pro"
+    case iPhone16ProMax = "iphone-16-pro-max"
+    case iPhone17 = "iphone-17"
+    case iPhoneAir = "iphone-air"
+    case iPhone17Pro = "iphone-17-pro"
+    case iPhone17ProMax = "iphone-17-pro-max"
+    case androidGeneric = "android-generic"
     /// Scanned iPhone 15 Pro Max asset (MajdyModels, CC BY 4.0 via
     /// Sketchfab). Renders the real geometry; body/edge cosmetics do not
     /// apply to it — its baked titanium textures are the look.
@@ -20,14 +35,36 @@ nonisolated enum PhoneFormFactor: String, Codable, CaseIterable, Equatable, Send
 
     var id: String { rawValue }
 
+    /// Player-facing catalog. Generic v1 bodies are intentionally omitted but
+    /// remain supported for persisted saves.
+    static let selectableCases: [PhoneFormFactor] = [
+        .iPhone15, .iPhone15Plus, .iPhone15Pro, .iPhone15ProMax,
+        .iPhone16, .iPhone16Plus, .iPhone16Pro, .iPhone16ProMax,
+        .iPhone17, .iPhoneAir, .iPhone17Pro, .iPhone17ProMax,
+        .androidGeneric, .real, .paint,
+    ]
+
     var displayName: String {
         switch self {
         case .compact: "COMPACT"
         case .standard: "STANDARD"
         case .plus: "PLUS"
         case .proMax: "PRO MAX"
-        case .real: "REAL 15 PRO"
-        case .paint: "PAINT 15"
+        case .iPhone15: "IPHONE 15"
+        case .iPhone15Plus: "15 PLUS"
+        case .iPhone15Pro: "15 PRO"
+        case .iPhone15ProMax: "15 PRO MAX"
+        case .iPhone16: "IPHONE 16"
+        case .iPhone16Plus: "16 PLUS"
+        case .iPhone16Pro: "16 PRO"
+        case .iPhone16ProMax: "16 PRO MAX"
+        case .iPhone17: "IPHONE 17"
+        case .iPhoneAir: "IPHONE AIR"
+        case .iPhone17Pro: "17 PRO"
+        case .iPhone17ProMax: "17 PRO MAX"
+        case .androidGeneric: "ANDROID"
+        case .real: "15 PRO MAX · REAL"
+        case .paint: "15 PRO MAX · PAINT"
         }
     }
 }
@@ -53,7 +90,51 @@ nonisolated struct DeviceShapeDefinition: Equatable, Sendable {
             DeviceShapeDefinition(width: 0.1320, height: 0.2730, depth: 0.0156, cornerRadius: 0.026, cameraLensCount: 2)
         case .proMax, .real, .paint:
             DeviceShapeDefinition(width: 0.1340, height: 0.2772, depth: 0.0166, cornerRadius: 0.027, cameraLensCount: 3)
+        case .iPhone15:
+            scaled(widthMM: 71.6, heightMM: 147.6, depthMM: 7.80, lenses: 2)
+        case .iPhone15Plus:
+            scaled(widthMM: 77.8, heightMM: 160.9, depthMM: 7.80, lenses: 2)
+        case .iPhone15Pro:
+            scaled(widthMM: 70.6, heightMM: 146.6, depthMM: 8.25, lenses: 3)
+        case .iPhone15ProMax:
+            scaled(widthMM: 76.7, heightMM: 159.9, depthMM: 8.25, lenses: 3)
+        case .iPhone16:
+            scaled(widthMM: 71.6, heightMM: 147.6, depthMM: 7.80, lenses: 2)
+        case .iPhone16Plus:
+            scaled(widthMM: 77.8, heightMM: 160.9, depthMM: 7.80, lenses: 2)
+        case .iPhone16Pro:
+            scaled(widthMM: 71.5, heightMM: 149.6, depthMM: 8.25, lenses: 3)
+        case .iPhone16ProMax:
+            scaled(widthMM: 77.6, heightMM: 163.0, depthMM: 8.25, lenses: 3)
+        case .iPhone17:
+            scaled(widthMM: 71.5, heightMM: 149.6, depthMM: 7.95, lenses: 2)
+        case .iPhoneAir:
+            scaled(widthMM: 74.7, heightMM: 156.2, depthMM: 5.64, lenses: 1)
+        case .iPhone17Pro:
+            scaled(widthMM: 71.9, heightMM: 150.0, depthMM: 8.75, lenses: 3)
+        case .iPhone17ProMax:
+            scaled(widthMM: 78.0, heightMM: 163.4, depthMM: 8.75, lenses: 3)
+        case .androidGeneric:
+            scaled(widthMM: 75.0, heightMM: 162.0, depthMM: 8.6, lenses: 3)
         }
+    }
+
+    /// RealityKit stages use an authored display scale rather than physical
+    /// meters; keeping one scale preserves the framing validated on device.
+    private static func scaled(
+        widthMM: Float,
+        heightMM: Float,
+        depthMM: Float,
+        lenses: Int
+    ) -> DeviceShapeDefinition {
+        let scale: Float = 1.70 / 1_000
+        return DeviceShapeDefinition(
+            width: widthMM * scale,
+            height: heightMM * scale,
+            depth: depthMM * scale,
+            cornerRadius: min(widthMM, heightMM) * scale * 0.19,
+            cameraLensCount: lenses
+        )
     }
 }
 

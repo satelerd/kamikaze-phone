@@ -11,7 +11,12 @@ enum PhoneModelFactory {
         switch formFactor {
         case .real: .scanned
         case .paint: .paintable
-        case .compact, .standard, .plus, .proMax: nil
+        case .compact, .standard, .plus, .proMax,
+             .iPhone15, .iPhone15Plus, .iPhone15Pro, .iPhone15ProMax,
+             .iPhone16, .iPhone16Plus, .iPhone16Pro, .iPhone16ProMax,
+             .iPhone17, .iPhoneAir, .iPhone17Pro, .iPhone17ProMax,
+             .androidGeneric:
+            nil
         }
     }
 
@@ -160,9 +165,15 @@ enum PhoneModelFactory {
         let lensMaterial = SimpleMaterial(color: UIColor(white: 0.05, alpha: 1), roughness: 0.08, isMetallic: false)
 
         let lensRadius = islandSize * 0.17
-        let offsets: [SIMD2<Float>] = shape.cameraLensCount >= 3
-            ? [SIMD2(-0.2, 0.2), SIMD2(-0.2, -0.2), SIMD2(0.2, 0)]
-            : [SIMD2(-0.18, 0.18), SIMD2(-0.18, -0.18)]
+        let offsets: [SIMD2<Float>]
+        switch shape.cameraLensCount {
+        case 1:
+            offsets = [SIMD2(0, 0)]
+        case 2:
+            offsets = [SIMD2(-0.18, 0.18), SIMD2(-0.18, -0.18)]
+        default:
+            offsets = [SIMD2(-0.2, 0.2), SIMD2(-0.2, -0.2), SIMD2(0.2, 0)]
+        }
         for (index, offset) in offsets.enumerated() {
             let lens = ModelEntity(
                 mesh: .generateCylinder(height: shape.depth * 0.24, radius: lensRadius),

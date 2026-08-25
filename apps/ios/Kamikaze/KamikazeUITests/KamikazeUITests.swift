@@ -107,7 +107,10 @@ final class KamikazeUITests: XCTestCase {
 
         XCTAssertTrue(app.otherElements["Live 3D phone pose"].waitForExistence(timeout: 4))
         XCTAssertTrue(app.buttons["SETUP"].exists)
-        XCTAssertTrue(app.staticTexts["BACKSIDE 360 SHUVIT"].exists)
+        // The authored ladder now starts with the foundational 180-degree
+        // Shuvit pair. The previous expectation skipped directly to the
+        // full-rotation variant and no longer matched the player flow.
+        XCTAssertTrue(app.staticTexts["BACKSIDE SHUVIT"].exists)
         XCTAssertTrue(app.staticTexts["0/3"].exists)
     }
 }

@@ -86,7 +86,7 @@ nonisolated public enum CameraRunCaptureState: Equatable, Sendable {
 /// The output delegate is intentionally tiny.  It records the latest host
 /// timestamp and forwards actual camera samples to an optional video writer;
 /// it never fabricates sensor frames or timestamps.
-private final class CameraRunTimestampBox: @unchecked Sendable {
+nonisolated private final class CameraRunTimestampBox: @unchecked Sendable {
     private let lock = OSAllocatedUnfairLock<Double?>(initialState: nil)
 
     var latest: Double? {
@@ -99,7 +99,7 @@ private final class CameraRunTimestampBox: @unchecked Sendable {
     }
 }
 
-private final class CameraRunVideoSinkBox: @unchecked Sendable {
+nonisolated private final class CameraRunVideoSinkBox: @unchecked Sendable {
     private let lock = OSAllocatedUnfairLock<[CameraRunCameraPosition: CameraRunVideoRecorder]>(
         initialState: [:]
     )
@@ -130,7 +130,7 @@ nonisolated private final class CameraRunSampleBufferBox: @unchecked Sendable {
     }
 }
 
-private final class CameraRunSampleBufferDelegate: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
+nonisolated private final class CameraRunSampleBufferDelegate: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate, @unchecked Sendable {
     private let timestamps: CameraRunTimestampBox
     private let sink: CameraRunVideoSinkBox
     private let position: CameraRunCameraPosition
@@ -165,6 +165,7 @@ private final class CameraRunSampleBufferDelegate: NSObject, AVCaptureVideoDataO
 @Observable
 public final class CameraRunCaptureSession {
     @ObservationIgnored public private(set) var session: AVCaptureSession = AVCaptureSession()
+    @ObservationIgnored public private(set) var previewLayer = AVCaptureVideoPreviewLayer()
 
     public private(set) var state: CameraRunCaptureState = .idle
     public private(set) var permission = CameraRunPermissionSnapshot()
@@ -173,6 +174,13 @@ public final class CameraRunCaptureSession {
     public private(set) var activePosition: CameraRunCameraPosition?
 
     private let logger = Logger(subsystem: "tech.sateler.kamikazephone.dev", category: "camera-run")
+    /// AVFoundation documents `startRunning` and `stopRunning` as blocking
+    /// operations. Keeping them on a dedicated serial queue prevents Camera
+    /// Run from trapping or freezing SwiftUI's main actor on entry.
+    @ObservationIgnored private let sessionQueue = DispatchQueue(
+        label: "kamikaze.camera-run.session",
+        qos: .userInitiated
+    )
     private let timestamps = CameraRunTimestampBox()
     private let videoSink = CameraRunVideoSinkBox()
     private var delegates: [CameraRunSampleBufferDelegate] = []
@@ -192,12 +200,6 @@ public final class CameraRunCaptureSession {
         return false
     }
 
-    /// A preview layer is created on demand because the session can switch
-    /// from a multi-cam graph to a single-cam graph during capability fallback.
-    public func makePreviewLayer() -> AVCaptureVideoPreviewLayer {
-        AVCaptureVideoPreviewLayer(session: session)
-    }
-
     /// Configures the requested graph. Unsupported multi-cam devices, and
     /// devices where adding both inputs fails, deliberately fall back to one
     /// camera and report the selected mode to the caller.
@@ -206,6 +208,7 @@ public final class CameraRunCaptureSession {
         position: CameraRunCameraPosition = .rear,
         mode: CameraRunCaptureMode = .singleCamera
     ) async throws -> CameraRunCaptureMode {
+        logger.info("Preparing camera graph: mode=\(mode.rawValue, privacy: .public) position=\(position.rawValue, privacy: .public)")
         requestedMode = mode
         requestedPosition = position
         state = .requestingPermission
@@ -258,6 +261,7 @@ public final class CameraRunCaptureSession {
             activeMode = .multiCamera
             activePosition = nil
             state = .ready(mode: .multiCamera, position: position)
+            logger.info("Camera graph ready: multi-camera")
             return .multiCamera
         }
 
@@ -281,6 +285,7 @@ public final class CameraRunCaptureSession {
         activeMode = .singleCamera
         activePosition = singlePosition
         state = .ready(mode: .singleCamera, position: singlePosition)
+        logger.info("Camera graph ready: single \(singlePosition.rawValue, privacy: .public)")
         return .singleCamera
         #endif
     }
@@ -296,30 +301,45 @@ public final class CameraRunCaptureSession {
         videoSink.clear()
     }
 
-    public func start() throws {
+    public func start() async throws {
         guard case let .ready(mode, position) = state else {
             if case let .unavailable(error) = state { throw error }
             if case let .failed(error) = state { throw error }
             throw CameraRunCaptureError.configurationFailed("The camera session is not ready.")
         }
         guard !session.isRunning else { return }
-        session.startRunning()
-        guard session.isRunning else {
+        let session = self.session
+        logger.info("Starting camera session off main actor")
+        let didStart = await withCheckedContinuation { continuation in
+            sessionQueue.async {
+                session.startRunning()
+                continuation.resume(returning: session.isRunning)
+            }
+        }
+        guard didStart else {
             let error = CameraRunCaptureError.runtime("AVCaptureSession did not start.")
             state = .failed(error)
             throw error
         }
         state = .running(mode: mode, position: position)
+        logger.info("Camera session running")
     }
 
-    public func stop() {
+    public func stop() async {
+        let session = self.session
         guard session.isRunning else {
             if let activeMode, let activePosition {
                 state = .ready(mode: activeMode, position: activePosition)
             }
             return
         }
-        session.stopRunning()
+        await withCheckedContinuation { continuation in
+            sessionQueue.async {
+                session.stopRunning()
+                continuation.resume()
+            }
+        }
+        logger.info("Camera session stopped")
         if let activeMode {
             state = .ready(mode: activeMode, position: activePosition ?? .rear)
         } else {
@@ -332,7 +352,7 @@ public final class CameraRunCaptureSession {
             throw CameraRunCaptureError.configurationFailed("Switching a multi-camera graph requires stopping the run first.")
         }
         let next: CameraRunCameraPosition = activePosition == .front ? .rear : .front
-        stop()
+        await stop()
         try await prepare(position: next, mode: .singleCamera)
     }
 
@@ -363,6 +383,8 @@ public final class CameraRunCaptureSession {
         newSession.addOutput(output)
         setPortrait(on: output.connection(with: .video))
         newSession.commitConfiguration()
+        previewLayer = AVCaptureVideoPreviewLayer(session: newSession)
+        previewLayer.videoGravity = .resizeAspectFill
         session = newSession
         delegates = [delegate]
     }
@@ -372,7 +394,6 @@ public final class CameraRunCaptureSession {
               let rearDevice = cameraDevice(for: .rear) else { return false }
         let newSession = AVCaptureMultiCamSession()
         newSession.beginConfiguration()
-        newSession.sessionPreset = .high
         do {
             let frontInput = try AVCaptureDeviceInput(device: frontDevice)
             let rearInput = try AVCaptureDeviceInput(device: rearDevice)
@@ -380,8 +401,8 @@ public final class CameraRunCaptureSession {
                 newSession.commitConfiguration()
                 return false
             }
-            newSession.addInput(frontInput)
-            newSession.addInput(rearInput)
+            newSession.addInputWithNoConnections(frontInput)
+            newSession.addInputWithNoConnections(rearInput)
 
             let frontOutput = AVCaptureVideoDataOutput()
             let rearOutput = AVCaptureVideoDataOutput()
@@ -409,11 +430,40 @@ public final class CameraRunCaptureSession {
                 newSession.commitConfiguration()
                 return false
             }
-            newSession.addOutput(frontOutput)
-            newSession.addOutput(rearOutput)
-            setPortrait(on: frontOutput.connection(with: .video))
-            setPortrait(on: rearOutput.connection(with: .video))
+            newSession.addOutputWithNoConnections(frontOutput)
+            newSession.addOutputWithNoConnections(rearOutput)
+
+            guard let frontPort = frontInput.ports.first(where: { $0.mediaType == .video }),
+                  let rearPort = rearInput.ports.first(where: { $0.mediaType == .video }) else {
+                newSession.commitConfiguration()
+                return false
+            }
+
+            let frontOutputConnection = AVCaptureConnection(inputPorts: [frontPort], output: frontOutput)
+            let rearOutputConnection = AVCaptureConnection(inputPorts: [rearPort], output: rearOutput)
+            guard newSession.canAddConnection(frontOutputConnection),
+                  newSession.canAddConnection(rearOutputConnection) else {
+                newSession.commitConfiguration()
+                return false
+            }
+            newSession.addConnection(frontOutputConnection)
+            newSession.addConnection(rearOutputConnection)
+            setPortrait(on: frontOutputConnection)
+            setPortrait(on: rearOutputConnection)
+
+            let primaryPort = requestedPosition == .front ? frontPort : rearPort
+            let newPreviewLayer = AVCaptureVideoPreviewLayer()
+            newPreviewLayer.videoGravity = .resizeAspectFill
+            newPreviewLayer.setSessionWithNoConnection(newSession)
+            let previewConnection = AVCaptureConnection(inputPort: primaryPort, videoPreviewLayer: newPreviewLayer)
+            guard newSession.canAddConnection(previewConnection) else {
+                newSession.commitConfiguration()
+                return false
+            }
+            newSession.addConnection(previewConnection)
+            setPortrait(on: previewConnection)
             newSession.commitConfiguration()
+            previewLayer = newPreviewLayer
             session = newSession
             delegates = [frontDelegate, rearDelegate]
             return true

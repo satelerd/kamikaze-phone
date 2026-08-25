@@ -105,7 +105,7 @@ struct LockerView: View {
         case .model:
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    ForEach(PhoneFormFactor.allCases) { factor in
+                    ForEach(PhoneFormFactor.selectableCases) { factor in
                         optionCard(
                             title: factor.displayName,
                             color: nil,

@@ -70,11 +70,13 @@ struct CameraRunPrototypeView: View {
             refreshPreviewForSetupChange()
         }
         .onDisappear {
-            if step == .recording {
-                finishCameraRun(showEditor: false)
-            } else {
-                capture.stop()
-                capture.detachVideoRecorders()
+            Task { @MainActor in
+                if step == .recording {
+                    await finishCameraRun(showEditor: false)
+                } else {
+                    await capture.stop()
+                    capture.detachVideoRecorders()
+                }
             }
         }
         .alert("Camera Run", isPresented: Binding(
@@ -122,7 +124,7 @@ struct CameraRunPrototypeView: View {
                     VideoPlayer(player: savedPreviewPlayer)
                         .background(.black)
                 } else if isPrepared {
-                    CameraRunPreview(session: capture.session)
+                    CameraRunPreview(previewLayer: capture.previewLayer)
                 } else {
                     LinearGradient(
                         colors: [.black.opacity(0.2), KamikazeTheme.ion.opacity(0.18), .black.opacity(0.72)],
@@ -198,7 +200,9 @@ struct CameraRunPrototypeView: View {
                 .padding(16)
             }
             Button {
-                finishCameraRun(showEditor: true)
+                Task { @MainActor in
+                    await finishCameraRun(showEditor: true)
+                }
             } label: {
                 if isFinalizing {
                     ProgressView()
@@ -408,19 +412,19 @@ struct CameraRunPrototypeView: View {
         errorMessage = nil
 
         do {
-            capture.stop()
+            await capture.stop()
             _ = try await capture.prepare(
                 position: position,
                 mode: wantsBothCameras ? .multiCamera : .singleCamera
             )
             guard !Task.isCancelled else {
-                capture.stop()
+                await capture.stop()
                 return false
             }
-            try capture.start()
+            try await capture.start()
             return true
         } catch {
-            capture.stop()
+            await capture.stop()
             errorMessage = error.localizedDescription
             return false
         }
@@ -428,8 +432,8 @@ struct CameraRunPrototypeView: View {
 
     private func refreshPreviewForSetupChange() {
         guard step == .setup, !isPreparingPreview else { return }
-        capture.stop()
         Task { @MainActor in
+            await capture.stop()
             await preparePreview()
         }
     }
@@ -457,14 +461,15 @@ struct CameraRunPrototypeView: View {
         recorders = started
     }
 
-    private func finishCameraRun(showEditor: Bool) {
+    @MainActor
+    private func finishCameraRun(showEditor: Bool) async {
         guard !recorders.isEmpty, !isFinalizing else {
-            capture.stop()
+            await capture.stop()
             if showEditor { withAnimation(.snappy) { step = .edit } }
             return
         }
 
-        capture.stop()
+        await capture.stop()
         capture.detachVideoRecorders()
         let pending = recorders
         recorders.removeAll()
@@ -505,23 +510,32 @@ struct CameraRunPrototypeView: View {
 }
 
 private struct CameraRunPreview: UIViewRepresentable {
-    let session: AVCaptureSession
+    let previewLayer: AVCaptureVideoPreviewLayer
 
     func makeUIView(context: Context) -> CameraPreviewUIView {
         let view = CameraPreviewUIView()
-        view.previewLayer.videoGravity = .resizeAspectFill
-        view.previewLayer.session = session
+        view.install(previewLayer)
         return view
     }
 
     func updateUIView(_ uiView: CameraPreviewUIView, context: Context) {
-        if uiView.previewLayer.session !== session {
-            uiView.previewLayer.session = session
-        }
+        uiView.install(previewLayer)
     }
 }
 
 private final class CameraPreviewUIView: UIView {
-    override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
-    var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+    private weak var installedLayer: AVCaptureVideoPreviewLayer?
+
+    func install(_ previewLayer: AVCaptureVideoPreviewLayer) {
+        guard installedLayer !== previewLayer else { return }
+        installedLayer?.removeFromSuperlayer()
+        layer.addSublayer(previewLayer)
+        installedLayer = previewLayer
+        setNeedsLayout()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        installedLayer?.frame = bounds
+    }
 }

@@ -4,8 +4,8 @@ enum AppTab: String, Hashable, CaseIterable {
     case play
     case practice
     case locker
-    case beta
     case profile
+    case beta
 
     /// Debug/testing affordance: launching with `-debugInitialTab profile`
     /// opens that tab directly (standard UserDefaults argument domain).
@@ -27,8 +27,8 @@ enum AppTab: String, Hashable, CaseIterable {
 
     var symbol: String {
         switch self {
-        case .play: "arrow.trianglehead.2.clockwise.rotate.90"
-        case .practice: "figure.skateboarding"
+        case .play: "gamecontroller.fill"
+        case .practice: "target"
         case .locker: "square.3.layers.3d"
         case .beta: "testtube.2"
         case .profile: "person.crop.circle"

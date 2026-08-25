@@ -67,6 +67,20 @@ struct PhoneAppearanceTests {
         ))
     }
 
+    @Test func playerCatalogExposesNamedCurrentDevicesWithoutLegacyDuplicates() {
+        #expect(PhoneFormFactor.selectableCases.contains(.iPhone15Plus))
+        #expect(PhoneFormFactor.selectableCases.contains(.iPhone17ProMax))
+        #expect(PhoneFormFactor.selectableCases.contains(.androidGeneric))
+        #expect(!PhoneFormFactor.selectableCases.contains(.standard))
+        #expect(Set(PhoneFormFactor.selectableCases).count == PhoneFormFactor.selectableCases.count)
+
+        let air = DeviceShapeDefinition.shape(for: .iPhoneAir)
+        let proMax = DeviceShapeDefinition.shape(for: .iPhone17ProMax)
+        #expect(air.depth < proMax.depth)
+        #expect(air.cameraLensCount == 1)
+        #expect(proMax.cameraLensCount == 3)
+    }
+
     @Test func masteryGatedCosmeticsFollowPracticeProgress() throws {
         let voltBody = try #require(CosmeticCatalog.body(id: "body-volt"))
         let freeBody = try #require(CosmeticCatalog.body(id: "body-graphite"))
