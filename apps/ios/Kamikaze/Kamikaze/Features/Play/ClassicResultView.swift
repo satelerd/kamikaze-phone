@@ -7,18 +7,22 @@ struct ClassicResultView: View {
     let result: NativeRunResult
     let onAgain: () -> Void
     let onClose: () -> Void
+    let cameraCapture: PlayCameraCaptureModel?
 
     @State private var replay: ReplayController
+    @State private var showsCameraEditor = false
     private let freefall: FreefallWindow?
 
     init(
         result: NativeRunResult,
         onAgain: @escaping () -> Void,
-        onClose: @escaping () -> Void
+        onClose: @escaping () -> Void,
+        cameraCapture: PlayCameraCaptureModel? = nil
     ) {
         self.result = result
         self.onAgain = onAgain
         self.onClose = onClose
+        self.cameraCapture = cameraCapture
         let frames = ReplayBuilder.normalized(ReplayBuilder.buildFrames(
             payload: result.capture.samplePayload,
             boundaries: result.capture.attempt.boundaries
@@ -51,11 +55,26 @@ struct ClassicResultView: View {
                             .foregroundStyle(KamikazeTheme.muted)
                     }
 
-                    ReplayPhoneView(
+                    CameraReplayPhoneView(
                         controller: replay,
                         accent: KamikazeTheme.hazard,
-                        arcWindow: freefall
+                        targetFrames: nil,
+                        arcWindow: freefall,
+                        take: cameraTake,
+                        motionCaptureStartS: result.capture.attempt.boundaries.captureStartS
                     )
+
+                    if cameraTake != nil {
+                        Button {
+                            replay.pause()
+                            showsCameraEditor = true
+                        } label: {
+                            Label("EDIT CAMERA V2", systemImage: "slider.horizontal.3")
+                                .font(.system(size: 13, weight: .black, design: .rounded))
+                                .frame(maxWidth: .infinity, minHeight: 54)
+                        }
+                        .adaptiveGlassButton(tint: KamikazeTheme.ion)
+                    }
 
                     Button("THROW AGAIN") { onAgain() }
                         .font(.system(size: 27, weight: .black, design: .rounded))
@@ -83,6 +102,15 @@ struct ClassicResultView: View {
         }
         .onAppear { replay.play() }
         .onDisappear { replay.pause() }
+        .fullScreenCover(isPresented: $showsCameraEditor, onDismiss: { replay.play() }) {
+            if let cameraTake {
+                CameraRunPrototypeView(editSeed: CameraRunEditSeed(result: result, take: cameraTake))
+            }
+        }
+    }
+
+    private var cameraTake: PlayCameraTake? {
+        cameraCapture?.take(for: result.id)
     }
 
     private var heightLabel: String {

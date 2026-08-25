@@ -144,6 +144,27 @@ enum PhoneModelFactory {
         return root
     }
 
+    /// Replaces only the display mesh material across procedural and imported
+    /// phones. Camera V2 uses this to map the selfie renderer onto the same
+    /// entity that already owns measured motion; body, border and camera
+    /// hardware remain untouched.
+    static func applyScreenMaterial(
+        to entity: Entity,
+        material: any RealityKit.Material
+    ) {
+        let name = entity.name.lowercased()
+        let isProceduralScreen = name == "phone-screen"
+        let isImportedScreen = name.contains("screen") && !name.contains("border")
+        if (isProceduralScreen || isImportedScreen),
+           var model = entity.components[ModelComponent.self] {
+            model.materials = model.materials.map { _ in material }
+            entity.components.set(model)
+        }
+        for child in entity.children {
+            applyScreenMaterial(to: child, material: material)
+        }
+    }
+
     private static func makeCameraIsland(shape: DeviceShapeDefinition, edgeColor: UIColor) -> Entity {
         let island = Entity()
         island.name = "phone-camera-island"

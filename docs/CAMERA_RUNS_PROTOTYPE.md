@@ -6,8 +6,8 @@ or automatic Photos write is included.
 
 ## Camera V2 product direction
 
-`Camera Run` remains the advanced beta bench, but camera capture should not stay
-a separate game mode. The next player-facing slice treats camera as an optional
+`Camera Lab` remains the advanced beta bench, but camera capture no longer stays
+a separate game mode. The Camera V2 prototype treats camera as an optional
 capture layer that can be enabled from Free, Follow, Classic or a future Line
 mode:
 
@@ -25,10 +25,28 @@ mode:
    preview that merely looks synchronized is not sufficient evidence that the
    rendered artifact is synchronized.
 
-Before building the screen material, close the current physical-device export
-failure reported as `Operation Stopped` and preserve its underlying error,
-export stage and cancellation reason in diagnostics. Do not replace the error
-with a generic success/fallback artifact.
+The physical-device export failure reported as `Operation Stopped` now has two
+bounded mitigations: live playback/RealityKit surfaces unmount before rendering,
+and AVFoundation gets one fresh-exporter retry after its media resources settle.
+Any final failure preserves its export stage plus NSError domain/code/underlying
+error; the app never replaces it with a fabricated success artifact.
+
+The current Camera V2 vertical slice now includes:
+
+- one Play-level camera toggle shared by Free, Follow, Classic and Line;
+- front + rear recording where MultiCam is available, with an explicit
+  single-front fallback;
+- the live selfie feed as a material on the measured 3D phone;
+- source timestamps stored with each recording and used to align the selfie
+  video with the result replay;
+- an `EDIT VIDEO` route from Result to Camera Lab using the same immutable
+  camera source tracks and motion capture;
+- the aligned selfie frame rendered onto the phone screen inside the exported
+  measured-3D segment.
+
+Physical-device validation remains mandatory for MultiCam stability, video
+orientation/mirroring, long Line sessions, thermal pressure and the retried
+Story Cut export.
 
 ## Contracts
 

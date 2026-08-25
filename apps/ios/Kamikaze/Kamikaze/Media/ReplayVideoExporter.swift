@@ -285,10 +285,27 @@ final class RealityKitReplayFrameRenderer: ReplayVideoFrameRenderer {
     private var arView: ARView?
     private var phone: Entity?
     private var activeCanvas: ReplayVideoCanvas?
+    private let screenVideoGenerator: AVAssetImageGenerator?
+    private let screenVideoOffsetS: Double
 
-    init(appearance: PhoneAppearance, accent: UIColor) {
+    init(
+        appearance: PhoneAppearance,
+        accent: UIColor,
+        screenVideoURL: URL? = nil,
+        screenVideoOffsetS: Double = 0
+    ) {
         self.appearance = appearance
         self.accent = accent
+        self.screenVideoOffsetS = max(0, screenVideoOffsetS)
+        if let screenVideoURL {
+            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: screenVideoURL))
+            generator.appliesPreferredTrackTransform = true
+            generator.requestedTimeToleranceBefore = .zero
+            generator.requestedTimeToleranceAfter = .zero
+            screenVideoGenerator = generator
+        } else {
+            screenVideoGenerator = nil
+        }
     }
 
     func image(
@@ -306,6 +323,7 @@ final class RealityKitReplayFrameRenderer: ReplayVideoFrameRenderer {
             iz: Float(frame.quaternion.z),
             r: Float(frame.quaternion.w)
         )
+        await applyScreenVideoFrame(atReplayTimeMs: frame.timestampMs, to: phone)
 
         let snapshot: UIImage = try await withCheckedThrowingContinuation { continuation in
             arView.snapshot(saveToHDR: false) { image in
@@ -324,6 +342,21 @@ final class RealityKitReplayFrameRenderer: ReplayVideoFrameRenderer {
             canvas: canvas,
             caption: caption
         )
+    }
+
+    private func applyScreenVideoFrame(atReplayTimeMs replayTimeMs: Double, to phone: Entity) async {
+        guard let screenVideoGenerator else { return }
+        let sourceS = screenVideoOffsetS + max(0, replayTimeMs / 1_000)
+        guard let (image, _) = try? await screenVideoGenerator.image(
+            at: CMTime(seconds: sourceS, preferredTimescale: 600)
+        ) else { return }
+        guard let texture = try? await TextureResource(
+            image: image,
+            options: .init(semantic: .color)
+        ) else { return }
+        var material = UnlitMaterial()
+        material.color = .init(tint: .white, texture: .init(texture))
+        PhoneModelFactory.applyScreenMaterial(to: phone, material: material)
     }
 
     private func prepareScene(for canvas: ReplayVideoCanvas) throws {

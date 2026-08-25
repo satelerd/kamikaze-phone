@@ -90,6 +90,9 @@ struct LivePhoneScene: View {
     var cameraPose: StageCameraPose?
     /// When provided, the stage shows the LEVEL control next to CAMERA.
     var onLevel: (() -> Void)?
+    /// Optional iOS 26 live video material for Camera V2. The material is
+    /// created once by the capture owner and reused across 50 Hz pose updates.
+    var screenVideoMaterial: VideoMaterial?
 
     @Environment(AppearanceStore.self) private var appearance
     @State private var orbitYaw: Double
@@ -106,7 +109,8 @@ struct LivePhoneScene: View {
         initialZoom: Double = 0.72,
         ghostAttitude: Quaternion? = nil,
         cameraPose: StageCameraPose? = nil,
-        onLevel: (() -> Void)? = nil
+        onLevel: (() -> Void)? = nil,
+        screenVideoMaterial: VideoMaterial? = nil
     ) {
         self.attitude = attitude
         self.accent = accent
@@ -116,6 +120,7 @@ struct LivePhoneScene: View {
         self.ghostAttitude = ghostAttitude
         self.cameraPose = cameraPose
         self.onLevel = onLevel
+        self.screenVideoMaterial = screenVideoMaterial
         _orbitYaw = State(initialValue: self.initialYaw)
         _orbitPitch = State(initialValue: self.initialPitch)
         _zoom = State(initialValue: self.initialZoom)
@@ -128,12 +133,15 @@ struct LivePhoneScene: View {
         let _ = PhoneModelLibrary.shared.loaded
         let _ = CustomScreenStore.shared.revision
         RealityView { content in
-            PhoneSceneRefresher.refreshPhone(
+            let phone = PhoneSceneRefresher.refreshPhone(
                 in: &content,
                 named: "phone",
                 appearance: appearance.effective,
                 accent: UIColor(accent)
             )
+            if let phone, let screenVideoMaterial {
+                PhoneModelFactory.applyScreenMaterial(to: phone, material: screenVideoMaterial)
+            }
             content.add(PhoneModelFactory.makeLightRig())
 
             if ghostAttitude != nil {
@@ -159,6 +167,9 @@ struct LivePhoneScene: View {
                 appearance: appearance.effective,
                 accent: UIColor(accent)
             )
+            if let phone, let screenVideoMaterial {
+                PhoneModelFactory.applyScreenMaterial(to: phone, material: screenVideoMaterial)
+            }
             phone?.orientation = simd_quatf(
                 ix: Float(attitude.x),
                 iy: Float(attitude.y),

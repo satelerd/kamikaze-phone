@@ -1,4 +1,5 @@
 import KamikazeMotionCore
+import RealityKit
 import SwiftUI
 
 /// The live pose stage for capture screens (Play and Practice). It exists as
@@ -8,6 +9,7 @@ struct LiveRunStage: View {
     let run: NativeRunModel
     let accent: Color
     var initialZoom = 0.5
+    var screenVideoMaterial: VideoMaterial? = nil
 
     @Environment(FeedbackCoordinator.self) private var feedback
 
@@ -19,7 +21,8 @@ struct LiveRunStage: View {
             onLevel: {
                 run.zeroPose()
                 feedback.play(.zeroed)
-            }
+            },
+            screenVideoMaterial: screenVideoMaterial
         )
     }
 }

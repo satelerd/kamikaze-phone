@@ -5,11 +5,24 @@ nonisolated public struct CameraRunRecordingArtifact: Codable, Equatable, Sendab
     public let url: URL
     public let durationS: Double
     public let frameCount: Int
+    /// Original AVFoundation presentation timestamps. They share CoreMotion's
+    /// monotonic host-clock family and let Camera V2 align video to replay
+    /// without guessing from wall-clock dates.
+    public let sourceStartTimestampS: Double?
+    public let sourceEndTimestampS: Double?
 
-    public init(url: URL, durationS: Double, frameCount: Int) {
+    public init(
+        url: URL,
+        durationS: Double,
+        frameCount: Int,
+        sourceStartTimestampS: Double? = nil,
+        sourceEndTimestampS: Double? = nil
+    ) {
         self.url = url
         self.durationS = durationS
         self.frameCount = frameCount
+        self.sourceStartTimestampS = sourceStartTimestampS
+        self.sourceEndTimestampS = sourceEndTimestampS
     }
 }
 
@@ -157,7 +170,9 @@ nonisolated public final class CameraRunVideoRecorder: @unchecked Sendable {
                         continuation.resume(returning: CameraRunRecordingArtifact(
                             url: self.outputURL,
                             durationS: durationS,
-                            frameCount: self.frameCount
+                            frameCount: self.frameCount,
+                            sourceStartTimestampS: self.firstTimestamp.map(CMTimeGetSeconds),
+                            sourceEndTimestampS: self.lastTimestamp.map(CMTimeGetSeconds)
                         ))
                     } else {
                         continuation.resume(throwing: CameraRunVideoRecorderError.writerFailed(

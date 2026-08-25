@@ -16,7 +16,7 @@ nonisolated enum PlayMode: String, CaseIterable, Identifiable {
         case .line: "LINE"
         case .follow: "FOLLOW"
         case .classic: "CLASSIC"
-        case .camera: "CAMERA RUN"
+        case .camera: "CAMERA LAB"
         }
     }
 
@@ -36,7 +36,7 @@ nonisolated enum PlayMode: String, CaseIterable, Identifiable {
         case .line: "Always listening. Stack tricks without leaving Play."
         case .follow: "Answer a randomized trick call."
         case .classic: "Height and airtime, like the original game."
-        case .camera: "Record the performance before editing and sharing."
+        case .camera: "Advanced capture and export controls for testing."
         }
     }
 }

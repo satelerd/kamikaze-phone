@@ -134,15 +134,18 @@ nonisolated private final class CameraRunSampleBufferDelegate: NSObject, AVCaptu
     private let timestamps: CameraRunTimestampBox
     private let sink: CameraRunVideoSinkBox
     private let position: CameraRunCameraPosition
+    private let videoRenderer: AVSampleBufferVideoRenderer?
 
     init(
         timestamps: CameraRunTimestampBox,
         sink: CameraRunVideoSinkBox,
-        position: CameraRunCameraPosition
+        position: CameraRunCameraPosition,
+        videoRenderer: AVSampleBufferVideoRenderer? = nil
     ) {
         self.timestamps = timestamps
         self.sink = sink
         self.position = position
+        self.videoRenderer = videoRenderer
     }
 
     func captureOutput(
@@ -153,6 +156,9 @@ nonisolated private final class CameraRunSampleBufferDelegate: NSObject, AVCaptu
         let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         if presentationTime.isValid, presentationTime.seconds.isFinite {
             timestamps.record(presentationTime.seconds)
+        }
+        if let videoRenderer, videoRenderer.isReadyForMoreMediaData {
+            videoRenderer.enqueue(sampleBuffer)
         }
         sink.append(sampleBuffer, from: position)
     }
@@ -166,6 +172,9 @@ nonisolated private final class CameraRunSampleBufferDelegate: NSObject, AVCaptu
 public final class CameraRunCaptureSession {
     @ObservationIgnored public private(set) var session: AVCaptureSession = AVCaptureSession()
     @ObservationIgnored public private(set) var previewLayer = AVCaptureVideoPreviewLayer()
+    /// iOS 26 RealityKit can consume this renderer directly as a VideoMaterial,
+    /// letting the real selfie feed live on the moving 3D phone screen.
+    @ObservationIgnored public let frontVideoRenderer = AVSampleBufferVideoRenderer()
 
     public private(set) var state: CameraRunCaptureState = .idle
     public private(set) var permission = CameraRunPermissionSnapshot()
@@ -212,6 +221,7 @@ public final class CameraRunCaptureSession {
         requestedMode = mode
         requestedPosition = position
         state = .requestingPermission
+        frontVideoRenderer.flush()
 
         #if targetEnvironment(simulator)
         state = .unavailable(.simulatorUnavailable)
@@ -372,7 +382,8 @@ public final class CameraRunCaptureSession {
         let delegate = CameraRunSampleBufferDelegate(
             timestamps: timestamps,
             sink: videoSink,
-            position: position
+            position: position,
+            videoRenderer: position == .front ? frontVideoRenderer : nil
         )
         let queue = DispatchQueue(label: "kamikaze.camera-run.video.single", qos: .userInitiated)
         output.setSampleBufferDelegate(delegate, queue: queue)
@@ -381,7 +392,9 @@ public final class CameraRunCaptureSession {
             throw CameraRunCaptureError.configurationFailed("The video output cannot be added.")
         }
         newSession.addOutput(output)
-        setPortrait(on: output.connection(with: .video))
+        let videoConnection = output.connection(with: .video)
+        setPortrait(on: videoConnection)
+        if position == .front { setMirrored(on: videoConnection) }
         newSession.commitConfiguration()
         previewLayer = AVCaptureVideoPreviewLayer(session: newSession)
         previewLayer.videoGravity = .resizeAspectFill
@@ -411,7 +424,8 @@ public final class CameraRunCaptureSession {
             let frontDelegate = CameraRunSampleBufferDelegate(
                 timestamps: timestamps,
                 sink: videoSink,
-                position: .front
+                position: .front,
+                videoRenderer: frontVideoRenderer
             )
             let rearDelegate = CameraRunSampleBufferDelegate(
                 timestamps: timestamps,
@@ -450,6 +464,7 @@ public final class CameraRunCaptureSession {
             newSession.addConnection(rearOutputConnection)
             setPortrait(on: frontOutputConnection)
             setPortrait(on: rearOutputConnection)
+            setMirrored(on: frontOutputConnection)
 
             let primaryPort = requestedPosition == .front ? frontPort : rearPort
             let newPreviewLayer = AVCaptureVideoPreviewLayer()
@@ -525,6 +540,12 @@ public final class CameraRunCaptureSession {
         if connection.isVideoRotationAngleSupported(90) {
             connection.videoRotationAngle = 90
         }
+    }
+
+    private func setMirrored(on connection: AVCaptureConnection?) {
+        guard let connection, connection.isVideoMirroringSupported else { return }
+        connection.automaticallyAdjustsVideoMirroring = false
+        connection.isVideoMirrored = true
     }
 
     private func registerNotifications() {

@@ -17,6 +17,10 @@ struct ResultReplayView: View {
     /// Saved-attempt contexts (History, Recent) pass this to allow permanent
     /// deletion. The immediate Play result does not.
     let onDelete: (() async -> Void)?
+    /// Optional live Camera V2 owner. History remains sensor-first; the
+    /// immediate Play result can reveal its just-recorded source tracks and
+    /// open the advanced non-destructive editor.
+    let cameraCapture: PlayCameraCaptureModel?
     /// Mathematical target frames for the practice ghost overlay; nil outside
     /// practice mode or for tricks without a validated definition.
     private let targetFrames: [ReplayFrame]?
@@ -30,6 +34,7 @@ struct ResultReplayView: View {
     @State private var showsShareComposer = false
     @State private var isConfirming = false
     @State private var showsDeleteConfirmation = false
+    @State private var showsCameraEditor = false
     @AppStorage(BetaFlags.verticalArc) private var verticalArc = true
     @AppStorage(BetaFlags.airBonus) private var airBonusEnabled = true
     @AppStorage(BetaFlags.resultMetric) private var resultMetricRaw = ResultMetricMode.default.rawValue
@@ -44,7 +49,8 @@ struct ResultReplayView: View {
         onReview: @escaping (HumanAttemptReview) async -> NativeRunResult?,
         reviewContextNote: String? = nil,
         requiresReviewBeforeAgain: Bool = false,
-        onDelete: (() async -> Void)? = nil
+        onDelete: (() async -> Void)? = nil,
+        cameraCapture: PlayCameraCaptureModel? = nil
     ) {
         self.primaryTitle = primaryTitle
         self.practiceTarget = practiceTarget
@@ -54,6 +60,7 @@ struct ResultReplayView: View {
         self.reviewContextNote = reviewContextNote
         self.requiresReviewBeforeAgain = requiresReviewBeforeAgain
         self.onDelete = onDelete
+        self.cameraCapture = cameraCapture
         let definition = practiceTarget.flatMap { target in
             TrickCatalog.provisional(gripHand: .right).definitions.first { $0.id == target }
         }
@@ -119,12 +126,18 @@ struct ResultReplayView: View {
                         practiceBanner(target: practiceTarget)
                     }
 
-                    ReplayPhoneView(
+                    CameraReplayPhoneView(
                         controller: replay,
                         accent: accent,
                         targetFrames: targetFrames,
-                        arcWindow: verticalArc ? freefall : nil
+                        arcWindow: verticalArc ? freefall : nil,
+                        take: cameraTake,
+                        motionCaptureStartS: displayedResult.capture.attempt.boundaries.captureStartS
                     )
+
+                    if let cameraTake {
+                        cameraTakeCard(cameraTake)
+                    }
 
                     if let practiceTarget, displayedResult.humanReview == nil {
                         practiceConfirmRow(target: practiceTarget)
@@ -206,6 +219,49 @@ struct ResultReplayView: View {
         }
         .sheet(isPresented: $showsShareComposer) {
             SocialShareComposerView(result: socialResultSnapshot)
+        }
+        .fullScreenCover(isPresented: $showsCameraEditor, onDismiss: { replay.play() }) {
+            if let cameraTake {
+                CameraRunPrototypeView(editSeed: CameraRunEditSeed(
+                    result: displayedResult,
+                    take: cameraTake
+                ))
+            }
+        }
+    }
+
+    private var cameraTake: PlayCameraTake? {
+        cameraCapture?.take(for: displayedResult.id)
+    }
+
+    private func cameraTakeCard(_ take: PlayCameraTake) -> some View {
+        GlassSurface(role: .contentPanel, cornerRadius: 22) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("CAMERA V2 TAKE")
+                            .font(.system(size: 10, weight: .black, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.volt)
+                        Text("\(take.cameraCount) ORIGINAL \(take.cameraCount == 1 ? "TRACK" : "TRACKS") · NON-DESTRUCTIVE")
+                            .font(.system(size: 8, weight: .bold, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.muted)
+                    }
+                    Spacer()
+                    Image(systemName: "video.fill")
+                        .foregroundStyle(KamikazeTheme.volt)
+                }
+
+                Button {
+                    replay.pause()
+                    showsCameraEditor = true
+                } label: {
+                    Label("EDIT VIDEO", systemImage: "slider.horizontal.3")
+                        .font(.system(size: 13, weight: .black, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                }
+                .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.ion)
+            }
+            .padding(15)
         }
     }
 

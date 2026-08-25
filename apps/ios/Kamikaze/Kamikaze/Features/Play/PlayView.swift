@@ -3,6 +3,7 @@ import SwiftUI
 
 struct PlayView: View {
     @State private var run = NativeRunModel()
+    @State private var playCamera = PlayCameraCaptureModel()
     @State private var playMode = PlayMode.free
     @State private var followPrompt = FollowPromptDeck.first
     @State private var followQueue = FollowPromptDeck.shuffled(avoiding: FollowPromptDeck.first)
@@ -43,6 +44,7 @@ struct PlayView: View {
             lineRearmTask?.cancel()
             run.stop()
             experience.report(phase: .idle)
+            Task { await playCamera.shutdown() }
         }
         .onChange(of: run.phase) { _, phase in
             experience.report(phase: phase.experiencePhase)
@@ -70,9 +72,10 @@ struct PlayView: View {
             case .free:
                 ResultReplayView(
                     result: result,
-                    onAgain: run.dismissResultAndRearm,
+                    onAgain: rearmAfterCameraTake,
                     onClose: run.dismissResult,
-                    onReview: run.applyHumanReview
+                    onReview: run.applyHumanReview,
+                    cameraCapture: playCamera
                 )
             case .follow:
                 ResultReplayView(
@@ -80,19 +83,24 @@ struct PlayView: View {
                     primaryTitle: "NEXT CALL",
                     practiceTarget: followPrompt.trickID,
                     onAgain: {
-                        advanceFollowPrompt()
-                        run.dismissResultAndRearm()
+                        Task { @MainActor in
+                            await playCamera.waitUntilAttemptIsSealed()
+                            advanceFollowPrompt()
+                            run.dismissResultAndRearm()
+                        }
                     },
                     onClose: run.dismissResult,
                     onReview: run.applyHumanReview,
                     reviewContextNote: followPrompt.evidenceNote,
-                    requiresReviewBeforeAgain: true
+                    requiresReviewBeforeAgain: true,
+                    cameraCapture: playCamera
                 )
             case .classic:
                 ClassicResultView(
                     result: result,
-                    onAgain: run.dismissResultAndRearm,
-                    onClose: run.dismissResult
+                    onAgain: rearmAfterCameraTake,
+                    onClose: run.dismissResult,
+                    cameraCapture: playCamera
                 )
             case .line, .camera:
                 EmptyView()
@@ -115,6 +123,10 @@ struct PlayView: View {
                     modeSelector
                 }
 
+                if playMode != .camera {
+                    cameraCaptureControl
+                }
+
                 if playMode == .line {
                     lineLatestCard
                     lineHistoryCard
@@ -126,13 +138,26 @@ struct PlayView: View {
 
                 if playMode != .camera {
                     // The phone floats directly over the field — no stage boxes.
-                    LiveRunStage(run: run, accent: accent, initialZoom: 0.33)
+                    LiveRunStage(
+                        run: run,
+                        accent: accent,
+                        initialZoom: 0.33,
+                        screenVideoMaterial: playCamera.isEnabled ? playCamera.screenVideoMaterial : nil
+                    )
                         .frame(maxHeight: playMode == .line ? 245 : 560)
                 }
 
                 if case let .failed(message) = run.phase {
                     Text(message)
                         .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundStyle(KamikazeTheme.hazard)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                }
+
+                if let cameraError = playCamera.errorMessage {
+                    Text("CAMERA  /  \(cameraError)")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
                         .foregroundStyle(KamikazeTheme.hazard)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
@@ -222,6 +247,47 @@ struct PlayView: View {
         .buttonStyle(.plain)
         .disabled(isCapturingMotion)
         .accessibilityHint("Opens the game mode list")
+    }
+
+    private var cameraCaptureControl: some View {
+        Button {
+            Task { await playCamera.toggle() }
+        } label: {
+            GlassSurface(role: .instrumentHUD, cornerRadius: 19) {
+                HStack(spacing: 11) {
+                    Image(systemName: playCamera.isEnabled ? "video.fill" : "video.slash")
+                        .font(.system(size: 16, weight: .black))
+                        .foregroundStyle(playCamera.isEnabled ? KamikazeTheme.volt : KamikazeTheme.muted)
+                        .frame(width: 28)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("CAMERA V2")
+                            .font(.system(size: 9, weight: .black, design: .monospaced))
+                        Text(playCamera.statusLabel)
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(playCamera.isEnabled ? KamikazeTheme.frost : KamikazeTheme.muted)
+                    }
+                    Spacer()
+                    if playCamera.isPreparing {
+                        ProgressView().tint(KamikazeTheme.volt)
+                    } else {
+                        Text(playCamera.isEnabled ? "ON" : "OFF")
+                            .font(.system(size: 9, weight: .black, design: .monospaced))
+                            .foregroundStyle(playCamera.isEnabled ? KamikazeTheme.pitch : KamikazeTheme.muted)
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 7)
+                            .background(
+                                playCamera.isEnabled ? KamikazeTheme.volt : .white.opacity(0.07),
+                                in: Capsule()
+                            )
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(active || playCamera.isPreparing || playCamera.isRecording)
+        .accessibilityHint("Records front and rear video and places the selfie feed on the moving phone")
     }
 
     private var lineLatestCard: some View {
@@ -427,8 +493,12 @@ struct PlayView: View {
             lineRearmTask = nil
             run.cancel()
             feedback.play(.cancelled)
+            Task { await playCamera.abandonAttempt() }
         } else {
-            run.arm()
+            Task { @MainActor in
+                guard await playCamera.beginAttempt() else { return }
+                run.arm()
+            }
         }
     }
 
@@ -445,7 +515,10 @@ struct PlayView: View {
 
         if mode == .camera {
             run.stop()
-            showsCameraRun = true
+            Task { @MainActor in
+                await playCamera.disable()
+                showsCameraRun = true
+            }
             return
         }
 
@@ -472,7 +545,7 @@ struct PlayView: View {
                 recognized: recognized
             ))
         }
-        scheduleLineRearm(delay: .milliseconds(700))
+        scheduleLineRearm(delay: playCamera.isEnabled ? .milliseconds(1_050) : .milliseconds(700))
     }
 
     private func scheduleLineRearm(delay: Duration) {
@@ -497,6 +570,13 @@ struct PlayView: View {
         followPrompt = followQueue.removeFirst()
     }
 
+    private func rearmAfterCameraTake() {
+        Task { @MainActor in
+            await playCamera.waitUntilAttemptIsSealed()
+            run.dismissResultAndRearm()
+        }
+    }
+
     private var accent: Color {
         switch run.phase {
         case .motion, .settling: KamikazeTheme.hazard
@@ -513,6 +593,14 @@ struct PlayView: View {
         case .armed:
             feedback.play(.armed)
             feedback.evidenceWindowActive = true
+            if playCamera.isEnabled, !playCamera.isRecording {
+                Task { @MainActor in
+                    guard await playCamera.beginAttempt() else {
+                        run.cancel()
+                        return
+                    }
+                }
+            }
         case .motion, .settling:
             feedback.evidenceWindowActive = true
         case .result:
@@ -522,13 +610,22 @@ struct PlayView: View {
             // match status is already readable here.
             feedback.playDetectionSound(success: run.result?.match.status == .recognized)
             recordCurrentLineResult()
+            if let result = run.result {
+                Task { await playCamera.finishAttempt(attemptID: result.id) }
+            }
         case .unknown:
             feedback.evidenceWindowActive = false
             feedback.play(.needsReview)
             feedback.playDetectionSound(success: false)
             recordCurrentLineResult()
+            if let result = run.result {
+                Task { await playCamera.finishAttempt(attemptID: result.id) }
+            }
         case .ready, .failed:
             feedback.evidenceWindowActive = false
+            if case .failed = phase {
+                Task { await playCamera.abandonAttempt() }
+            }
         }
     }
 

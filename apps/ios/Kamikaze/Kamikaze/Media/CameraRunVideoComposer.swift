@@ -320,21 +320,12 @@ public final class CameraRunVideoComposer {
                 path: ".camera-base-\(UUID().uuidString).mp4"
             )
 
-        guard let exporter = AVAssetExportSession(
-            asset: composition,
-            presetName: AVAssetExportPresetHighestQuality
-        ) else {
-            throw CameraRunVideoCompositionError.cannotCreateExporter
-        }
-        exporter.videoComposition = videoComposition
-        exporter.shouldOptimizeForNetworkUse = true
-        do {
-            try await exporter.export(to: baseOutputURL, as: .mp4)
-        } catch is CancellationError {
-            throw CameraRunVideoCompositionError.exportCancelled
-        } catch {
-            throw CameraRunVideoCompositionError.exportFailed(error.localizedDescription)
-        }
+        try await exportComposition(
+            composition,
+            videoComposition: videoComposition,
+            outputURL: baseOutputURL,
+            stage: "camera-layout"
+        )
 
         if !visibleCaptions.isEmpty {
             do {
@@ -603,21 +594,12 @@ public final class CameraRunVideoComposer {
         videoComposition.frameDuration = CMTime(value: 1, timescale: CMTimeScale(frameRate))
         videoComposition.instructions = instructions
 
-        guard let exporter = AVAssetExportSession(
-            asset: composition,
-            presetName: AVAssetExportPresetHighestQuality
-        ) else {
-            throw CameraRunVideoCompositionError.cannotCreateExporter
-        }
-        exporter.videoComposition = videoComposition
-        exporter.shouldOptimizeForNetworkUse = true
-        do {
-            try await exporter.export(to: outputURL, as: .mp4)
-        } catch is CancellationError {
-            throw CameraRunVideoCompositionError.exportCancelled
-        } catch {
-            throw CameraRunVideoCompositionError.exportFailed(error.localizedDescription)
-        }
+        try await exportComposition(
+            composition,
+            videoComposition: videoComposition,
+            outputURL: outputURL,
+            stage: "story-composition"
+        )
 
         return CameraRunVideoCompositionArtifact(
             url: outputURL,
@@ -625,6 +607,68 @@ public final class CameraRunVideoComposer {
             canvas: canvas,
             sourceCount: cameraArtifact.sourceCount
         )
+    }
+
+    /// AVFoundation occasionally tears down a valid export while another
+    /// RealityKit/AV playback surface is releasing its media resources. The
+    /// physical-device symptom is the otherwise opaque "Operation Stopped".
+    /// Use a fresh exporter for one bounded retry and include the exact stage,
+    /// domain, code and exporter state if it still fails. A cancelled parent
+    /// task is never retried.
+    private func exportComposition(
+        _ asset: AVAsset,
+        videoComposition: AVVideoComposition,
+        outputURL: URL,
+        stage: String
+    ) async throws {
+        let maximumAttempts = 2
+        var lastFailure = "unknown export failure"
+
+        for attempt in 1 ... maximumAttempts {
+            try Task.checkCancellation()
+            if FileManager.default.fileExists(atPath: outputURL.path) {
+                try? FileManager.default.removeItem(at: outputURL)
+            }
+
+            guard let exporter = AVAssetExportSession(
+                asset: asset,
+                presetName: AVAssetExportPresetHighestQuality
+            ) else {
+                throw CameraRunVideoCompositionError.cannotCreateExporter
+            }
+            exporter.videoComposition = videoComposition
+            exporter.shouldOptimizeForNetworkUse = true
+
+            do {
+                try await exporter.export(to: outputURL, as: .mp4)
+                return
+            } catch {
+                if Task.isCancelled {
+                    try? FileManager.default.removeItem(at: outputURL)
+                    throw CameraRunVideoCompositionError.exportCancelled
+                }
+                lastFailure = Self.exportDiagnostic(error: error)
+                try? FileManager.default.removeItem(at: outputURL)
+                guard attempt < maximumAttempts else { break }
+
+                // Let VideoToolbox/Metal release the previous session before
+                // constructing a fresh AVAssetExportSession.
+                try await Task.sleep(for: .milliseconds(300))
+            }
+        }
+
+        throw CameraRunVideoCompositionError.exportFailed(
+            "[\(stage)] \(lastFailure) · retried once"
+        )
+    }
+
+    private static func exportDiagnostic(error: Error) -> String {
+        let nsError = error as NSError
+        let primary = "\(nsError.domain)(\(nsError.code)): \(nsError.localizedDescription)"
+        guard let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError else {
+            return primary
+        }
+        return "\(primary) · underlying \(underlying.domain)(\(underlying.code)): \(underlying.localizedDescription)"
     }
 
     private func load(_ sources: [CameraRunVideoSource]) async throws -> [LoadedSource] {

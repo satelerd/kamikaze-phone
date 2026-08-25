@@ -4,6 +4,11 @@ import KamikazeMotionCore
 import SwiftUI
 import UIKit
 
+struct CameraRunEditSeed {
+    let result: NativeRunResult
+    let take: PlayCameraTake
+}
+
 /// Device-facing product prototype for the Camera Run flow. Capture/export
 /// infrastructure lives in Media; this screen makes the permission,
 /// capability fallback and non-destructive edit contract tangible without
@@ -44,11 +49,25 @@ struct CameraRunPrototypeView: View {
     @State private var isFinalizing = false
     @State private var isPreparingPreview = false
     @State private var isRendering = false
+    @State private var renderStage = "PREPARING"
     @State private var isSavingToPhotos = false
+    @State private var seededResult: NativeRunResult?
     @Environment(AppearanceStore.self) private var appearance
 
-    init() {
+    init(editSeed: CameraRunEditSeed? = nil) {
         _capture = State(initialValue: CameraRunCaptureSession())
+        _seededResult = State(initialValue: editSeed?.result)
+        if let editSeed {
+            let tracks = editSeed.take.artifacts.map {
+                SavedCameraTrack(position: $0.key, artifact: $0.value)
+            }.sorted { $0.position.rawValue < $1.position.rawValue }
+            _step = State(initialValue: .edit)
+            _savedTracks = State(initialValue: tracks)
+            if let first = tracks.first {
+                _savedPreviewPlayer = State(initialValue: AVPlayer(url: first.artifact.url))
+                _previewedTrackID = State(initialValue: first.id)
+            }
+        }
     }
 
     var body: some View {
@@ -71,8 +90,10 @@ struct CameraRunPrototypeView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .task {
-            run.start()
-            await preparePreview()
+            if seededResult == nil {
+                run.start()
+                await preparePreview()
+            }
         }
         .onChange(of: position) { _, _ in
             refreshPreviewForSetupChange()
@@ -132,7 +153,21 @@ struct CameraRunPrototypeView: View {
     private var cameraStage: some View {
         GlassSurface(role: .contentPanel, cornerRadius: 28) {
             ZStack(alignment: .topTrailing) {
-                if step == .edit, let savedPreviewPlayer {
+                if isRendering {
+                    LinearGradient(
+                        colors: [KamikazeTheme.pitch, KamikazeTheme.ion.opacity(0.22), KamikazeTheme.pitch],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    VStack(spacing: 13) {
+                        ProgressView()
+                            .tint(KamikazeTheme.volt)
+                            .controlSize(.large)
+                        Text(renderStage)
+                            .font(.system(size: 10, weight: .black, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.frost.opacity(0.8))
+                    }
+                } else if step == .edit, let savedPreviewPlayer {
                     VideoPlayer(player: savedPreviewPlayer)
                         .background(.black)
                 } else if isPrepared {
@@ -340,7 +375,7 @@ struct CameraRunPrototypeView: View {
                 .padding(16)
             }
 
-            if let result = run.result {
+            if let result = editingResult, !isRendering {
                 CameraRunMeasuredReplayCard(result: result)
                 replayStoryCutControls
             }
@@ -353,7 +388,7 @@ struct CameraRunPrototypeView: View {
                 if isRendering {
                     HStack(spacing: 10) {
                         ProgressView().tint(KamikazeTheme.pitch)
-                        Text("RENDERING CAMERA RUN")
+                        Text(renderStage)
                     }
                     .font(.system(size: 14, weight: .black, design: .rounded))
                     .frame(maxWidth: .infinity, minHeight: 62)
@@ -412,11 +447,14 @@ struct CameraRunPrototypeView: View {
                 errorMessage = nil
                 savedTracks = []
                 renderedArtifact = nil
+                seededResult = nil
+                run.start()
                 run.dismissResult()
                 replayEntry = 0.42
                 replayResume = 0.68
                 replayTransitionStyle = .crossDissolve
                 replayTransitionDurationS = 0.25
+                Task { @MainActor in await preparePreview() }
             }
             .font(.system(size: 11, weight: .black, design: .rounded))
             .frame(maxWidth: .infinity, minHeight: 48)
@@ -497,6 +535,10 @@ struct CameraRunPrototypeView: View {
         case .ready, .running: true
         default: false
         }
+    }
+
+    private var editingResult: NativeRunResult? {
+        seededResult ?? run.result
     }
 
     private var stageBadge: String {
@@ -687,9 +729,18 @@ struct CameraRunPrototypeView: View {
     @MainActor
     private func renderFinalVideo() async {
         guard !savedTracks.isEmpty, !isRendering else { return }
+        savedPreviewPlayer?.pause()
+        renderStage = "CLEARING LIVE PREVIEW"
         isRendering = true
         defer { isRendering = false }
         errorMessage = nil
+
+        // Unmount the interactive RealityKit replay and VideoPlayer before
+        // asking AVFoundation/VideoToolbox for a second off-screen pipeline.
+        // This mirrors the resource isolation that made Result replay smooth.
+        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(180))
+        guard !Task.isCancelled else { return }
 
         let sourceDuration = savedTracks.map(\.artifact.durationS).min() ?? 0
         guard sourceDuration > 0 else {
@@ -720,7 +771,7 @@ struct CameraRunPrototypeView: View {
             .appending(path: "Exports", directoryHint: .isDirectory)
         let exportID = UUID().uuidString
         let finalOutputURL = outputDirectory.appending(path: "kamikaze-camera-run-\(exportID).mp4")
-        let cameraOutputURL = run.result == nil
+        let cameraOutputURL = editingResult == nil
             ? finalOutputURL
             : outputDirectory.appending(path: "camera-cut-\(exportID).mp4")
         let request = CameraRunVideoCompositionRequest(
@@ -737,9 +788,10 @@ struct CameraRunPrototypeView: View {
 
         do {
             let composer = CameraRunVideoComposer()
+            renderStage = "COMPOSING CAMERA TRACKS"
             let cameraArtifact = try await composer.export(request)
             let artifact: CameraRunVideoCompositionArtifact
-            if let result = run.result {
+            if let result = editingResult {
                 let replayURL = outputDirectory.appending(path: "measured-replay-\(exportID).mp4")
                 let replayRequest = ReplayVideoExportRequest(
                     capture: result.capture,
@@ -747,13 +799,21 @@ struct CameraRunPrototypeView: View {
                     canvas: ReplayVideoCanvas(width: 720, height: 1_280),
                     frameRate: 30
                 )
+                renderStage = "RENDERING MEASURED 3D"
+                let frontTrack = savedTracks.first { $0.position == .front }
+                let videoOffsetS = frontTrack?.artifact.sourceStartTimestampS.map {
+                    max(0, result.capture.attempt.boundaries.captureStartS - $0)
+                } ?? 0
                 let replayArtifact = try await ReplayVideoExporter().export(
                     replayRequest,
                     renderer: RealityKitReplayFrameRenderer(
                         appearance: appearance.effective,
-                        accent: UIColor(KamikazeTheme.volt)
+                        accent: UIColor(KamikazeTheme.volt),
+                        screenVideoURL: frontTrack?.artifact.url,
+                        screenVideoOffsetS: videoOffsetS
                     )
                 )
+                renderStage = "BUILDING STORY CUT"
                 artifact = try await composer.composeReplay(
                     cameraArtifact: cameraArtifact,
                     replayArtifact: replayArtifact,
@@ -775,8 +835,9 @@ struct CameraRunPrototypeView: View {
             savedPreviewPlayer = AVPlayer(url: artifact.url)
             previewedTrackID = artifact.url
             savedPreviewPlayer?.play()
+            renderStage = "VIDEO READY"
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = "[\(renderStage)] \(error.localizedDescription)"
         }
     }
 
