@@ -10,6 +10,19 @@ nonisolated enum PhoneAssetID: String, CaseIterable, Sendable {
     /// iPhone 15 Pro Max (low-poly) by LagzDesign — CC BY, via Sketchfab.
     /// Flat-color materials by named part, so cosmetics can tint it.
     case paintable = "iPhone15Lowpoly"
+    /// iPhone 17 Pro Max by MajdyModels — CC BY 4.0, via Sketchfab.
+    case iPhone17ProMax = "iPhone17ProMaxHero"
+    /// Google Pixel 8 Pro low-poly by LagzDesign — CC BY 4.0, via Sketchfab.
+    case pixel8Pro = "Pixel8Pro"
+
+    var targetFormFactor: PhoneFormFactor {
+        switch self {
+        case .scanned: .real
+        case .paintable: .paint
+        case .iPhone17ProMax: .iPhone17ProMaxReal
+        case .pixel8Pro: .pixel8Pro
+        }
+    }
 }
 
 /// Loads and normalizes the downloaded iPhone assets once per launch.
@@ -43,7 +56,7 @@ final class PhoneModelLibrary {
                     failed.insert(asset)
                     return
                 }
-                loaded[asset] = Self.normalized(entity)
+                loaded[asset] = Self.normalized(entity, asset: asset)
             }
         }
     }
@@ -60,8 +73,11 @@ final class PhoneModelLibrary {
 
     /// Portrait meters with a centered pivot, matching the procedural
     /// factory's contract so cameras and replays frame it identically.
-    private static func normalized(_ raw: Entity) -> Entity {
+    private static func normalized(_ raw: Entity, asset: PhoneAssetID) -> Entity {
         convertMaterials(raw)
+        if asset == .iPhone17ProMax {
+            removeOpaqueDisplayCover(from: raw)
+        }
 
         let wrapper = Entity()
         wrapper.name = "phone-root"
@@ -91,7 +107,7 @@ final class PhoneModelLibrary {
 
         bounds = holder.visualBounds(relativeTo: wrapper)
         extents = bounds.extents
-        let targetHeight = DeviceShapeDefinition.shape(for: .real).height
+        let targetHeight = DeviceShapeDefinition.shape(for: asset.targetFormFactor).height
         let maxExtent = max(extents.x, max(extents.y, extents.z))
         if maxExtent > 0 {
             holder.scale *= SIMD3(repeating: targetHeight / maxExtent)
@@ -101,6 +117,19 @@ final class PhoneModelLibrary {
         holder.position -= bounds.center
 
         return wrapper
+    }
+
+    /// The iPhone 17 asset authors a transparent glass sheet in front of its
+    /// display. RealityKit's no-IBL material conversion makes that sheet
+    /// opaque, hiding the actual screen. Remove only its renderer; the screen,
+    /// bezel and all physical geometry remain intact.
+    private static func removeOpaqueDisplayCover(from entity: Entity) {
+        if entity.name.lowercased().contains("glass_002") {
+            entity.components.remove(ModelComponent.self)
+        }
+        for child in entity.children {
+            removeOpaqueDisplayCover(from: child)
+        }
     }
 
     /// PhysicallyBasedMaterial renders black in the app's virtual-camera
@@ -119,6 +148,7 @@ final class PhoneModelLibrary {
                 }
                 simple.roughness = .init(floatLiteral: 0.42)
                 simple.metallic = 0.0
+                simple.faceCulling = .none
                 return simple
             }
             entity.components.set(model)
@@ -158,7 +188,7 @@ extension PhoneModelLibrary {
         appearance: PhoneAppearance,
         screenLabel: String? = nil
     ) {
-        let body = appearance.body.color
+        let body = appearance.bodyColor
         // Uniform boost, clamped so hue survives: per-component clamping
         // would bleach saturated colors toward white.
         let boost = min(
@@ -171,7 +201,7 @@ extension PhoneModelLibrary {
             blue: min(1, body.blue * boost),
             alpha: 1
         )
-        let edge = appearance.edge.color
+        let edge = appearance.edgeColor
         let edgeTint = UIColor(red: edge.red, green: edge.green, blue: edge.blue, alpha: 1)
         tintParts(of: phone, matching: "back_color", tint: backTint, keepTexture: true)
         tintParts(of: phone, matching: "Cube_sides", tint: edgeTint, keepTexture: false)
@@ -187,6 +217,52 @@ extension PhoneModelLibrary {
            let photo = PhoneModelFactory.customPhotoScreenMaterial(flippedVertically: true) {
             replaceMaterials(of: phone, matching: "Cube_screen_0", with: photo)
         }
+    }
+
+    /// The Pixel USDZ ships its back under `Plane_color_0`. Its imported PBR
+    /// stack becomes partially transparent in our no-IBL RealityKit scenes,
+    /// so replace that one body surface with an opaque authored finish. The
+    /// camera bar and lenses keep their source materials.
+    static func applyPixelCosmetics(
+        to phone: Entity,
+        appearance: PhoneAppearance
+    ) {
+        let body = appearance.bodyColor
+        let bodyTint = UIColor(
+            red: body.red,
+            green: body.green,
+            blue: body.blue,
+            alpha: 1
+        )
+        let edge = appearance.edgeColor
+        let edgeTint = UIColor(
+            red: edge.red,
+            green: edge.green,
+            blue: edge.blue,
+            alpha: 1
+        )
+        var bodyMaterial = SimpleMaterial(
+            color: bodyTint,
+            roughness: 0.30,
+            isMetallic: false
+        )
+        bodyMaterial.faceCulling = .none
+        replaceMaterials(
+            of: phone,
+            matching: "Plane_color_0",
+            with: bodyMaterial
+        )
+        var edgeMaterial = SimpleMaterial(
+            color: edgeTint,
+            roughness: 0.24,
+            isMetallic: true
+        )
+        edgeMaterial.faceCulling = .none
+        replaceMaterials(
+            of: phone,
+            matching: "Plane_corners_0",
+            with: edgeMaterial
+        )
     }
 
     private static func replaceMaterials(

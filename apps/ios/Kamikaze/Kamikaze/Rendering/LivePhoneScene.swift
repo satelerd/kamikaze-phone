@@ -140,7 +140,7 @@ struct LivePhoneScene: View {
                 accent: UIColor(accent)
             )
             if let phone, let screenVideoMaterial {
-                PhoneModelFactory.applyScreenMaterial(to: phone, material: screenVideoMaterial, rotate180: true)
+                PhoneModelFactory.applyScreenMaterial(to: phone, material: screenVideoMaterial)
             }
             content.add(PhoneModelFactory.makeLightRig())
 
@@ -168,7 +168,7 @@ struct LivePhoneScene: View {
                 accent: UIColor(accent)
             )
             if let phone, let screenVideoMaterial {
-                PhoneModelFactory.applyScreenMaterial(to: phone, material: screenVideoMaterial, rotate180: true)
+                PhoneModelFactory.applyScreenMaterial(to: phone, material: screenVideoMaterial)
             }
             phone?.orientation = simd_quatf(
                 ix: Float(attitude.x),

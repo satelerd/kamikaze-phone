@@ -132,7 +132,7 @@ struct CameraReplayPhoneView: View {
                     .allowsHitTesting(false)
             }
         }
-        .task(id: take?.id) { preparePlayer() }
+        .task(id: take?.id) { await preparePlayer() }
         .onChange(of: controller.state) { _, _ in synchronize(forceSeek: true) }
         .onChange(of: controller.speed) { _, _ in synchronize(forceSeek: true) }
         .onChange(of: controller.playheadMs) { _, _ in
@@ -141,7 +141,7 @@ struct CameraReplayPhoneView: View {
         .onDisappear { player?.pause() }
     }
 
-    private func preparePlayer() {
+    private func preparePlayer() async {
         player?.pause()
         guard let artifact = take?.front else {
             player = nil
@@ -150,6 +150,22 @@ struct CameraReplayPhoneView: View {
         }
         let newPlayer = AVPlayer(url: artifact.url)
         newPlayer.actionAtItemEnd = .pause
+        // Prime the local file before exposing its VideoMaterial. Use an
+        // exact seek, never AVPlayer.preroll: iOS 26 aborts inside
+        // `prerollAtRate` for this freshly-finalized camera asset (confirmed
+        // by physical-device crash report A0B4B23A-67CA-4370-8833-B8BE909C1A32).
+        let initialTimeS = videoTimelineOffsetS.map { max(0, $0) }
+            ?? CameraReplayTiming.videoTime(
+                replayTimeS: controller.playheadMs / 1_000,
+                replayDurationS: controller.durationMs / 1_000,
+                motionCaptureStartS: motionCaptureStartS,
+                artifact: artifact
+            )
+        await newPlayer.seek(
+            to: CMTime(seconds: initialTimeS, preferredTimescale: 600),
+            toleranceBefore: .zero,
+            toleranceAfter: .zero
+        )
         player = newPlayer
         material = VideoMaterial(avPlayer: newPlayer)
         synchronize(forceSeek: true)

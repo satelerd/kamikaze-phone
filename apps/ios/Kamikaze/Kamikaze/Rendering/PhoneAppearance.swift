@@ -23,6 +23,11 @@ nonisolated enum PhoneFormFactor: String, Codable, CaseIterable, Equatable, Send
     case iPhoneAir = "iphone-air"
     case iPhone17Pro = "iphone-17-pro"
     case iPhone17ProMax = "iphone-17-pro-max"
+    /// Detailed CC BY asset by MajdyModels. Kept separate from the procedural
+    /// shape so players can always return to the lightweight live model.
+    case iPhone17ProMaxReal = "iphone-17-pro-max-real"
+    /// Low-poly CC BY Google Pixel 8 Pro asset by LagzDesign.
+    case pixel8Pro = "pixel-8-pro"
     case androidGeneric = "android-generic"
     /// Scanned iPhone 15 Pro Max asset (MajdyModels, CC BY 4.0 via
     /// Sketchfab). Renders the real geometry; body/edge cosmetics do not
@@ -38,10 +43,10 @@ nonisolated enum PhoneFormFactor: String, Codable, CaseIterable, Equatable, Send
     /// Player-facing catalog. Generic v1 bodies are intentionally omitted but
     /// remain supported for persisted saves.
     static let selectableCases: [PhoneFormFactor] = [
-        .iPhone15, .iPhone15Plus, .iPhone15Pro, .iPhone15ProMax,
-        .iPhone16, .iPhone16Plus, .iPhone16Pro, .iPhone16ProMax,
-        .iPhone17, .iPhoneAir, .iPhone17Pro, .iPhone17ProMax,
-        .androidGeneric, .real, .paint,
+        .real, .paint, .iPhone17ProMaxReal, .pixel8Pro,
+        // One deliberately rough procedural easter egg. The generated
+        // pseudo-device family is no longer presented as real hardware.
+        .iPhone15Pro,
     ]
 
     var displayName: String {
@@ -52,7 +57,7 @@ nonisolated enum PhoneFormFactor: String, Codable, CaseIterable, Equatable, Send
         case .proMax: "PRO MAX"
         case .iPhone15: "IPHONE 15"
         case .iPhone15Plus: "15 PLUS"
-        case .iPhone15Pro: "15 PRO"
+        case .iPhone15Pro: "SLOPPY PHONE"
         case .iPhone15ProMax: "15 PRO MAX"
         case .iPhone16: "IPHONE 16"
         case .iPhone16Plus: "16 PLUS"
@@ -62,6 +67,8 @@ nonisolated enum PhoneFormFactor: String, Codable, CaseIterable, Equatable, Send
         case .iPhoneAir: "IPHONE AIR"
         case .iPhone17Pro: "17 PRO"
         case .iPhone17ProMax: "17 PRO MAX"
+        case .iPhone17ProMaxReal: "17 PRO MAX · REAL"
+        case .pixel8Pro: "PIXEL 8 PRO · REAL"
         case .androidGeneric: "ANDROID"
         case .real: "15 PRO MAX · REAL"
         case .paint: "15 PRO MAX · PAINT"
@@ -114,6 +121,10 @@ nonisolated struct DeviceShapeDefinition: Equatable, Sendable {
             scaled(widthMM: 71.9, heightMM: 150.0, depthMM: 8.75, lenses: 3)
         case .iPhone17ProMax:
             scaled(widthMM: 78.0, heightMM: 163.4, depthMM: 8.75, lenses: 3)
+        case .iPhone17ProMaxReal:
+            scaled(widthMM: 78.0, heightMM: 163.4, depthMM: 8.75, lenses: 3)
+        case .pixel8Pro:
+            scaled(widthMM: 76.5, heightMM: 162.6, depthMM: 8.8, lenses: 3)
         case .androidGeneric:
             scaled(widthMM: 75.0, heightMM: 162.0, depthMM: 8.6, lenses: 3)
         }
@@ -153,7 +164,7 @@ nonisolated struct CosmeticOption: Equatable, Sendable, Identifiable {
     let unlock: Unlock
 
     /// sRGB triple so options stay Codable-friendly and testable.
-    struct ColorValue: Equatable, Sendable {
+    struct ColorValue: Codable, Hashable, Sendable {
         let red: Double
         let green: Double
         let blue: Double
@@ -220,10 +231,16 @@ nonisolated struct PhoneAppearance: Codable, Hashable, Sendable {
 
     var schemaVersion = Self.schemaVersion
     var catalogVersion = CosmeticCatalog.version
-    var formFactor: PhoneFormFactor = .plus
+    var formFactor: PhoneFormFactor = .real
     var bodyID = "body-graphite"
     var edgeID = "edge-steel"
     var screenID = "screen-live"
+    /// Optional player-authored colors. Preset IDs remain canonical so old
+    /// saves decode unchanged and selecting a preset can return to an authored
+    /// combination without losing catalog semantics.
+    var customBodyColor: CosmeticOption.ColorValue?
+    var customEdgeColor: CosmeticOption.ColorValue?
+    var customScreenColor: CosmeticOption.ColorValue?
 
     static let `default` = PhoneAppearance()
 
@@ -240,9 +257,12 @@ nonisolated struct PhoneAppearance: Codable, Hashable, Sendable {
     var body: CosmeticOption { CosmeticCatalog.body(id: bodyID) ?? CosmeticCatalog.bodies[0] }
     var edge: CosmeticOption { CosmeticCatalog.edge(id: edgeID) ?? CosmeticCatalog.edges[0] }
     var screen: CosmeticOption { CosmeticCatalog.screen(id: screenID) ?? CosmeticCatalog.screens[0] }
+    var bodyColor: CosmeticOption.ColorValue { customBodyColor ?? body.color }
+    var edgeColor: CosmeticOption.ColorValue { customEdgeColor ?? edge.color }
+    var screenColor: CosmeticOption.ColorValue { customScreenColor ?? screen.color }
     /// The LIVE screen renders the gameplay accent; fixed themes render their
     /// authored emissive color.
-    var usesLiveScreen: Bool { screenID == "screen-live" }
+    var usesLiveScreen: Bool { screenID == "screen-live" && customScreenColor == nil }
     /// PHOTO renders the player's own image from `CustomScreenStore`.
     var usesCustomPhotoScreen: Bool { screenID == "screen-photo" }
 }

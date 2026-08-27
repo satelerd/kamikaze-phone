@@ -91,11 +91,15 @@ struct LockerView: View {
     /// BODY, the rim for EDGE, the front for SCREEN, the showcase 3/4 for
     /// MODEL. The phone itself keeps mirroring the player's hand.
     private var cameraPose: StageCameraPose {
-        switch category {
+        // The Pixel source asset authors its front/back convention opposite
+        // to our iPhone/procedural family. Keep BODY and SCREEN semantic for
+        // the player instead of exposing that file-format detail in Setup.
+        let importedFrontIsReversed = store.effective.formFactor == .pixel8Pro
+        return switch category {
         case .model: StageCameraPose(yaw: -2.62, pitch: 0.16, zoom: 0.70)
-        case .body: StageCameraPose(yaw: .pi, pitch: 0.10, zoom: 0.54)
+        case .body: StageCameraPose(yaw: importedFrontIsReversed ? 0 : .pi, pitch: 0.10, zoom: 0.54)
         case .edge: StageCameraPose(yaw: .pi / 2, pitch: 0.04, zoom: 0.44)
-        case .screen: StageCameraPose(yaw: 0, pitch: 0.02, zoom: 0.54)
+        case .screen: StageCameraPose(yaw: importedFrontIsReversed ? .pi : 0, pitch: 0.02, zoom: 0.54)
         }
     }
 
@@ -118,29 +122,64 @@ struct LockerView: View {
                 }
             }
         case .body:
-            cosmeticRail(
-                options: CosmeticCatalog.bodies,
-                selectedID: store.effective.bodyID
-            ) { option in
-                apply { $0.bodyID = option.id }
+            VStack(alignment: .leading, spacing: 12) {
+                cosmeticRail(
+                    options: CosmeticCatalog.bodies,
+                    selectedID: store.effective.customBodyColor == nil ? store.effective.bodyID : nil
+                ) { option in
+                    apply {
+                        $0.bodyID = option.id
+                        $0.customBodyColor = nil
+                    }
+                }
+                customColorPicker(
+                    title: "CUSTOM BODY",
+                    value: store.effective.bodyColor
+                ) { color in
+                    store.applyChange { $0.customBodyColor = color }
+                }
             }
         case .edge:
-            cosmeticRail(
-                options: CosmeticCatalog.edges,
-                selectedID: store.effective.edgeID
-            ) { option in
-                apply { $0.edgeID = option.id }
+            VStack(alignment: .leading, spacing: 12) {
+                cosmeticRail(
+                    options: CosmeticCatalog.edges,
+                    selectedID: store.effective.customEdgeColor == nil ? store.effective.edgeID : nil
+                ) { option in
+                    apply {
+                        $0.edgeID = option.id
+                        $0.customEdgeColor = nil
+                    }
+                }
+                customColorPicker(
+                    title: "CUSTOM EDGE",
+                    value: store.effective.edgeColor
+                ) { color in
+                    store.applyChange { $0.customEdgeColor = color }
+                }
             }
         case .screen:
             VStack(alignment: .leading, spacing: 12) {
                 cosmeticRail(
                     options: CosmeticCatalog.screens,
-                    selectedID: store.effective.screenID
+                    selectedID: store.effective.customScreenColor == nil ? store.effective.screenID : nil
                 ) { option in
-                    apply { $0.screenID = option.id }
+                    apply {
+                        $0.screenID = option.id
+                        $0.customScreenColor = nil
+                    }
                 }
                 if store.effective.usesCustomPhotoScreen {
                     photoPickerRow
+                } else {
+                    customColorPicker(
+                        title: "CUSTOM SCREEN",
+                        value: store.effective.screenColor
+                    ) { color in
+                        store.applyChange {
+                            $0.screenID = "screen-pitch"
+                            $0.customScreenColor = color
+                        }
+                    }
                 }
             }
         }
@@ -183,7 +222,7 @@ struct LockerView: View {
 
     private func cosmeticRail(
         options: [CosmeticOption],
-        selectedID: String,
+        selectedID: String?,
         select: @escaping (CosmeticOption) -> Void
     ) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -200,6 +239,49 @@ struct LockerView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// Native wide-gamut picker for precise personalization, while the
+    /// authored cards remain one-tap presets. Changes save live just like all
+    /// other Setup choices.
+    private func customColorPicker(
+        title: String,
+        value: CosmeticOption.ColorValue,
+        onChange: @escaping (CosmeticOption.ColorValue) -> Void
+    ) -> some View {
+        GlassSurface(role: .interactiveCard, cornerRadius: 18) {
+            ColorPicker(
+                selection: Binding(
+                    get: { value.color },
+                    set: { selected in
+                        let uiColor = UIColor(selected)
+                        var red: CGFloat = 0
+                        var green: CGFloat = 0
+                        var blue: CGFloat = 0
+                        var alpha: CGFloat = 0
+                        guard uiColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+                            return
+                        }
+                        onChange(.init(
+                            red: Double(red),
+                            green: Double(green),
+                            blue: Double(blue)
+                        ))
+                    }
+                ),
+                supportsOpacity: false
+            ) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 12, weight: .black, design: .rounded))
+                    Text("PICK ANY COLOR")
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.muted)
+                }
+            }
+            .padding(.horizontal, 16)
+            .frame(minHeight: 58)
         }
     }
 

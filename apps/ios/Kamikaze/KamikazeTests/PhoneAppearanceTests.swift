@@ -29,9 +29,19 @@ struct PhoneAppearanceTests {
         #expect(AppearanceStore(defaults: defaults).equipped.bodyID == "body-ion")
 
         store.applyChange { $0.formFactor = .proMax }
+        let custom = CosmeticOption.ColorValue(red: 0.21, green: 0.43, blue: 0.87)
+        store.applyChange {
+            $0.customBodyColor = custom
+            $0.customEdgeColor = custom
+            $0.customScreenColor = custom
+        }
         let reloaded = AppearanceStore(defaults: defaults)
         #expect(reloaded.equipped.bodyID == "body-ion")
         #expect(reloaded.equipped.formFactor == .proMax)
+        #expect(reloaded.equipped.bodyColor == custom)
+        #expect(reloaded.equipped.edgeColor == custom)
+        #expect(reloaded.equipped.screenColor == custom)
+        #expect(!reloaded.equipped.usesLiveScreen)
     }
 
     @Test func launchWaitsOnlyForThePlayersRequestedImportedAsset() {
@@ -68,9 +78,14 @@ struct PhoneAppearanceTests {
     }
 
     @Test func playerCatalogExposesNamedCurrentDevicesWithoutLegacyDuplicates() {
-        #expect(PhoneFormFactor.selectableCases.contains(.iPhone15Plus))
-        #expect(PhoneFormFactor.selectableCases.contains(.iPhone17ProMax))
-        #expect(PhoneFormFactor.selectableCases.contains(.androidGeneric))
+        #expect(PhoneFormFactor.selectableCases.contains(.real))
+        #expect(PhoneFormFactor.selectableCases.contains(.paint))
+        #expect(PhoneFormFactor.selectableCases.contains(.iPhone17ProMaxReal))
+        #expect(PhoneFormFactor.selectableCases.contains(.pixel8Pro))
+        #expect(PhoneFormFactor.selectableCases.contains(.iPhone15Pro))
+        #expect(PhoneFormFactor.iPhone15Pro.displayName == "SLOPPY PHONE")
+        #expect(!PhoneFormFactor.selectableCases.contains(.iPhone15Plus))
+        #expect(!PhoneFormFactor.selectableCases.contains(.androidGeneric))
         #expect(!PhoneFormFactor.selectableCases.contains(.standard))
         #expect(Set(PhoneFormFactor.selectableCases).count == PhoneFormFactor.selectableCases.count)
 
@@ -79,6 +94,8 @@ struct PhoneAppearanceTests {
         #expect(air.depth < proMax.depth)
         #expect(air.cameraLensCount == 1)
         #expect(proMax.cameraLensCount == 3)
+        #expect(PhoneModelFactory.assetID(for: .iPhone17ProMaxReal) == .iPhone17ProMax)
+        #expect(PhoneModelFactory.assetID(for: .pixel8Pro) == .pixel8Pro)
     }
 
     @Test func masteryGatedCosmeticsFollowPracticeProgress() throws {
@@ -105,7 +122,9 @@ struct PhoneAppearanceTests {
 
     @MainActor
     @Test func factoryBuildsNamedPartsPerFormFactor() {
-        let plus = PhoneModelFactory.makePhone(appearance: .default, accent: .blue)
+        var plusAppearance = PhoneAppearance.default
+        plusAppearance.formFactor = .plus
+        let plus = PhoneModelFactory.makePhone(appearance: plusAppearance, accent: .blue)
         let names = Set(collectNames(plus))
         for expected in [
             "phone-frame", "phone-back", "phone-screen",

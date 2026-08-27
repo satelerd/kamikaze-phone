@@ -11,6 +11,8 @@ enum PhoneModelFactory {
         switch formFactor {
         case .real: .scanned
         case .paint: .paintable
+        case .iPhone17ProMaxReal: .iPhone17ProMax
+        case .pixel8Pro: .pixel8Pro
         case .compact, .standard, .plus, .proMax,
              .iPhone15, .iPhone15Plus, .iPhone15Pro, .iPhone15ProMax,
              .iPhone16, .iPhone16Plus, .iPhone16Pro, .iPhone16ProMax,
@@ -44,16 +46,28 @@ enum PhoneModelFactory {
                     appearance: appearance,
                     screenLabel: screenLabel
                 )
+            } else if asset == .pixel8Pro {
+                PhoneModelLibrary.applyPixelCosmetics(
+                    to: real,
+                    appearance: appearance
+                )
             }
+            applyImportedScreen(
+                to: real,
+                asset: asset,
+                appearance: appearance,
+                accent: accent,
+                screenLabel: screenLabel
+            )
             return real
         }
         let shape = DeviceShapeDefinition.shape(for: appearance.formFactor)
         let root = Entity()
         root.name = "phone-root"
 
-        let edgeColor = uiColor(appearance.edge.color)
-        let bodyColor = uiColor(appearance.body.color)
-        let screenColor = appearance.usesLiveScreen ? accent : uiColor(appearance.screen.color)
+        let edgeColor = uiColor(appearance.edgeColor)
+        let bodyColor = uiColor(appearance.bodyColor)
+        let screenColor = appearance.usesLiveScreen ? accent : uiColor(appearance.screenColor)
 
         // Materials are deliberately conservative: SimpleMaterial was
         // physically validated on-device by the first native build, while a
@@ -150,8 +164,7 @@ enum PhoneModelFactory {
     /// hardware remain untouched.
     static func applyScreenMaterial(
         to entity: Entity,
-        material: any RealityKit.Material,
-        rotate180: Bool = false
+        material: any RealityKit.Material
     ) {
         let name = entity.name.lowercased()
         let isProceduralScreen = name == "phone-screen"
@@ -160,20 +173,41 @@ enum PhoneModelFactory {
            var model = entity.components[ModelComponent.self] {
             model.materials = model.materials.map { _ in material }
             entity.components.set(model)
-            // Video textures arrive in camera/display coordinates while the
-            // authored screen mesh uses RealityKit texture coordinates. Turn
-            // only the display plane once; never rotate the phone shell.
-            if rotate180,
-               !entity.children.contains(where: { $0.name == "video-screen-rotated-180" }) {
-                entity.orientation *= simd_quatf(angle: .pi, axis: SIMD3(0, 0, 1))
-                let marker = Entity()
-                marker.name = "video-screen-rotated-180"
-                entity.addChild(marker)
-            }
         }
         for child in entity.children {
-            applyScreenMaterial(to: child, material: material, rotate180: rotate180)
+            applyScreenMaterial(to: child, material: material)
         }
+    }
+
+    private static func applyImportedScreen(
+        to phone: Entity,
+        asset: PhoneAssetID,
+        appearance: PhoneAppearance,
+        accent: UIColor,
+        screenLabel: String?
+    ) {
+        let orientation: ScreenTextureOrientation = switch asset {
+        case .paintable: .flipVertical
+        case .pixel8Pro, .iPhone17ProMax: .rotate180
+        case .scanned: .standard
+        }
+        let material: UnlitMaterial?
+        if let screenLabel {
+            material = labelledScreenMaterial(
+                text: screenLabel,
+                orientation: orientation
+            )
+        } else if appearance.usesCustomPhotoScreen {
+            material = customPhotoScreenMaterial(orientation: orientation)
+        } else {
+            let color = appearance.usesLiveScreen
+                ? accent
+                : uiColor(appearance.screenColor)
+            material = UnlitMaterial(color: color.withAlphaComponent(0.98))
+        }
+        guard var material else { return }
+        material.faceCulling = .none
+        applyScreenMaterial(to: phone, material: material)
     }
 
     private static func makeCameraIsland(shape: DeviceShapeDefinition, edgeColor: UIColor) -> Entity {
@@ -249,8 +283,18 @@ enum PhoneModelFactory {
 
     /// The player's own screen image as an unlit material — unlit so the
     /// photo reads identically in every render path, like every screen here.
-    static func customPhotoScreenMaterial(flippedVertically: Bool = false) -> UnlitMaterial? {
-        guard let resource = CustomScreenStore.shared.texture(flippedVertically: flippedVertically)
+    enum ScreenTextureOrientation: Equatable, Sendable {
+        case standard
+        case flipVertical
+        case rotate180
+    }
+
+    static func customPhotoScreenMaterial(
+        flippedVertically: Bool = false,
+        orientation: ScreenTextureOrientation? = nil
+    ) -> UnlitMaterial? {
+        let resolvedOrientation = orientation ?? (flippedVertically ? .flipVertical : .standard)
+        guard let resource = CustomScreenStore.shared.texture(orientation: resolvedOrientation)
         else { return nil }
         var material = UnlitMaterial()
         material.color = .init(tint: .white, texture: .init(resource))
@@ -261,7 +305,8 @@ enum PhoneModelFactory {
     /// Volt, so the demo phone announces itself from any distance.
     static func labelledScreenMaterial(
         text: String,
-        flippedVertically: Bool = false
+        flippedVertically: Bool = false,
+        orientation: ScreenTextureOrientation? = nil
     ) -> UnlitMaterial? {
         let size = CGSize(width: 512, height: 1024)
         let renderer = UIGraphicsImageRenderer(size: size)
@@ -291,15 +336,23 @@ enum PhoneModelFactory {
                 withAttributes: caption
             )
         }
+        let resolvedOrientation = orientation ?? (flippedVertically ? .flipVertical : .standard)
         let textureImage: UIImage
-        if flippedVertically {
+        switch resolvedOrientation {
+        case .flipVertical:
             let flipped = UIGraphicsImageRenderer(size: size).image { context in
                 context.cgContext.translateBy(x: 0, y: size.height)
                 context.cgContext.scaleBy(x: 1, y: -1)
                 image.draw(in: CGRect(origin: .zero, size: size))
             }
             textureImage = flipped
-        } else {
+        case .rotate180:
+            textureImage = UIGraphicsImageRenderer(size: size).image { context in
+                context.cgContext.translateBy(x: size.width, y: size.height)
+                context.cgContext.rotate(by: .pi)
+                image.draw(in: CGRect(origin: .zero, size: size))
+            }
+        case .standard:
             textureImage = image
         }
         guard let cgImage = textureImage.cgImage,
