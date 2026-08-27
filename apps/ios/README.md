@@ -1,6 +1,10 @@
 # Kamikaze native beta
 
-This directory contains the native SwiftUI beta built beside the frozen Expo alpha. It currently includes the app shell, iOS 26 Liquid Glass boundary, pure motion core, a Core Motion device adapter, a live RealityKit phone stage and an experimental automatic detector validated on the reference iPhone. Recorded replay and persistence are the next vertical slice; segmentation/classification still require the schema-v3 separation and physical fixture expansion described in the master plan.
+This directory contains the lead SwiftUI implementation built beside the Expo
+alpha. The current beta includes native Core Motion capture and detection,
+RealityKit live/replay scenes, persistent attempts, Play and Practice,
+customizable phone models, accounts/sync foundations, a paged 3D social feed and
+an experimental camera-run editor/exporter.
 
 ## Requirements
 
@@ -61,10 +65,16 @@ In the Expo alpha, open Me > Settings > Export Alpha Data, save/share the genera
 ## Current acceptance state
 
 - Expo: 33 deterministic tests pass and TypeScript checks pass.
-- Swift package: seven tests pass, including both real Phone Flip fixture decodes plus synthetic low-trick, reset and timeout behavior.
-- Native app: command-line build passes on the iOS 26.5 Simulator and as a signed device build.
-- Physically validated: native Core Motion at a requested 100 Hz, measured-rate diagnostics, live RealityKit orientation, camera orbit/pinch/reset, Zero Pose and automatic closure of a real attempt.
-- Experimental: rule-based trick classification and schema-2 attempt construction. This is not yet a physical accuracy claim.
-- Not yet implemented natively: recorded replay transport, saved-attempt persistence, Result/Recent and complete Practice/Locker/Profile/Workshop behavior.
+- Swift motion package: 48 deterministic tests cover schema v3, segmentation,
+  replay, evidence quality and provisional matching.
+- Native app: command-line builds pass on the iOS Simulator; signed-device
+  installation and sensor behavior are validated on the reference iPhone.
+- Physically exercised: automatic capture closure, result/recent replay,
+  Practice, camera preview and front/rear source recording.
+- Release-candidate validation: slow-motion export, Photos save, native export
+  cards, new real-device meshes and paged feed interaction still require the
+  final physical-device checklist for each candidate.
+- Experimental: trick identity/scoring, community evidence workflows and social
+  cloud behavior remain beta contracts rather than production accuracy claims.
 
 See [`../../docs/NATIVE_BETA_KNOWN_ISSUES.md`](../../docs/NATIVE_BETA_KNOWN_ISSUES.md) before tuning the detector or using its output as a persistent product contract.

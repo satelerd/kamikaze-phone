@@ -35,7 +35,12 @@ THROW  →  CAPTURE  →  SEGMENT  →  IDENTIFY  →  SCORE  →  REPLAY
 - **Classic** returns to the original Kamikaze challenge: throw for height.
 - **Practice** teaches a target, watches the attempt and builds mastery over time.
 - **Replay** reconstructs the recorded orientation in an interactive 3D scene.
-- **Setup and Profile** keep phone appearance, history, records and progression.
+- **Camera** records a run with front/rear sources and turns measured motion into
+  a shareable 3D clip with an editable vertical cut.
+- **Feed** presents community throws as a paged, autoplaying 3D experience and
+  lays the foundation for shared trick evidence.
+- **Setup and Profile** keep phone models, custom screens, history, records,
+  accounts and progression.
 
 <p align="center">
   <img src="docs/media/readme/practice-progression.jpg" width="49%" alt="Kamikaze Practice progression with Shuvit and Flip levels">
@@ -104,6 +109,18 @@ Scan the QR code with Expo Go on a phone connected to the same reachable network
 The browser and simulators do not provide representative motion-sensor evidence.
 See the [`Expo guide`](apps/expo/README.md) for the preserved workshop and alpha
 workflow.
+
+## Releases
+
+The iOS app uses semantic product versions plus an increasing Apple build
+number. A substantial change first ships as a release candidate, is installed
+on a physical iPhone and passes the release checklist before the same version is
+marked stable.
+
+- App version: `0.2.0` · build `2`
+- Candidate tag: `native-ios-v0.2.0-rc.1`
+- Release notes: [`CHANGELOG.md`](CHANGELOG.md)
+- Historical milestones: [`docs/HISTORY.md`](docs/HISTORY.md)
 
 ## Repository map
 

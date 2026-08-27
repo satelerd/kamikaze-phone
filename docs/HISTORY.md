@@ -13,6 +13,7 @@ The repository uses folders for distinct implementations and Git tags for immuta
 | Playable Expo alpha | `expo-game-v0.3.0` | `mobile/` | Onboarding, Play, Practice, Locker, Profile and the complete game-experience alpha. |
 | Native iOS beta | `codex/native-beta` | `apps/ios/` on the current branch | SwiftUI, RealityKit and Core Motion rewrite in progress. |
 | Native device detector checkpoint | `native-beta-device-detector-v0.1.0` | `apps/ios/` | First signed iPhone build with validated live pose, native visual system and experimental automatic capture closure. Not a classifier-accuracy milestone. |
+| Native camera and community candidate | `native-ios-v0.2.0-rc.1` (planned) | `apps/ios/` | Play-integrated camera, microphone/source preservation, measured 3D video export, real-device customization and paged community feed. The tag is created only after the candidate branch is committed and installed for physical validation. |
 
 The old path shown for a tag is intentional: checking out a historical snapshot recreates the repository exactly as it existed then.
 
