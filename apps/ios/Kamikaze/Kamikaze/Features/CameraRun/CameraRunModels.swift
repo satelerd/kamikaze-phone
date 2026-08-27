@@ -167,9 +167,9 @@ nonisolated public enum CameraRunPermissionStatus: String, Codable, Equatable, S
     case unavailable
 }
 
-/// Photos is intentionally represented even though this prototype only
-/// requests camera access.  Export and share integration must make that
-/// permission explicit instead of silently writing to the photo library.
+/// Camera and microphone are requested only when Camera V2 is enabled. Photos
+/// remains a separate explicit permission requested only when the player taps
+/// Save; recording never silently writes to the library or uploads anything.
 nonisolated public struct CameraRunPermissionSnapshot: Codable, Equatable, Sendable {
     public var camera: CameraRunPermissionStatus
     public var microphone: CameraRunPermissionStatus

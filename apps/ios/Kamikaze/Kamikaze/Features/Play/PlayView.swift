@@ -25,7 +25,23 @@ struct PlayView: View {
 
     var body: some View {
         ZStack {
-            if run.result == nil || playMode == .line || playMode == .camera {
+            if let result = run.result,
+               playCamera.isEnabled,
+               !playCamera.isAttemptSealed(result.id),
+               playMode != .line,
+               playMode != .camera {
+                ExperienceFieldBackground()
+                VStack(spacing: 14) {
+                    ProgressView()
+                        .tint(KamikazeTheme.volt)
+                        .controlSize(.large)
+                    Text("SEALING CAMERA")
+                        .font(.system(size: 12, weight: .black, design: .monospaced))
+                    Text("Saving the catch and your reaction.")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(KamikazeTheme.muted)
+                }
+            } else if run.result == nil || playMode == .line || playMode == .camera {
                 ExperienceFieldBackground()
                 GlassCluster(spacing: 14) {
                     playContent
@@ -39,7 +55,18 @@ struct PlayView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .task { run.start() }
+        .task {
+            run.start()
+#if DEBUG
+            // Physical visual-validation hook: devicectl can launch the app
+            // with this argument, activate Camera V2 and capture the result
+            // without a human tap. It has no effect in release builds.
+            if ProcessInfo.processInfo.arguments.contains("--debug-camera-on"),
+               !playCamera.isEnabled {
+                await playCamera.toggle()
+            }
+#endif
+        }
         .onDisappear {
             lineRearmTask?.cancel()
             run.stop()
@@ -59,11 +86,16 @@ struct PlayView: View {
         .navigationDestination(isPresented: $showsCameraRun) {
             CameraRunPrototypeView()
         }
-        .fullScreenCover(item: Binding(
+        .fullScreenCover(item: Binding<NativeRunResult?>(
             get: {
                 switch playMode {
-                case .free, .follow, .classic: run.result
-                case .line, .camera: nil
+                case .free, .follow, .classic:
+                    guard let result = run.result else { return nil }
+                    if playCamera.isEnabled, !playCamera.isAttemptSealed(result.id) {
+                        return nil
+                    }
+                    return result
+                case .line, .camera: return nil
                 }
             },
             set: { if $0 == nil { run.dismissResult() } }

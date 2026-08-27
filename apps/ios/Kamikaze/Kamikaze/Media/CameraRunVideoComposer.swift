@@ -212,12 +212,42 @@ nonisolated public struct CameraRunReplayTimelinePlan: Equatable, Sendable {
     }
 }
 
+/// Pure timing contract for the automatic trick speed ramp. `playbackRate`
+/// describes source speed (0.35 means the measured window takes 1 / 0.35 as
+/// long in the finished clip); intro and reaction remain untouched at 1x.
+nonisolated struct CameraRunSpeedRampPlan: Equatable, Sendable {
+    let sourceRange: CameraRunTrim
+    let playbackRate: Double
+    let outputDurationS: Double
+
+    static func make(
+        sourceDurationS: Double,
+        sourceRange: CameraRunTrim,
+        playbackRate: Double
+    ) throws -> CameraRunSpeedRampPlan {
+        guard sourceDurationS.isFinite, sourceDurationS > 0,
+              playbackRate.isFinite, playbackRate > 0, playbackRate <= 1 else {
+            throw CameraRunVideoCompositionError.invalidDuration
+        }
+        let range = sourceRange.clamped(to: sourceDurationS)
+        guard range.durationS > 0 else {
+            throw CameraRunVideoCompositionError.invalidTrim
+        }
+        return CameraRunSpeedRampPlan(
+            sourceRange: range,
+            playbackRate: playbackRate,
+            outputDurationS: sourceDurationS + range.durationS * (1 / playbackRate - 1)
+        )
+    }
+}
+
 @MainActor
 public final class CameraRunVideoComposer {
     private struct LoadedSource {
         let source: CameraRunVideoSource
         let asset: AVURLAsset
         let track: AVAssetTrack
+        let audioTrack: AVAssetTrack?
         let duration: CMTime
         let naturalSize: CGSize
         let preferredTransform: CGAffineTransform
@@ -296,6 +326,17 @@ public final class CameraRunVideoComposer {
             instructionsByPosition[source.source.position] = layer
         }
 
+        // The microphone is duplicated into each original camera file so
+        // either source remains independently shareable. A composition must
+        // select it once — never mix the same microphone twice.
+        if let sourceAudio = loaded.first(where: { $0.audioTrack != nil })?.audioTrack,
+           let audioTrack = composition.addMutableTrack(
+               withMediaType: .audio,
+               preferredTrackID: kCMPersistentTrackID_Invalid
+           ) {
+            try audioTrack.insertTimeRange(sourceRange, of: sourceAudio, at: .zero)
+        }
+
         let instruction = AVMutableVideoCompositionInstruction()
         instruction.timeRange = CMTimeRange(start: .zero, duration: sourceRange.duration)
         // First instruction is visually frontmost. Keep the selfie camera on
@@ -329,7 +370,7 @@ public final class CameraRunVideoComposer {
 
         if !visibleCaptions.isEmpty {
             do {
-                try await Self.burnCaptions(
+                try await burnCaptions(
                     inputURL: baseOutputURL,
                     outputURL: request.outputURL,
                     captions: visibleCaptions,
@@ -354,6 +395,9 @@ public final class CameraRunVideoComposer {
     }
 
     public func saveToPhotos(_ artifact: CameraRunVideoCompositionArtifact) async throws {
+        guard FileManager.default.isReadableFile(atPath: artifact.url.path) else {
+            throw CameraRunVideoCompositionError.photosSaveFailed("The rendered MP4 is no longer readable.")
+        }
         let current = PHPhotoLibrary.authorizationStatus(for: .addOnly)
         let status: PHAuthorizationStatus
         if current == .notDetermined {
@@ -366,11 +410,103 @@ public final class CameraRunVideoComposer {
         }
         do {
             try await PHPhotoLibrary.shared().performChanges {
-                PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: artifact.url)
+                let request = PHAssetCreationRequest.forAsset()
+                let options = PHAssetResourceCreationOptions()
+                options.shouldMoveFile = false
+                request.addResource(with: .video, fileURL: artifact.url, options: options)
             }
         } catch {
             throw CameraRunVideoCompositionError.photosSaveFailed(error.localizedDescription)
         }
+    }
+
+    /// Adds the real microphone track to an already-rendered 3D replay. The
+    /// video pixels remain untouched; only a new MP4 container is written.
+    public func attachAudio(
+        videoURL: URL,
+        audioSourceURL: URL,
+        audioStartS: Double,
+        outputURL: URL,
+        canvas: CGSize
+    ) async throws -> CameraRunVideoCompositionArtifact {
+        guard !FileManager.default.fileExists(atPath: outputURL.path) else {
+            throw CameraRunVideoCompositionError.outputExists
+        }
+        let videoAsset = AVURLAsset(url: videoURL)
+        let audioAsset = AVURLAsset(url: audioSourceURL)
+        guard let videoSource = try await videoAsset.loadTracks(withMediaType: .video).first else {
+            throw CameraRunVideoCompositionError.missingVideoTrack("3D replay")
+        }
+        guard let audioSource = try await audioAsset.loadTracks(withMediaType: .audio).first else {
+            // A video-only capture is still a valid result when microphone
+            // permission was denied. Preserve it instead of failing export.
+            try FileManager.default.copyItem(at: videoURL, to: outputURL)
+            let duration = try await videoAsset.load(.duration).seconds
+            return CameraRunVideoCompositionArtifact(
+                url: outputURL,
+                durationS: max(0, duration),
+                canvas: canvas,
+                sourceCount: 1
+            )
+        }
+
+        let videoDuration = try await videoAsset.load(.duration)
+        let audioDuration = try await audioAsset.load(.duration)
+        let boundedAudioStart = min(
+            max(0, audioStartS),
+            max(0, audioDuration.seconds)
+        )
+        let availableAudio = max(0, audioDuration.seconds - boundedAudioStart)
+        let durationS = max(0, videoDuration.seconds)
+        let audioSpanS = min(durationS, availableAudio)
+        guard durationS > 0 else { throw CameraRunVideoCompositionError.invalidDuration }
+
+        let composition = AVMutableComposition()
+        guard let videoTrack = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ), let audioTrack = composition.addMutableTrack(
+            withMediaType: .audio,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else { throw CameraRunVideoCompositionError.cannotAddTrack }
+
+        let outputRange = CMTimeRange(
+            start: .zero,
+            duration: CMTime(seconds: durationS, preferredTimescale: 600)
+        )
+        try videoTrack.insertTimeRange(outputRange, of: videoSource, at: .zero)
+        videoTrack.preferredTransform = try await videoSource.load(.preferredTransform)
+        if audioSpanS > 0 {
+            try audioTrack.insertTimeRange(
+                CMTimeRange(
+                    start: CMTime(seconds: boundedAudioStart, preferredTimescale: 600),
+                    duration: CMTime(seconds: audioSpanS, preferredTimescale: 600)
+                ),
+                of: audioSource,
+                at: .zero
+            )
+        }
+
+        try FileManager.default.createDirectory(
+            at: outputURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        guard let exporter = AVAssetExportSession(
+            asset: composition,
+            presetName: AVAssetExportPresetHighestQuality
+        ) else { throw CameraRunVideoCompositionError.cannotCreateExporter }
+        exporter.shouldOptimizeForNetworkUse = true
+        do {
+            try await exporter.export(to: outputURL, as: .mp4)
+        } catch {
+            throw CameraRunVideoCompositionError.exportFailed(Self.exportDiagnostic(error: error))
+        }
+        return CameraRunVideoCompositionArtifact(
+            url: outputURL,
+            durationS: durationS,
+            canvas: canvas,
+            sourceCount: 1
+        )
     }
 
     /// Backwards-compatible end-card export. New Camera Run edits should call
@@ -471,6 +607,68 @@ public final class CameraRunVideoComposer {
                     of: camera.track,
                     at: CMTime(seconds: plan.cameraOutroStartS, preferredTimescale: 600)
                 )
+            }
+
+            if let sourceAudio = camera.audioTrack,
+               let outputAudio = composition.addMutableTrack(
+                   withMediaType: .audio,
+                   preferredTrackID: kCMPersistentTrackID_Invalid
+               ) {
+                // Preserve the real intro, throw sound/voice and reaction in
+                // the same three-act timing as the visual Story Cut. The
+                // replaced camera window is time-scaled to the measured 3D
+                // span; no synthetic sound is introduced.
+                let introAudioDurationS = max(0, plan.replayStartS)
+                if introAudioDurationS > 0 {
+                    try outputAudio.insertTimeRange(
+                        CMTimeRange(
+                            start: .zero,
+                            duration: CMTime(seconds: introAudioDurationS, preferredTimescale: 600)
+                        ),
+                        of: sourceAudio,
+                        at: .zero
+                    )
+                }
+
+                let middleSourceStartS = introAudioDurationS
+                let middleSourceEndS = cameraDurationS * plan.resumeProgress
+                let middleSourceDurationS = max(0, middleSourceEndS - middleSourceStartS)
+                let middleOutputDurationS = max(0, plan.cameraOutroStartS - plan.replayStartS)
+                if middleSourceDurationS > 0, middleOutputDurationS > 0 {
+                    let insertedRange = CMTimeRange(
+                        start: CMTime(seconds: middleSourceStartS, preferredTimescale: 600),
+                        duration: CMTime(seconds: middleSourceDurationS, preferredTimescale: 600)
+                    )
+                    try outputAudio.insertTimeRange(
+                        insertedRange,
+                        of: sourceAudio,
+                        at: CMTime(seconds: plan.replayStartS, preferredTimescale: 600)
+                    )
+                    outputAudio.scaleTimeRange(
+                        CMTimeRange(
+                            start: CMTime(seconds: plan.replayStartS, preferredTimescale: 600),
+                            duration: insertedRange.duration
+                        ),
+                        toDuration: CMTime(seconds: middleOutputDurationS, preferredTimescale: 600)
+                    )
+                }
+
+                if plan.cameraOutroDurationS > 0 {
+                    try outputAudio.insertTimeRange(
+                        CMTimeRange(
+                            start: CMTime(
+                                seconds: cameraDurationS * plan.resumeProgress,
+                                preferredTimescale: 600
+                            ),
+                            duration: CMTime(
+                                seconds: plan.cameraOutroDurationS,
+                                preferredTimescale: 600
+                            )
+                        ),
+                        of: sourceAudio,
+                        at: CMTime(seconds: plan.cameraOutroStartS, preferredTimescale: 600)
+                    )
+                }
             }
         } catch {
             throw CameraRunVideoCompositionError.exportFailed(error.localizedDescription)
@@ -609,6 +807,139 @@ public final class CameraRunVideoComposer {
         )
     }
 
+    /// Applies a three-part 1x → slow motion → 1x timing edit to an already
+    /// rendered Camera Run. Scaling the finished composition keeps the camera
+    /// texture, measured 3D, native field, watermark and microphone perfectly
+    /// synchronized without mutating any source artifact.
+    func applySpeedRamp(
+        to artifact: CameraRunVideoCompositionArtifact,
+        sourceRange: CameraRunTrim,
+        playbackRate: Double,
+        outputURL: URL
+    ) async throws -> CameraRunVideoCompositionArtifact {
+        guard !FileManager.default.fileExists(atPath: outputURL.path) else {
+            throw CameraRunVideoCompositionError.outputExists
+        }
+        let asset = AVURLAsset(url: artifact.url)
+        guard let sourceVideo = try await asset.loadTracks(withMediaType: .video).first else {
+            throw CameraRunVideoCompositionError.missingVideoTrack("speed-ramp source")
+        }
+        let sourceAudio = try await asset.loadTracks(withMediaType: .audio).first
+        let sourceVideoRange = try await sourceVideo.load(.timeRange)
+        let plan = try CameraRunSpeedRampPlan.make(
+            sourceDurationS: sourceVideoRange.duration.seconds,
+            sourceRange: sourceRange,
+            playbackRate: playbackRate
+        )
+        let composition = AVMutableComposition()
+        guard let outputVideo = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else {
+            throw CameraRunVideoCompositionError.cannotAddTrack
+        }
+
+        do {
+            outputVideo.preferredTransform = try await sourceVideo.load(.preferredTransform)
+            let beforeDuration = CMTime(
+                seconds: plan.sourceRange.startS,
+                preferredTimescale: 600
+            )
+            let slowSourceDuration = CMTime(
+                seconds: plan.sourceRange.durationS,
+                preferredTimescale: 600
+            )
+            let slowOutputDuration = CMTime(
+                seconds: plan.sourceRange.durationS / plan.playbackRate,
+                preferredTimescale: 600
+            )
+            let beforeSourceRange = CMTimeRange(
+                start: sourceVideoRange.start,
+                duration: beforeDuration
+            )
+            let slowSourceRange = CMTimeRange(
+                start: sourceVideoRange.start + beforeDuration,
+                duration: slowSourceDuration
+            )
+            let afterSourceRange = CMTimeRange(
+                start: CMTimeRangeGetEnd(slowSourceRange),
+                end: CMTimeRangeGetEnd(sourceVideoRange)
+            )
+
+            if beforeSourceRange.duration > .zero {
+                try outputVideo.insertTimeRange(beforeSourceRange, of: sourceVideo, at: .zero)
+            }
+            try outputVideo.insertTimeRange(slowSourceRange, of: sourceVideo, at: beforeDuration)
+            outputVideo.scaleTimeRange(
+                CMTimeRange(start: beforeDuration, duration: slowSourceDuration),
+                toDuration: slowOutputDuration
+            )
+            let afterOutputStart = beforeDuration + slowOutputDuration
+            if afterSourceRange.duration > .zero {
+                try outputVideo.insertTimeRange(afterSourceRange, of: sourceVideo, at: afterOutputStart)
+            }
+
+            if let sourceAudio,
+               let outputAudio = composition.addMutableTrack(
+                   withMediaType: .audio,
+                   preferredTrackID: kCMPersistentTrackID_Invalid
+               ) {
+                let audioRange = try await sourceAudio.load(.timeRange)
+
+                func insertAudio(_ sourceRange: CMTimeRange, at outputStart: CMTime) throws {
+                    let sharedRange = CMTimeRangeGetIntersection(sourceRange, otherRange: audioRange)
+                    guard sharedRange.duration > .zero else { return }
+                    try outputAudio.insertTimeRange(
+                        sharedRange,
+                        of: sourceAudio,
+                        at: outputStart + sharedRange.start - sourceRange.start
+                    )
+                }
+
+                try insertAudio(beforeSourceRange, at: .zero)
+                // Deliberately leave the slowed throw silent: voices before
+                // and after stay natural and the reaction remains in sync.
+                // A designed trick SFX can occupy this gap later without
+                // time-stretching AAC microphone samples.
+                try insertAudio(afterSourceRange, at: afterOutputStart)
+            }
+        } catch {
+            throw CameraRunVideoCompositionError.exportFailed(error.localizedDescription)
+        }
+
+        try FileManager.default.createDirectory(
+            at: outputURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        // Force a frame-based video composition for the variable-rate timing
+        // map. Without it, AVAssetExportSession attempts to preserve the
+        // source sample tables and rejects the fractional edit on iPhone.
+        let videoComposition = try await AVVideoComposition.videoComposition(
+            withPropertiesOf: composition
+        )
+        guard let exporter = AVAssetExportSession(
+            asset: composition,
+            presetName: AVAssetExportPresetHighestQuality
+        ) else {
+            throw CameraRunVideoCompositionError.cannotCreateExporter
+        }
+        exporter.videoComposition = videoComposition
+        exporter.shouldOptimizeForNetworkUse = true
+        do {
+            try await exporter.export(to: outputURL, as: .mp4)
+        } catch {
+            throw CameraRunVideoCompositionError.exportFailed(
+                "[speed-ramp] \(Self.exportDiagnostic(error: error))"
+            )
+        }
+        return CameraRunVideoCompositionArtifact(
+            url: outputURL,
+            durationS: plan.outputDurationS,
+            canvas: artifact.canvas,
+            sourceCount: artifact.sourceCount
+        )
+    }
+
     /// AVFoundation occasionally tears down a valid export while another
     /// RealityKit/AV playback surface is releasing its media resources. The
     /// physical-device symptom is the otherwise opaque "Operation Stopped".
@@ -680,12 +1011,14 @@ public final class CameraRunVideoComposer {
                 throw CameraRunVideoCompositionError.missingVideoTrack(source.position.rawValue)
             }
             async let duration = asset.load(.duration)
+            async let audioTracks = asset.loadTracks(withMediaType: .audio)
             async let naturalSize = track.load(.naturalSize)
             async let preferredTransform = track.load(.preferredTransform)
             loaded.append(try await LoadedSource(
                 source: source,
                 asset: asset,
                 track: track,
+                audioTrack: audioTracks.first,
                 duration: duration,
                 naturalSize: naturalSize,
                 preferredTransform: preferredTransform
@@ -715,7 +1048,7 @@ public final class CameraRunVideoComposer {
             .concatenating(CGAffineTransform(translationX: offsetX, y: offsetY))
     }
 
-    private static func burnCaptions(
+    private func burnCaptions(
         inputURL: URL,
         outputURL: URL,
         captions: [CameraRunCaption],
@@ -723,6 +1056,10 @@ public final class CameraRunVideoComposer {
         canvas: CGSize,
         frameRate: Int
     ) async throws {
+        let silentOutputURL = outputURL.deletingLastPathComponent().appending(
+            path: ".caption-video-\(UUID().uuidString).mp4"
+        )
+        defer { try? FileManager.default.removeItem(at: silentOutputURL) }
         let asset = AVURLAsset(url: inputURL)
         guard let sourceTrack = try await asset.loadTracks(withMediaType: .video).first else {
             throw CameraRunVideoCompositionError.missingVideoTrack("rendered camera")
@@ -740,7 +1077,7 @@ public final class CameraRunVideoComposer {
         }
         reader.add(readerOutput)
 
-        let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mp4)
+        let writer = try AVAssetWriter(outputURL: silentOutputURL, fileType: .mp4)
         let writerInput = AVAssetWriterInput(
             mediaType: .video,
             outputSettings: [
@@ -774,7 +1111,7 @@ public final class CameraRunVideoComposer {
 
         let context = CIContext(options: [.cacheIntermediates: false])
         let overlays = Dictionary(uniqueKeysWithValues: captions.compactMap { caption in
-            captionOverlay(for: caption, canvas: canvas).map { (caption.id, $0) }
+            Self.captionOverlay(for: caption, canvas: canvas).map { (caption.id, $0) }
         })
 
         while let sample = readerOutput.copyNextSampleBuffer() {
@@ -826,6 +1163,13 @@ public final class CameraRunVideoComposer {
                 writer.error?.localizedDescription ?? "Caption writer did not complete."
             )
         }
+        _ = try await attachAudio(
+            videoURL: silentOutputURL,
+            audioSourceURL: inputURL,
+            audioStartS: 0,
+            outputURL: outputURL,
+            canvas: canvas
+        )
         _ = frameRate // Output cadence follows the already-rendered source PTS.
     }
 

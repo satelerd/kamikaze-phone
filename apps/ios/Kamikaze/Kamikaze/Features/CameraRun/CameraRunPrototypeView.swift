@@ -27,6 +27,32 @@ struct CameraRunPrototypeView: View {
         case edit = "EDIT"
     }
 
+    private enum RenderStyle: String, CaseIterable {
+        case phoneReplay = "3D PHONE"
+        case storyCut = "STORY CUT"
+
+        var detail: String {
+            switch self {
+            case .phoneReplay:
+                "One continuous clip: the saved front camera lives on the measured 3D phone for the full intro, throw and reaction."
+            case .storyCut:
+                "Camera intro, measured 3D during the throw, then camera again for the reaction."
+            }
+        }
+    }
+
+    private enum ExportFormat: String, CaseIterable {
+        case vertical = "VERTICAL"
+        case horizontal = "HORIZONTAL"
+
+        var canvas: ReplayVideoCanvas {
+            switch self {
+            case .vertical: ReplayVideoCanvas(width: 720, height: 1_280)
+            case .horizontal: ReplayVideoCanvas(width: 1_280, height: 720)
+            }
+        }
+    }
+
     @State private var capture: CameraRunCaptureSession
     @State private var run = NativeRunModel()
     @State private var step: Step = .setup
@@ -40,6 +66,9 @@ struct CameraRunPrototypeView: View {
     @State private var replayResume = 0.68
     @State private var replayTransitionStyle: CameraRunReplayTransitionStyle = .crossDissolve
     @State private var replayTransitionDurationS = 0.25
+    @State private var renderStyle: RenderStyle = .phoneReplay
+    @State private var exportFormat: ExportFormat = .vertical
+    @State private var slowMotionRate = 1.0
     @State private var errorMessage: String?
     @State private var recorders: [CameraRunCameraPosition: CameraRunVideoRecorder] = [:]
     @State private var savedTracks: [SavedCameraTrack] = []
@@ -73,7 +102,10 @@ struct CameraRunPrototypeView: View {
 
     var body: some View {
         ZStack {
-            ExperienceFieldBackground(ambient: step == .recording ? KamikazeTheme.hazard : KamikazeTheme.ion)
+            ExperienceFieldBackground(
+                ambient: step == .recording ? KamikazeTheme.hazard : KamikazeTheme.ion,
+                externallyPaused: step == .edit || isRendering
+            )
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     header
@@ -164,57 +196,76 @@ struct CameraRunPrototypeView: View {
 
     @ViewBuilder
     private var cameraStage: some View {
-        GlassSurface(role: .contentPanel, cornerRadius: 28) {
-            ZStack(alignment: .topTrailing) {
-                if isRendering {
-                    LinearGradient(
-                        colors: [KamikazeTheme.pitch, KamikazeTheme.ion.opacity(0.22), KamikazeTheme.pitch],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    VStack(spacing: 13) {
-                        ProgressView()
-                            .tint(KamikazeTheme.volt)
-                            .controlSize(.large)
-                        Text(renderStage)
-                            .font(.system(size: 10, weight: .black, design: .monospaced))
-                            .foregroundStyle(KamikazeTheme.frost.opacity(0.8))
-                    }
-                } else if step == .edit, let savedPreviewPlayer {
-                    VideoPlayer(player: savedPreviewPlayer)
-                        .background(.black)
-                } else if isPrepared {
-                    CameraRunPreview(previewLayer: capture.previewLayer)
-                } else {
-                    LinearGradient(
-                        colors: [.black.opacity(0.2), KamikazeTheme.ion.opacity(0.18), .black.opacity(0.72)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    VStack(spacing: 12) {
-                        if isPreparingPreview {
-                            ProgressView()
-                                .tint(.white)
-                                .scaleEffect(1.15)
-                        } else {
-                            Image(systemName: "video.badge.ellipsis")
-                        }
-                        Text(stagePlaceholder)
-                            .font(.system(size: 11, weight: .black, design: .monospaced))
-                    }
-                    .foregroundStyle(.white.opacity(0.74))
+        if step == .edit {
+            // Liquid Glass composites *over* embedded AVKit controls. That
+            // frosted the play button and scrubber even though taps still
+            // worked. Media owns this clean black surface; glass remains on
+            // the editor controls around it.
+            cameraStageContent
+                .background(.black)
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(.white.opacity(0.12), lineWidth: 0.75)
+                        .allowsHitTesting(false)
                 }
-
-                Text(stageBadge)
-                    .font(.system(size: 8, weight: .black, design: .monospaced))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
-                    .background(.black.opacity(0.55), in: Capsule())
-                    .padding(12)
+        } else {
+            GlassSurface(role: .contentPanel, cornerRadius: 28) {
+                cameraStageContent
             }
-            .frame(height: 390)
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         }
+    }
+
+    private var cameraStageContent: some View {
+        ZStack(alignment: .topTrailing) {
+            if isRendering {
+                LinearGradient(
+                    colors: [KamikazeTheme.pitch, KamikazeTheme.ion.opacity(0.22), KamikazeTheme.pitch],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                VStack(spacing: 13) {
+                    ProgressView()
+                        .tint(KamikazeTheme.volt)
+                        .controlSize(.large)
+                    Text(renderStage)
+                        .font(.system(size: 10, weight: .black, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.frost.opacity(0.8))
+                }
+            } else if step == .edit, let savedPreviewPlayer {
+                VideoPlayer(player: savedPreviewPlayer)
+                    .background(.black)
+            } else if isPrepared {
+                CameraRunPreview(previewLayer: capture.previewLayer)
+            } else {
+                LinearGradient(
+                    colors: [.black.opacity(0.2), KamikazeTheme.ion.opacity(0.18), .black.opacity(0.72)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                VStack(spacing: 12) {
+                    if isPreparingPreview {
+                        ProgressView()
+                            .tint(.white)
+                            .scaleEffect(1.15)
+                    } else {
+                        Image(systemName: "video.badge.ellipsis")
+                    }
+                    Text(stagePlaceholder)
+                        .font(.system(size: 11, weight: .black, design: .monospaced))
+                }
+                .foregroundStyle(.white.opacity(0.74))
+            }
+
+            Text(stageBadge)
+                .font(.system(size: 8, weight: .black, design: .monospaced))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(.black.opacity(0.55), in: Capsule())
+                .padding(12)
+        }
+        .frame(height: 390)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
     }
 
     private var setupControls: some View {
@@ -390,7 +441,10 @@ struct CameraRunPrototypeView: View {
 
             if let result = editingResult, !isRendering {
                 CameraRunMeasuredReplayCard(result: result, take: editingTake)
-                replayStoryCutControls
+                renderStyleControls
+                if renderStyle == .storyCut {
+                    replayStoryCutControls
+                }
             }
 
             Button {
@@ -407,7 +461,7 @@ struct CameraRunPrototypeView: View {
                     .frame(maxWidth: .infinity, minHeight: 62)
                 } else {
                     Label(
-                        renderedArtifact == nil ? "RENDER SHARE VIDEO" : "RENDER CHANGES",
+                        renderButtonTitle,
                         systemImage: "wand.and.stars.inverse"
                     )
                     .font(.system(size: 14, weight: .black, design: .rounded))
@@ -422,7 +476,7 @@ struct CameraRunPrototypeView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         rowTitle(
                             "FINAL VIDEO READY",
-                            detail: "\(renderedArtifact.sourceCount) camera track\(renderedArtifact.sourceCount == 1 ? "" : "s") · \(String(format: "%.1f", renderedArtifact.durationS)) seconds · original sources preserved."
+                            detail: "\(String(format: "%.1f", renderedArtifact.durationS)) seconds · vertical MP4 · original camera sources preserved."
                         )
                         HStack(spacing: 10) {
                             ShareLink(item: renderedArtifact.url) {
@@ -467,6 +521,8 @@ struct CameraRunPrototypeView: View {
                 replayResume = 0.68
                 replayTransitionStyle = .crossDissolve
                 replayTransitionDurationS = 0.25
+                renderStyle = .phoneReplay
+                slowMotionRate = 1
                 Task { @MainActor in await preparePreview() }
             }
             .font(.system(size: 11, weight: .black, design: .rounded))
@@ -476,7 +532,7 @@ struct CameraRunPrototypeView: View {
     }
 
     private var prototypeBoundary: some View {
-        Text("BETA · Front/rear clips stay untouched while the export cuts from camera to the measured 3D replay and back. Audio capture/mixing remains a separate next layer; this pass never fabricates sound. Nothing uploads automatically.")
+        Text("BETA · Front/rear clips stay untouched while exports use measured motion. Camera runs request the microphone and preserve its real audio when permission is granted. Nothing uploads automatically.")
             .font(.system(size: 9, weight: .medium, design: .monospaced))
             .foregroundStyle(KamikazeTheme.muted)
             .fixedSize(horizontal: false, vertical: true)
@@ -531,6 +587,58 @@ struct CameraRunPrototypeView: View {
             }
             .padding(16)
         }
+    }
+
+    private var renderStyleControls: some View {
+        GlassSurface(role: .contentPanel, cornerRadius: 22) {
+            VStack(alignment: .leading, spacing: 12) {
+                rowTitle("EXPORT STYLE", detail: renderStyle.detail)
+                Picker("Export style", selection: $renderStyle) {
+                    ForEach(RenderStyle.allCases, id: \.self) { style in
+                        Text(style.rawValue).tag(style)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Picker("Format", selection: $exportFormat) {
+                    ForEach(ExportFormat.allCases, id: \.self) { format in
+                        Text(format.rawValue).tag(format)
+                    }
+                }
+                .pickerStyle(.segmented)
+                VStack(alignment: .leading, spacing: 7) {
+                    rowTitle(
+                        "TRICK SPEED",
+                        detail: slowMotionRate < 1
+                            ? "Intro and reaction stay at 1x. Only the measured motion window slows down."
+                            : "The complete clip plays at its original speed."
+                    )
+                    Picker("Trick speed", selection: $slowMotionRate) {
+                        Text("1×").tag(1.0)
+                        Text("0.5×").tag(0.5)
+                        Text("0.35×").tag(0.35)
+                    }
+                    .pickerStyle(.segmented)
+                }
+            }
+            .padding(16)
+        }
+        .onChange(of: renderStyle) { _, _ in
+            renderedArtifact = nil
+        }
+        .onChange(of: exportFormat) { _, _ in
+            renderedArtifact = nil
+        }
+        .onChange(of: slowMotionRate) { _, _ in
+            renderedArtifact = nil
+        }
+    }
+
+    private var renderButtonTitle: String {
+        if renderedArtifact != nil { return "RENDER CHANGES" }
+        if editingResult == nil { return "RENDER CAMERA VIDEO" }
+        return renderStyle == .phoneReplay
+            ? "RENDER 3D PHONE VIDEO"
+            : "RENDER STORY CUT"
     }
 
     private func rowTitle(_ title: String, detail: String) -> some View {
@@ -692,7 +800,7 @@ struct CameraRunPrototypeView: View {
 
         for cameraPosition in positions {
             let outputURL = runDirectory.appending(path: "\(cameraPosition.rawValue).mp4")
-            let recorder = CameraRunVideoRecorder(outputURL: outputURL)
+            let recorder = CameraRunVideoRecorder(outputURL: outputURL, position: cameraPosition)
             try recorder.start()
             capture.attachVideoRecorder(recorder, for: cameraPosition)
             started[cameraPosition] = recorder
@@ -753,6 +861,9 @@ struct CameraRunPrototypeView: View {
     @MainActor
     private func renderFinalVideo() async {
         guard !savedTracks.isEmpty, !isRendering else { return }
+        let previousIdleTimerState = UIApplication.shared.isIdleTimerDisabled
+        UIApplication.shared.isIdleTimerDisabled = true
+        defer { UIApplication.shared.isIdleTimerDisabled = previousIdleTimerState }
         savedPreviewPlayer?.pause()
         renderStage = "CLEARING LIVE PREVIEW"
         isRendering = true
@@ -794,65 +905,170 @@ struct CameraRunPrototypeView: View {
             .appending(path: "CameraRuns", directoryHint: .isDirectory)
             .appending(path: "Exports", directoryHint: .isDirectory)
         let exportID = UUID().uuidString
+        let wantsSpeedRamp = slowMotionRate < 0.999 && editingResult != nil
         let finalOutputURL = outputDirectory.appending(path: "kamikaze-camera-run-\(exportID).mp4")
-        let cameraOutputURL = editingResult == nil
-            ? finalOutputURL
-            : outputDirectory.appending(path: "camera-cut-\(exportID).mp4")
-        let request = CameraRunVideoCompositionRequest(
-            sources: savedTracks.map {
-                CameraRunVideoSource(position: $0.position, url: $0.artifact.url)
-            },
-            edit: CameraRunEdit(
-                trim: trim,
-                layout: CameraRunLayout(preset: layout),
-                captions: captions
-            ),
-            outputURL: cameraOutputURL
-        )
-
+        let baseOutputURL = wantsSpeedRamp
+            ? outputDirectory.appending(path: "normal-speed-\(exportID).mp4")
+            : finalOutputURL
         do {
             let composer = CameraRunVideoComposer()
-            renderStage = "COMPOSING CAMERA TRACKS"
-            let cameraArtifact = try await composer.export(request)
-            let artifact: CameraRunVideoCompositionArtifact
-            if let result = editingResult {
-                let replayURL = outputDirectory.appending(path: "measured-replay-\(exportID).mp4")
+            var artifact: CameraRunVideoCompositionArtifact
+            var speedRampRange: CameraRunTrim?
+
+            if let result = editingResult, renderStyle == .phoneReplay {
+                guard let screenTrack = savedTracks.first(where: { $0.position == .front })
+                    ?? savedTracks.first else {
+                    throw CameraRunVideoCompositionError.noSources
+                }
+                let motionFrames = ReplayBuilder.normalized(ReplayBuilder.buildFrames(
+                    payload: result.capture.samplePayload,
+                    boundaries: result.capture.attempt.boundaries
+                ))
+                let fullTakeFrames = CameraReplayTiming.fullTakeFrames(
+                    motionFrames: motionFrames,
+                    motionCaptureStartS: result.capture.attempt.boundaries.captureStartS,
+                    artifact: screenTrack.artifact
+                )
+                let boundaries = result.capture.attempt.boundaries
+                let replayDurationS = max(0, boundaries.captureEndS - boundaries.captureStartS)
+                let captureStartOnTakeS = CameraReplayTiming.videoTime(
+                    replayTimeS: 0,
+                    replayDurationS: replayDurationS,
+                    motionCaptureStartS: boundaries.captureStartS,
+                    artifact: screenTrack.artifact
+                )
+                speedRampRange = CameraRunTrim(
+                    startS: captureStartOnTakeS + boundaries.motionStartS - boundaries.captureStartS - trim.startS,
+                    endS: captureStartOnTakeS + boundaries.motionEndS - boundaries.captureStartS - trim.startS
+                ).clamped(to: trim.durationS)
+                let canvas = exportFormat.canvas
+                let silentOutputURL = outputDirectory.appending(path: "silent-phone-\(exportID).mp4")
                 let replayRequest = ReplayVideoExportRequest(
-                    capture: result.capture,
-                    outputURL: replayURL,
-                    canvas: ReplayVideoCanvas(width: 720, height: 1_280),
+                    frames: fullTakeFrames,
+                    edit: CameraRunEdit(trim: trim, captions: captions),
+                    outputURL: silentOutputURL,
+                    canvas: canvas,
                     frameRate: 30
                 )
-                renderStage = "RENDERING MEASURED 3D"
-                let frontTrack = savedTracks.first { $0.position == .front }
-                let videoOffsetS = frontTrack?.artifact.sourceStartTimestampS.map {
-                    max(0, result.capture.attempt.boundaries.captureStartS - $0)
-                } ?? 0
+                renderStage = "RENDERING FULL 3D PHONE"
                 let replayArtifact = try await ReplayVideoExporter().export(
                     replayRequest,
                     renderer: RealityKitReplayFrameRenderer(
                         appearance: appearance.effective,
                         accent: UIColor(KamikazeTheme.volt),
-                        screenVideoURL: frontTrack?.artifact.url,
-                        screenVideoOffsetS: videoOffsetS
+                        screenVideoURL: screenTrack.artifact.url,
+                        screenVideoOffsetS: 0,
+                        branding: ReplayVideoBranding(
+                            trickName: result.displayName,
+                            score: result.evaluation.score?.value
+                        )
+                    ),
+                    progress: { completed, total in
+                        renderStage = "RENDERING 3D  ·  \(completed) / \(total) FRAMES"
+                    }
+                )
+                renderStage = "ADDING MICROPHONE"
+                artifact = try await composer.attachAudio(
+                    videoURL: replayArtifact.url,
+                    audioSourceURL: screenTrack.artifact.url,
+                    audioStartS: trim.startS,
+                    outputURL: baseOutputURL,
+                    canvas: CGSize(
+                        width: CGFloat(replayArtifact.canvas.width),
+                        height: CGFloat(replayArtifact.canvas.height)
                     )
                 )
-                renderStage = "BUILDING STORY CUT"
-                artifact = try await composer.composeReplay(
-                    cameraArtifact: cameraArtifact,
-                    replayArtifact: replayArtifact,
-                    transition: CameraRunReplayTransition(
+                try? FileManager.default.removeItem(at: replayArtifact.url)
+            } else {
+                let cameraOutputURL = editingResult == nil
+                    ? finalOutputURL
+                    : outputDirectory.appending(path: "camera-cut-\(exportID).mp4")
+                let request = CameraRunVideoCompositionRequest(
+                    sources: savedTracks.map {
+                        CameraRunVideoSource(position: $0.position, url: $0.artifact.url)
+                    },
+                    edit: CameraRunEdit(
+                        trim: trim,
+                        layout: CameraRunLayout(
+                            preset: layout,
+                            width: exportFormat.canvas.width,
+                            height: exportFormat.canvas.height
+                        ),
+                        captions: captions
+                    ),
+                    outputURL: cameraOutputURL
+                )
+                renderStage = "COMPOSING CAMERA TRACKS"
+                let cameraArtifact = try await composer.export(request)
+
+                if let result = editingResult {
+                    let replayURL = outputDirectory.appending(path: "measured-replay-\(exportID).mp4")
+                    let replayRequest = ReplayVideoExportRequest(
+                        capture: result.capture,
+                        outputURL: replayURL,
+                        canvas: exportFormat.canvas,
+                        frameRate: 30
+                    )
+                    renderStage = "RENDERING MEASURED 3D"
+                    let frontTrack = savedTracks.first { $0.position == .front }
+                    let videoOffsetS = frontTrack?.artifact.sourceStartTimestampS.map {
+                        max(0, result.capture.attempt.boundaries.captureStartS - $0)
+                    } ?? 0
+                    let replayArtifact = try await ReplayVideoExporter().export(
+                        replayRequest,
+                        renderer: RealityKitReplayFrameRenderer(
+                            appearance: appearance.effective,
+                            accent: UIColor(KamikazeTheme.volt),
+                            screenVideoURL: frontTrack?.artifact.url,
+                            screenVideoOffsetS: videoOffsetS,
+                            branding: ReplayVideoBranding(
+                                trickName: result.displayName,
+                                score: result.evaluation.score?.value
+                            )
+                        ),
+                        progress: { completed, total in
+                            renderStage = "RENDERING 3D  ·  \(completed) / \(total) FRAMES"
+                        }
+                    )
+                    renderStage = "BUILDING STORY CUT"
+                    let transition = CameraRunReplayTransition(
                         entryProgress: replayEntry,
                         resumeProgress: replayResume,
                         style: replayTransitionStyle,
                         durationS: replayTransitionDurationS
-                    ),
+                    )
+                    let storyPlan = try CameraRunReplayTimelinePlan.make(
+                        cameraDurationS: cameraArtifact.durationS,
+                        replayDurationS: replayArtifact.durationS,
+                        transition: transition
+                    )
+                    let boundaries = result.capture.attempt.boundaries
+                    speedRampRange = CameraRunTrim(
+                        startS: storyPlan.replayStartS + boundaries.motionStartS - boundaries.captureStartS,
+                        endS: storyPlan.replayStartS + boundaries.motionEndS - boundaries.captureStartS
+                    ).clamped(to: storyPlan.outputDurationS)
+                    artifact = try await composer.composeReplay(
+                        cameraArtifact: cameraArtifact,
+                        replayArtifact: replayArtifact,
+                        transition: transition,
+                        outputURL: baseOutputURL
+                    )
+                    try? FileManager.default.removeItem(at: cameraArtifact.url)
+                    try? FileManager.default.removeItem(at: replayArtifact.url)
+                } else {
+                    artifact = cameraArtifact
+                }
+            }
+            if wantsSpeedRamp, let speedRampRange {
+                renderStage = "SLOWING THE TRICK  ·  \(String(format: "%.2g", slowMotionRate))×"
+                let normalSpeedArtifact = artifact
+                artifact = try await composer.applySpeedRamp(
+                    to: normalSpeedArtifact,
+                    sourceRange: speedRampRange,
+                    playbackRate: slowMotionRate,
                     outputURL: finalOutputURL
                 )
-                try? FileManager.default.removeItem(at: cameraArtifact.url)
-                try? FileManager.default.removeItem(at: replayArtifact.url)
-            } else {
-                artifact = cameraArtifact
+                try? FileManager.default.removeItem(at: normalSpeedArtifact.url)
             }
             renderedArtifact = artifact
             savedPreviewPlayer?.pause()

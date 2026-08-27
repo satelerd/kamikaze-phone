@@ -15,6 +15,40 @@ nonisolated public enum CameraRunCameraPosition: String, Codable, CaseIterable, 
     }
 }
 
+/// One source-of-truth for pixels consumed by the live 3D screen, the MP4
+/// recorder and every later editor/export path. RealityKit must never rotate
+/// or mirror the phone mesh to compensate for camera orientation.
+nonisolated public enum CameraRunVideoOrientationPolicy {
+    public static func portraitRotationAngle(
+        for position: CameraRunCameraPosition
+    ) -> CGFloat {
+        position == .front ? 270 : 90
+    }
+
+    /// With the front sensor rotated into our portrait pixel buffer, enabling
+    /// AVCaptureConnection mirroring produced the opposite of the familiar
+    /// selfie-preview interaction on the RealityKit screen. Keep it disabled
+    /// here so a player's right hand stays on the right side of that screen.
+    public static func connectionIsMirrored(
+        for position: CameraRunCameraPosition
+    ) -> Bool {
+        false
+    }
+
+    /// The sample renderer and AVAssetWriter interpret the front camera's
+    /// portrait buffers differently. Keep the live screen unchanged, and add
+    /// metadata only to the saved front clip so editor, Photos and every
+    /// downstream export agree on the same upright image.
+    public static func recordingTransform(
+        for position: CameraRunCameraPosition
+    ) -> CGAffineTransform {
+        // Capture connections already rotate the pixels into the portrait
+        // convention used by both the live renderer and writer. A second 180°
+        // metadata transform made editor/export frames upside down.
+        .identity
+    }
+}
+
 nonisolated public enum CameraRunCaptureMode: String, Codable, Equatable, Sendable {
     case singleCamera
     case multiCamera
@@ -120,6 +154,34 @@ nonisolated private final class CameraRunVideoSinkBox: @unchecked Sendable {
             recorders[position]?.consume(sample.value)
         }
     }
+
+    func appendAudio(_ sampleBuffer: CMSampleBuffer) {
+        let sample = CameraRunSampleBufferBox(sampleBuffer)
+        lock.withLock { recorders in
+            // Both camera files deliberately receive the same microphone
+            // track. They remain independently shareable, while later
+            // compositions select exactly one audio source to avoid doubling.
+            for recorder in recorders.values {
+                recorder.consumeAudio(sample.value)
+            }
+        }
+    }
+}
+
+nonisolated private final class CameraRunAudioSampleBufferDelegate: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate, @unchecked Sendable {
+    private let sink: CameraRunVideoSinkBox
+
+    init(sink: CameraRunVideoSinkBox) {
+        self.sink = sink
+    }
+
+    func captureOutput(
+        _ output: AVCaptureOutput,
+        didOutput sampleBuffer: CMSampleBuffer,
+        from connection: AVCaptureConnection
+    ) {
+        sink.appendAudio(sampleBuffer)
+    }
 }
 
 nonisolated private final class CameraRunSampleBufferBox: @unchecked Sendable {
@@ -193,6 +255,7 @@ public final class CameraRunCaptureSession {
     private let timestamps = CameraRunTimestampBox()
     private let videoSink = CameraRunVideoSinkBox()
     private var delegates: [CameraRunSampleBufferDelegate] = []
+    private var audioDelegate: CameraRunAudioSampleBufferDelegate?
     private var notificationTokens: [NSObjectProtocol] = []
     private var requestedMode: CameraRunCaptureMode = .singleCamera
     private var requestedPosition: CameraRunCameraPosition = .rear
@@ -258,6 +321,8 @@ public final class CameraRunCaptureSession {
             state = .unavailable(.permissionRestricted)
             throw CameraRunCaptureError.permissionRestricted
         }
+
+        await requestMicrophonePermission()
 
         capabilities = Self.detectCapabilities()
         guard capabilities.hasAnyCamera else {
@@ -393,8 +458,9 @@ public final class CameraRunCaptureSession {
         }
         newSession.addOutput(output)
         let videoConnection = output.connection(with: .video)
-        setPortrait(on: videoConnection)
-        if position == .front { setMirrored(on: videoConnection) }
+        setPortrait(on: videoConnection, position: position)
+        setMirroring(on: videoConnection, position: position)
+        audioDelegate = configureAudio(on: newSession)
         newSession.commitConfiguration()
         previewLayer = AVCaptureVideoPreviewLayer(session: newSession)
         previewLayer.videoGravity = .resizeAspectFill
@@ -462,9 +528,12 @@ public final class CameraRunCaptureSession {
             }
             newSession.addConnection(frontOutputConnection)
             newSession.addConnection(rearOutputConnection)
-            setPortrait(on: frontOutputConnection)
-            setPortrait(on: rearOutputConnection)
-            setMirrored(on: frontOutputConnection)
+            setPortrait(on: frontOutputConnection, position: .front)
+            setPortrait(on: rearOutputConnection, position: .rear)
+            setMirroring(on: frontOutputConnection, position: .front)
+            setMirroring(on: rearOutputConnection, position: .rear)
+
+            audioDelegate = configureAudio(on: newSession)
 
             let primaryPort = requestedPosition == .front ? frontPort : rearPort
             let newPreviewLayer = AVCaptureVideoPreviewLayer()
@@ -476,7 +545,8 @@ public final class CameraRunCaptureSession {
                 return false
             }
             newSession.addConnection(previewConnection)
-            setPortrait(on: previewConnection)
+            setPortrait(on: previewConnection, position: requestedPosition)
+            setMirroring(on: previewConnection, position: requestedPosition)
             newSession.commitConfiguration()
             previewLayer = newPreviewLayer
             session = newSession
@@ -509,6 +579,67 @@ public final class CameraRunCaptureSession {
         return discovery.devices.first
     }
 
+    private func requestMicrophonePermission() async {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            permission.microphone = .authorized
+        case .notDetermined:
+            let granted = await AVCaptureDevice.requestAccess(for: .audio)
+            permission.microphone = granted ? .authorized : .denied
+        case .denied:
+            permission.microphone = .denied
+        case .restricted:
+            permission.microphone = .restricted
+        @unknown default:
+            permission.microphone = .restricted
+        }
+    }
+
+    /// Audio is optional at the graph level: denying microphone permission
+    /// must never break motion gameplay or video-only capture. When permitted,
+    /// one microphone output feeds every active camera recorder.
+    private func configureAudio(on session: AVCaptureSession) -> CameraRunAudioSampleBufferDelegate? {
+        guard permission.microphone == .authorized,
+              let device = AVCaptureDevice.default(for: .audio),
+              let input = try? AVCaptureDeviceInput(device: device),
+              session.canAddInput(input)
+        else { return nil }
+
+        let output = AVCaptureAudioDataOutput()
+        let delegate = CameraRunAudioSampleBufferDelegate(sink: videoSink)
+        output.setSampleBufferDelegate(
+            delegate,
+            queue: DispatchQueue(label: "kamikaze.camera-run.audio", qos: .userInitiated)
+        )
+        guard session.canAddOutput(output) else { return nil }
+        session.addInput(input)
+        session.addOutput(output)
+        return delegate
+    }
+
+    private func configureAudio(on session: AVCaptureMultiCamSession) -> CameraRunAudioSampleBufferDelegate? {
+        guard permission.microphone == .authorized,
+              let device = AVCaptureDevice.default(for: .audio),
+              let input = try? AVCaptureDeviceInput(device: device)
+        else { return nil }
+
+        let output = AVCaptureAudioDataOutput()
+        let delegate = CameraRunAudioSampleBufferDelegate(sink: videoSink)
+        output.setSampleBufferDelegate(
+            delegate,
+            queue: DispatchQueue(label: "kamikaze.camera-run.audio.multicam", qos: .userInitiated)
+        )
+        guard session.canAddInput(input), session.canAddOutput(output) else { return nil }
+        session.addInputWithNoConnections(input)
+        session.addOutputWithNoConnections(output)
+        let ports = input.ports.filter { $0.mediaType == .audio }
+        guard !ports.isEmpty else { return nil }
+        let connection = AVCaptureConnection(inputPorts: ports, output: output)
+        guard session.canAddConnection(connection) else { return nil }
+        session.addConnection(connection)
+        return delegate
+    }
+
     private static func detectCapabilities() -> CameraRunCaptureCapabilities {
         #if targetEnvironment(simulator)
         return CameraRunCaptureCapabilities(
@@ -535,17 +666,31 @@ public final class CameraRunCaptureSession {
         #endif
     }
 
-    private func setPortrait(on connection: AVCaptureConnection?) {
+    private func setPortrait(
+        on connection: AVCaptureConnection?,
+        position: CameraRunCameraPosition
+    ) {
         guard let connection else { return }
-        if connection.isVideoRotationAngleSupported(90) {
-            connection.videoRotationAngle = 90
+        // Keep RealityKit geometry untouched. The first Camera V2 build put
+        // the feed on the correct physical screen; rotating that screen entity
+        // to fix an upside-down selfie moved/broke the imported mesh. Correct
+        // the pixels at the AVFoundation connection instead: front capture is
+        // 180° opposite the rear sensor in our portrait pipeline.
+        let angle = CameraRunVideoOrientationPolicy.portraitRotationAngle(for: position)
+        if connection.isVideoRotationAngleSupported(angle) {
+            connection.videoRotationAngle = angle
         }
     }
 
-    private func setMirrored(on connection: AVCaptureConnection?) {
+    private func setMirroring(
+        on connection: AVCaptureConnection?,
+        position: CameraRunCameraPosition
+    ) {
         guard let connection, connection.isVideoMirroringSupported else { return }
         connection.automaticallyAdjustsVideoMirroring = false
-        connection.isVideoMirrored = true
+        connection.isVideoMirrored = CameraRunVideoOrientationPolicy.connectionIsMirrored(
+            for: position
+        )
     }
 
     private func registerNotifications() {

@@ -113,4 +113,39 @@ final class KamikazeUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["BACKSIDE SHUVIT"].exists)
         XCTAssertTrue(app.staticTexts["0/3"].exists)
     }
+
+    /// Physical-device visual gate for Camera V2. The unit suite verifies
+    /// the authored -Z face contract; this test keeps a screenshot proving
+    /// that the live selfie material is actually visible on that display in
+    /// the shipping Play scene. A simulator cannot provide the camera stream.
+    @MainActor
+    func testPhysicalCameraAppearsOnPhoneDisplay() throws {
+#if targetEnvironment(simulator)
+        throw XCTSkip("Camera V2 needs a physical iPhone")
+#else
+        let app = XCUIApplication()
+        app.launchArguments = ["-onboardingComplete", "YES", "-debugInitialTab", "play"]
+
+        addUIInterruptionMonitor(withDescription: "Camera permission") { alert in
+            let allow = alert.buttons["Allow"]
+            if allow.exists {
+                allow.tap()
+                return true
+            }
+            return false
+        }
+
+        app.launch()
+        let cameraOff = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] 'CAMERA' AND label CONTAINS[c] 'OFF'")
+        ).firstMatch
+        XCTAssertTrue(cameraOff.waitForExistence(timeout: 6))
+        cameraOff.tap()
+        app.tap() // Gives an eventual system permission alert to the monitor.
+
+        XCTAssertTrue(app.staticTexts["ON"].waitForExistence(timeout: 8))
+        sleep(2)
+        keepScreenshot(of: app, named: "camera-v2-phone-display")
+#endif
+    }
 }

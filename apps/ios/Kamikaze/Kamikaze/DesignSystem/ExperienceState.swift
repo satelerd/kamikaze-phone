@@ -113,6 +113,10 @@ final class ExperienceCoordinator {
 struct ExperienceFieldBackground: View {
     @Environment(ExperienceCoordinator.self) private var experience
     var ambient: Color?
+    /// Media editors already drive VideoToolbox + RealityKit. Their field can
+    /// stay visually present but freeze its clock to avoid a second fullscreen
+    /// GPU animation competing with playback and export.
+    var externallyPaused = false
     /// Tab stacks keep every screen alive; only the visible one may animate
     /// its field, or four fields burn frames for one viewport.
     @State private var isVisible = false
@@ -125,7 +129,7 @@ struct ExperienceFieldBackground: View {
                 SlipstreamField(
                     accent: experience.fieldAccent(ambient: ambient),
                     energy: experience.state.reduceEffects ? 0 : experience.state.motionEnergy,
-                    paused: !isVisible
+                    paused: !isVisible || externallyPaused
                 )
             }
         }

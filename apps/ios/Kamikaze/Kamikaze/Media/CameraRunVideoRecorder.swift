@@ -60,24 +60,29 @@ nonisolated private final class CameraRunVideoSampleBox: @unchecked Sendable {
     }
 }
 
-/// A bounded, video-only writer for camera samples.  It intentionally has no
-/// microphone or Photos-library side effects; callers explicitly choose those
-/// integrations later.  Samples arrive from AVFoundation's serial output
-/// queue, while `finish()` waits for that same queue to flush.
+/// A bounded local writer for camera and optional microphone samples. It has
+/// no Photos-library or network side effects. Samples arrive from AVFoundation
+/// output queues, while `finish()` waits for this writer queue to flush.
 nonisolated public final class CameraRunVideoRecorder: @unchecked Sendable {
     public let outputURL: URL
+    public let position: CameraRunCameraPosition
 
     private let queue = DispatchQueue(label: "kamikaze.camera-run.writer", qos: .userInitiated)
     private var writer: AVAssetWriter?
-    private var input: AVAssetWriterInput?
+    private var videoInput: AVAssetWriterInput?
+    private var audioInput: AVAssetWriterInput?
     private var startedSession = false
     private var finished = false
     private var frameCount = 0
     private var firstTimestamp: CMTime?
     private var lastTimestamp: CMTime?
 
-    public init(outputURL: URL) {
+    public init(
+        outputURL: URL,
+        position: CameraRunCameraPosition = .rear
+    ) {
         self.outputURL = outputURL
+        self.position = position
     }
 
     public func start() throws {
@@ -91,7 +96,7 @@ nonisolated public final class CameraRunVideoRecorder: @unchecked Sendable {
                     withIntermediateDirectories: true
                 )
                 let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mp4)
-                let input = AVAssetWriterInput(
+                let videoInput = AVAssetWriterInput(
                     mediaType: .video,
                     outputSettings: [
                         AVVideoCodecKey: AVVideoCodecType.h264,
@@ -103,18 +108,36 @@ nonisolated public final class CameraRunVideoRecorder: @unchecked Sendable {
                         ]
                     ]
                 )
-                input.expectsMediaDataInRealTime = true
-                guard writer.canAdd(input) else {
+                videoInput.expectsMediaDataInRealTime = true
+                videoInput.transform = CameraRunVideoOrientationPolicy.recordingTransform(for: position)
+                guard writer.canAdd(videoInput) else {
                     throw CameraRunVideoRecorderError.cannotAddInput
                 }
-                writer.add(input)
+                writer.add(videoInput)
+
+                let audioInput = AVAssetWriterInput(
+                    mediaType: .audio,
+                    outputSettings: [
+                        AVFormatIDKey: kAudioFormatMPEG4AAC,
+                        AVNumberOfChannelsKey: 1,
+                        AVSampleRateKey: 44_100,
+                        AVEncoderBitRateKey: 128_000
+                    ]
+                )
+                audioInput.expectsMediaDataInRealTime = true
+                if writer.canAdd(audioInput) {
+                    writer.add(audioInput)
+                    self.audioInput = audioInput
+                } else {
+                    self.audioInput = nil
+                }
                 guard writer.startWriting() else {
                     throw CameraRunVideoRecorderError.cannotCreateWriter(
                         writer.error?.localizedDescription ?? "startWriting returned false"
                     )
                 }
                 self.writer = writer
-                self.input = input
+                self.videoInput = videoInput
                 self.startedSession = false
                 self.finished = false
                 self.frameCount = 0
@@ -137,6 +160,13 @@ nonisolated public final class CameraRunVideoRecorder: @unchecked Sendable {
         }
     }
 
+    internal func consumeAudio(_ sampleBuffer: CMSampleBuffer) {
+        let sample = CameraRunVideoSampleBox(sampleBuffer)
+        queue.async { [weak self] in
+            self?.appendAudioSynchronously(sample.value)
+        }
+    }
+
     public func finish() async throws -> CameraRunRecordingArtifact {
         try await withCheckedThrowingContinuation { continuation in
             queue.async { [weak self] in
@@ -149,7 +179,7 @@ nonisolated public final class CameraRunVideoRecorder: @unchecked Sendable {
                     return
                 }
                 self.finished = true
-                guard let writer = self.writer, let input = self.input else {
+                guard let writer = self.writer, let videoInput = self.videoInput else {
                     continuation.resume(throwing: CameraRunVideoRecorderError.noVideoFrames)
                     return
                 }
@@ -158,7 +188,8 @@ nonisolated public final class CameraRunVideoRecorder: @unchecked Sendable {
                     continuation.resume(throwing: CameraRunVideoRecorderError.noVideoFrames)
                     return
                 }
-                input.markAsFinished()
+                videoInput.markAsFinished()
+                self.audioInput?.markAsFinished()
                 writer.finishWriting {
                     if self.writer?.status == .completed {
                         let durationS: Double
@@ -185,23 +216,41 @@ nonisolated public final class CameraRunVideoRecorder: @unchecked Sendable {
     }
 
     private func appendSynchronously(_ sampleBuffer: CMSampleBuffer) {
-        guard !finished, let writer, let input else { return }
+        guard !finished, let writer, let videoInput else { return }
         guard CMSampleBufferDataIsReady(sampleBuffer) else { return }
         guard let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).isValid
                 ? Optional(CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
                 : nil else { return }
-        guard input.isReadyForMoreMediaData else { return }
-        if !startedSession {
-            writer.startSession(atSourceTime: timestamp)
-            startedSession = true
-            firstTimestamp = timestamp
-        }
-        guard input.append(sampleBuffer) else {
+        guard videoInput.isReadyForMoreMediaData else { return }
+        startSessionIfNeeded(writer: writer, timestamp: timestamp)
+        guard videoInput.append(sampleBuffer) else {
             finished = true
             writer.cancelWriting()
             return
         }
-        lastTimestamp = timestamp
+        updateTimestampRange(timestamp)
         frameCount += 1
+    }
+
+    private func appendAudioSynchronously(_ sampleBuffer: CMSampleBuffer) {
+        guard !finished, let writer, let audioInput else { return }
+        guard CMSampleBufferDataIsReady(sampleBuffer) else { return }
+        let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        guard timestamp.isValid, audioInput.isReadyForMoreMediaData else { return }
+        startSessionIfNeeded(writer: writer, timestamp: timestamp)
+        guard audioInput.append(sampleBuffer) else { return }
+        updateTimestampRange(timestamp)
+    }
+
+    private func startSessionIfNeeded(writer: AVAssetWriter, timestamp: CMTime) {
+        guard !startedSession else { return }
+        writer.startSession(atSourceTime: timestamp)
+        startedSession = true
+        firstTimestamp = timestamp
+    }
+
+    private func updateTimestampRange(_ timestamp: CMTime) {
+        if firstTimestamp == nil || timestamp < firstTimestamp! { firstTimestamp = timestamp }
+        if lastTimestamp == nil || timestamp > lastTimestamp! { lastTimestamp = timestamp }
     }
 }

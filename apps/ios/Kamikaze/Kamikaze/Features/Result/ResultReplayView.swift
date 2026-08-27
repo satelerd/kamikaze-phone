@@ -88,7 +88,8 @@ struct ResultReplayView: View {
             // invalidated the entire result hierarchy on every frame.
             SlipstreamField(
                 accent: accent,
-                energy: resultFieldEnergy
+                energy: resultFieldEnergy,
+                paused: showsCameraEditor
             )
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -196,7 +197,12 @@ struct ResultReplayView: View {
                 .padding(.bottom, 40)
             }
         }
-        .onAppear { replay.play() }
+        .onAppear {
+            // Audio must remain at its natural pitch. Sensor-only replays keep
+            // the slower study speed; Camera V2 results start at realtime.
+            if cameraTake != nil { replay.setSpeed(.normal) }
+            replay.play()
+        }
         .onDisappear { replay.pause() }
         .confirmationDialog(
             "Delete this attempt?",

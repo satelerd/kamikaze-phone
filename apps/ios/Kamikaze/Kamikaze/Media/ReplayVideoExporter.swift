@@ -3,6 +3,7 @@ import CoreVideo
 import Foundation
 import KamikazeMotionCore
 import RealityKit
+import SwiftUI
 import UIKit
 @preconcurrency import AVFoundation
 
@@ -16,6 +17,20 @@ nonisolated public struct ReplayVideoCanvas: Codable, Equatable, Sendable {
     }
 
     public static let vertical = ReplayVideoCanvas()
+}
+
+/// Player-facing identity burned into a shareable replay. All fields are
+/// optional except the product mark so an export never invents a detector
+/// result or score that was not present on the captured attempt.
+nonisolated struct ReplayVideoBranding: Equatable, Sendable {
+    let trickName: String?
+    let score: Int?
+
+    init(trickName: String? = nil, score: Int? = nil) {
+        let cleanedName = trickName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.trickName = cleanedName?.isEmpty == false ? cleanedName : nil
+        self.score = score.map { min(100, max(0, $0)) }
+    }
 }
 
 nonisolated public enum ReplayVideoExportError: Error, Equatable, LocalizedError, Sendable {
@@ -287,16 +302,19 @@ final class RealityKitReplayFrameRenderer: ReplayVideoFrameRenderer {
     private var activeCanvas: ReplayVideoCanvas?
     private let screenVideoGenerator: AVAssetImageGenerator?
     private let screenVideoOffsetS: Double
+    private let branding: ReplayVideoBranding
 
     init(
         appearance: PhoneAppearance,
         accent: UIColor,
         screenVideoURL: URL? = nil,
-        screenVideoOffsetS: Double = 0
+        screenVideoOffsetS: Double = 0,
+        branding: ReplayVideoBranding = .init()
     ) {
         self.appearance = appearance
         self.accent = accent
         self.screenVideoOffsetS = max(0, screenVideoOffsetS)
+        self.branding = branding
         if let screenVideoURL {
             let generator = AVAssetImageGenerator(asset: AVURLAsset(url: screenVideoURL))
             generator.appliesPreferredTrackTransform = true
@@ -340,7 +358,9 @@ final class RealityKitReplayFrameRenderer: ReplayVideoFrameRenderer {
             snapshot: snapshot,
             frame: frame,
             canvas: canvas,
-            caption: caption
+            caption: caption,
+            accent: accent,
+            branding: branding
         )
     }
 
@@ -356,7 +376,7 @@ final class RealityKitReplayFrameRenderer: ReplayVideoFrameRenderer {
         ) else { return }
         var material = UnlitMaterial()
         material.color = .init(tint: .white, texture: .init(texture))
-        PhoneModelFactory.applyScreenMaterial(to: phone, material: material, rotate180: true)
+        PhoneModelFactory.applyScreenMaterial(to: phone, material: material)
     }
 
     private func prepareScene(for canvas: ReplayVideoCanvas) throws {
@@ -372,16 +392,22 @@ final class RealityKitReplayFrameRenderer: ReplayVideoFrameRenderer {
             automaticallyConfigureSession: false
         )
         view.contentScaleFactor = 1
-        view.environment.background = .color(UIColor(red: 0.02, green: 0.025, blue: 0.04, alpha: 1))
+        // The animated field is composited after RealityKit snapshots the
+        // measured phone. Keeping this scene transparent avoids baking the
+        // former static black stage into every exported frame.
+        view.isOpaque = false
+        view.backgroundColor = .clear
+        view.environment.background = .color(.clear)
 
         let anchor = AnchorEntity(world: .zero)
         let phone = PhoneModelFactory.makePhone(appearance: appearance, accent: accent)
         phone.name = "export-phone"
-        // ARView's non-AR camera sits at the origin and looks down -Z. Keep
-        // the phone's pivot intact and move only its world position.
-        // A social vertical cut should read the phone immediately. The
-        // previous distance left it visually tiny on an iPhone screen.
-        phone.position.z = -0.36
+        // ARView's implicit non-AR camera is read-only. Scale the isolated
+        // export clone (never the shared model) into a social-video hero
+        // framing; the former physical-size render occupied only a few
+        // percent of the canvas on device.
+        phone.scale *= SIMD3(repeating: canvas.width > canvas.height ? 4.75 : 5.65)
+        phone.position.z = canvas.width > canvas.height ? -0.30 : -0.22
         anchor.addChild(phone)
         anchor.addChild(PhoneModelFactory.makeLightRig())
         view.scene.addAnchor(anchor)
@@ -395,30 +421,49 @@ final class RealityKitReplayFrameRenderer: ReplayVideoFrameRenderer {
         snapshot: UIImage,
         frame: ReplayFrame,
         canvas: ReplayVideoCanvas,
-        caption: CameraRunCaption?
+        caption: CameraRunCaption?,
+        accent: UIColor,
+        branding: ReplayVideoBranding
     ) throws -> CGImage {
         let size = CGSize(width: canvas.width, height: canvas.height)
+        let nativeScene = KamikazeNativeExportScene(
+            size: size,
+            snapshot: snapshot,
+            timeS: frame.timestampMs / 1_000,
+            energy: min(1, max(0, frame.gyroDps / 1_100)),
+            accent: Color(uiColor: accent),
+            branding: branding,
+            caption: caption
+        )
+        let nativeRenderer = ImageRenderer(content: nativeScene)
+        nativeRenderer.proposedSize = ProposedViewSize(size)
+        nativeRenderer.scale = 1
+        nativeRenderer.isOpaque = true
+        if let nativeImage = nativeRenderer.cgImage {
+            return nativeImage
+        }
+
+        // ImageRenderer can decline unsupported platform-backed content. The
+        // RealityKit phone is already a UIImage, so this should only be hit on
+        // an OS/render-service failure; preserve a deterministic offline path
+        // rather than failing a long export at its final frame.
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = true
-        let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { rendererContext in
+            KamikazeExportArtwork.drawFluxField(
+                in: rendererContext.cgContext,
+                size: size,
+                timeS: frame.timestampMs / 1_000,
+                accent: accent
+            )
             snapshot.draw(in: CGRect(origin: .zero, size: size))
 
-            let title: [NSAttributedString.Key: Any] = [
-                .font: UIFont.monospacedSystemFont(ofSize: size.width * 0.033, weight: .black),
-                .foregroundColor: UIColor.white
-            ]
-            NSString(string: "KAMIKAZE · MEASURED REPLAY").draw(
-                at: CGPoint(x: size.width * 0.06, y: size.height * 0.055),
-                withAttributes: title
-            )
-            let telemetry: [NSAttributedString.Key: Any] = [
-                .font: UIFont.monospacedSystemFont(ofSize: size.width * 0.026, weight: .bold),
-                .foregroundColor: UIColor(red: 0.84, green: 1, blue: 0.29, alpha: 1)
-            ]
-            NSString(string: String(format: "%.0f MS  ·  %.0f°/S", frame.timestampMs, frame.gyroDps)).draw(
-                at: CGPoint(x: size.width * 0.06, y: size.height * 0.91),
-                withAttributes: telemetry
+            KamikazeExportArtwork.drawGlassReceipt(
+                in: rendererContext.cgContext,
+                size: size,
+                branding: branding,
+                accent: accent
             )
 
             if let caption, !caption.text.isEmpty {
@@ -447,6 +492,365 @@ final class RealityKitReplayFrameRenderer: ReplayVideoFrameRenderer {
             throw ReplayVideoExportError.renderFailed("RealityKit snapshot could not be rasterized.")
         }
         return cgImage
+    }
+}
+
+/// The high-fidelity export stage is composed from the exact same SwiftUI
+/// primitives as the app: the selected Slipstream/Flux field and iOS 26
+/// GlassSurface. RealityKit is rasterized first because ImageRenderer only
+/// guarantees SwiftUI-rendered content; placing that image inside this scene
+/// lets the native glass refract the real field beneath it.
+@MainActor
+private struct KamikazeNativeExportScene: View {
+    let size: CGSize
+    let snapshot: UIImage
+    let timeS: Double
+    let energy: Double
+    let accent: Color
+    let branding: ReplayVideoBranding
+    let caption: CameraRunCaption?
+
+    var body: some View {
+        ZStack {
+            SlipstreamField(
+                accent: accent,
+                energy: energy,
+                timeOverride: timeS
+            )
+            .frame(width: size.width, height: size.height)
+
+            Image(uiImage: snapshot)
+                .resizable()
+                .frame(width: size.width, height: size.height)
+
+            VStack(spacing: 0) {
+                brandCard
+                Spacer(minLength: 0)
+                resultCard
+            }
+            .padding(.horizontal, min(size.width, size.height) * 0.055)
+            .padding(.vertical, min(size.width, size.height) * 0.050)
+
+            if let caption, !caption.text.isEmpty {
+                captionView(caption)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .clipped()
+    }
+
+    private var brandCard: some View {
+        let horizontal = size.width > size.height
+        let titleSize = horizontal ? size.width * 0.046 : size.width * 0.068
+        return GlassSurface(role: .instrumentHUD, cornerRadius: horizontal ? 38 : 32) {
+            (
+                Text("KAMIKAZE: ").foregroundColor(KamikazeTheme.frost)
+                + Text("PHONE FLIP").foregroundColor(accent)
+            )
+            .font(.system(size: titleSize, weight: .black, design: .rounded))
+            .tracking(-titleSize * 0.050)
+            .lineLimit(1)
+            .minimumScaleFactor(0.62)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, horizontal ? 34 : 25)
+            .padding(.vertical, horizontal ? 27 : 25)
+        }
+        .frame(width: size.width * 0.89)
+    }
+
+    private var resultCard: some View {
+        let horizontal = size.width > size.height
+        let trickSize = horizontal ? size.width * 0.035 : size.width * 0.060
+        let scoreSize = horizontal ? size.width * 0.070 : size.width * 0.145
+        return GlassSurface(role: .contentPanel, cornerRadius: horizontal ? 42 : 36) {
+            HStack(alignment: .center, spacing: horizontal ? 34 : 22) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("LANDED TRICK")
+                        .font(.system(size: trickSize * 0.37, weight: .bold, design: .monospaced))
+                        .tracking(trickSize * 0.035)
+                        .foregroundStyle(accent)
+                    Text((branding.trickName ?? "MEASURED REPLAY").uppercased())
+                        .font(.system(size: trickSize, weight: .black, design: .rounded))
+                        .tracking(-trickSize * 0.035)
+                        .foregroundStyle(KamikazeTheme.frost)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.50)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let score = branding.score {
+                    HStack(alignment: .lastTextBaseline, spacing: 5) {
+                        Text(String(score))
+                            .font(.system(size: scoreSize, weight: .black, design: .rounded))
+                            .tracking(-scoreSize * 0.075)
+                            .foregroundStyle(accent)
+                            .monospacedDigit()
+                        Text("PTS")
+                            .font(.system(size: trickSize * 0.34, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.62))
+                    }
+                }
+            }
+            .padding(.horizontal, horizontal ? 38 : 30)
+            .padding(.vertical, horizontal ? 24 : 27)
+        }
+        .frame(width: size.width * 0.89)
+    }
+
+    @ViewBuilder
+    private func captionView(_ caption: CameraRunCaption) -> some View {
+        VStack {
+            if caption.placement != .top { Spacer() }
+            Text(caption.text)
+                .font(.system(size: size.width * 0.055, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .shadow(color: .black.opacity(0.70), radius: 5, y: 2)
+                .padding(.horizontal, size.width * 0.06)
+            if caption.placement != .bottom { Spacer() }
+        }
+        .padding(.vertical, caption.placement == .center ? size.height * 0.40 : size.height * 0.10)
+    }
+}
+
+/// Offline counterpart to the live Metal field. Video export cannot capture
+/// a SwiftUI material or shader view, so this renderer burns a deterministic
+/// animated flux field and a glass-style result receipt into every frame.
+/// The timestamp is the measured replay timestamp, making exports repeatable.
+@MainActor
+enum KamikazeExportArtwork {
+    private static let pitch = UIColor(red: 0.018, green: 0.024, blue: 0.047, alpha: 1)
+    private static let ion = UIColor(red: 0.30, green: 0.40, blue: 1.00, alpha: 1)
+    private static let volt = UIColor(red: 0.84, green: 1.00, blue: 0.29, alpha: 1)
+
+    static func drawFluxField(
+        in context: CGContext,
+        size: CGSize,
+        timeS: Double,
+        accent: UIColor
+    ) {
+        let bounds = CGRect(origin: .zero, size: size)
+        context.setFillColor(pitch.cgColor)
+        context.fill(bounds)
+
+        // Slow pools give the field depth while the current-lines remain the
+        // recognizable signature. Their phase is deliberately restrained so
+        // compression sees motion without the background fighting the trick.
+        context.saveGState()
+        context.setBlendMode(.screen)
+        let pools: [(CGPoint, CGFloat, UIColor)] = [
+            (
+                CGPoint(
+                    x: size.width * (0.18 + 0.08 * sin(timeS * 0.21)),
+                    y: size.height * (0.22 + 0.05 * cos(timeS * 0.17))
+                ),
+                max(size.width, size.height) * 0.58,
+                ion
+            ),
+            (
+                CGPoint(
+                    x: size.width * (0.82 + 0.06 * cos(timeS * 0.16)),
+                    y: size.height * (0.72 + 0.06 * sin(timeS * 0.19))
+                ),
+                max(size.width, size.height) * 0.44,
+                accent
+            )
+        ]
+        for (center, radius, color) in pools {
+            guard let gradient = CGGradient(
+                colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                colors: [color.withAlphaComponent(0.20).cgColor, color.withAlphaComponent(0).cgColor] as CFArray,
+                locations: [0, 1]
+            ) else { continue }
+            context.drawRadialGradient(
+                gradient,
+                startCenter: center,
+                startRadius: 0,
+                endCenter: center,
+                endRadius: radius,
+                options: [.drawsAfterEndLocation]
+            )
+        }
+
+        let shortEdge = min(size.width, size.height)
+        let primary = ion.blended(with: accent, amount: 0.18)
+        for band in 0..<6 {
+            let phase = timeS * (0.22 + Double(band) * 0.018) + Double(band) * 0.91
+            let baseY = size.height * (0.08 + CGFloat(band) * 0.17)
+            let path = currentPath(
+                size: size,
+                baseY: baseY,
+                amplitude: size.height * (0.040 + CGFloat(band % 3) * 0.012),
+                phase: phase
+            )
+            context.addPath(path)
+            context.setStrokeColor(primary.withAlphaComponent(0.10).cgColor)
+            context.setLineWidth(shortEdge * 0.070)
+            context.setLineCap(.round)
+            context.strokePath()
+
+            context.addPath(path)
+            context.setStrokeColor(primary.withAlphaComponent(0.24).cgColor)
+            context.setLineWidth(shortEdge * 0.030)
+            context.strokePath()
+
+            context.addPath(path)
+            context.setStrokeColor(primary.withAlphaComponent(0.48).cgColor)
+            context.setLineWidth(shortEdge * 0.008)
+            context.strokePath()
+        }
+        context.restoreGState()
+
+        guard let vignette = CGGradient(
+            colorsSpace: CGColorSpaceCreateDeviceRGB(),
+            colors: [UIColor.clear.cgColor, UIColor.black.withAlphaComponent(0.48).cgColor] as CFArray,
+            locations: [0.52, 1]
+        ) else { return }
+        context.drawRadialGradient(
+            vignette,
+            startCenter: CGPoint(x: size.width * 0.5, y: size.height * 0.46),
+            startRadius: 0,
+            endCenter: CGPoint(x: size.width * 0.5, y: size.height * 0.46),
+            endRadius: hypot(size.width, size.height) * 0.64,
+            options: [.drawsAfterEndLocation]
+        )
+    }
+
+    static func drawGlassReceipt(
+        in context: CGContext,
+        size: CGSize,
+        branding: ReplayVideoBranding,
+        accent: UIColor
+    ) {
+        let horizontal = size.width > size.height
+        let inset = min(size.width, size.height) * 0.055
+        let width = horizontal ? size.width * 0.38 : size.width * 0.60
+        let height = horizontal ? size.height * 0.23 : size.height * 0.105
+        let rect = CGRect(x: inset, y: inset, width: width, height: height)
+        let radius = min(rect.height * 0.30, min(size.width, size.height) * 0.035)
+        let path = UIBezierPath(roundedRect: rect, cornerRadius: radius)
+
+        context.saveGState()
+        context.setShadow(offset: CGSize(width: 0, height: rect.height * 0.10), blur: rect.height * 0.20, color: UIColor.black.withAlphaComponent(0.42).cgColor)
+        UIColor(red: 0.045, green: 0.055, blue: 0.085, alpha: 0.72).setFill()
+        path.fill()
+        context.restoreGState()
+
+        context.saveGState()
+        path.addClip()
+        guard let sheen = CGGradient(
+            colorsSpace: CGColorSpaceCreateDeviceRGB(),
+            colors: [
+                UIColor.white.withAlphaComponent(0.20).cgColor,
+                ion.withAlphaComponent(0.08).cgColor,
+                UIColor.clear.cgColor
+            ] as CFArray,
+            locations: [0, 0.45, 1]
+        ) else {
+            context.restoreGState()
+            return
+        }
+        context.drawLinearGradient(
+            sheen,
+            start: CGPoint(x: rect.minX, y: rect.minY),
+            end: CGPoint(x: rect.maxX, y: rect.maxY),
+            options: []
+        )
+        context.restoreGState()
+
+        context.setStrokeColor(UIColor.white.withAlphaComponent(0.24).cgColor)
+        context.setLineWidth(max(1.5, min(size.width, size.height) * 0.002))
+        path.stroke()
+
+        let brandFont = UIFont.monospacedSystemFont(ofSize: rect.height * 0.125, weight: .black)
+        let brand = "KAMIKAZE  /  PHONE FLIP"
+        NSString(string: brand).draw(
+            at: CGPoint(x: rect.minX + rect.height * 0.20, y: rect.minY + rect.height * 0.17),
+            withAttributes: [
+                .font: brandFont,
+                .foregroundColor: volt
+            ]
+        )
+
+        let title = (branding.trickName ?? "MEASURED REPLAY").uppercased()
+        let titleScale: CGFloat = title.count > 20 ? 0.17 : (title.count > 14 ? 0.21 : 0.255)
+        let titleFont = UIFont.systemFont(ofSize: rect.height * titleScale, weight: .black)
+        let titleParagraph = NSMutableParagraphStyle()
+        titleParagraph.lineBreakMode = .byTruncatingTail
+        NSString(string: title).draw(
+            in: CGRect(
+                x: rect.minX + rect.height * 0.20,
+                y: rect.minY + rect.height * 0.45,
+                width: rect.width * (branding.score == nil ? 0.90 : 0.68),
+                height: rect.height * 0.38
+            ),
+            withAttributes: [
+                .font: titleFont,
+                .foregroundColor: UIColor.white,
+                .paragraphStyle: titleParagraph
+            ]
+        )
+
+        if let score = branding.score {
+            let scoreFont = UIFont.systemFont(ofSize: rect.height * 0.45, weight: .black)
+            let scoreText = NSString(string: String(score))
+            let scoreSize = scoreText.size(withAttributes: [.font: scoreFont])
+            scoreText.draw(
+                at: CGPoint(
+                    x: rect.maxX - rect.height * 0.20 - scoreSize.width,
+                    y: rect.midY - scoreSize.height * 0.47
+                ),
+                withAttributes: [
+                    .font: scoreFont,
+                    .foregroundColor: accent
+                ]
+            )
+        }
+    }
+
+    private static func currentPath(
+        size: CGSize,
+        baseY: CGFloat,
+        amplitude: CGFloat,
+        phase: Double
+    ) -> CGPath {
+        let path = CGMutablePath()
+        let segments = 28
+        for index in 0...segments {
+            let progress = CGFloat(index) / CGFloat(segments)
+            let x = size.width * (progress * 1.16 - 0.08)
+            let primaryWave = sin(Double(progress) * 7.2 + phase)
+            let secondaryWave = sin(Double(progress) * 15.0 - phase * 0.58) * 0.30
+            let y = baseY + amplitude * CGFloat(primaryWave + secondaryWave)
+            if index == 0 {
+                path.move(to: CGPoint(x: x, y: y))
+            } else {
+                path.addLine(to: CGPoint(x: x, y: y))
+            }
+        }
+        return path
+    }
+}
+
+private extension UIColor {
+    func blended(with other: UIColor, amount: CGFloat) -> UIColor {
+        let amount = min(1, max(0, amount))
+        var r1: CGFloat = 0
+        var g1: CGFloat = 0
+        var b1: CGFloat = 0
+        var a1: CGFloat = 0
+        var r2: CGFloat = 0
+        var g2: CGFloat = 0
+        var b2: CGFloat = 0
+        var a2: CGFloat = 0
+        guard getRed(&r1, green: &g1, blue: &b1, alpha: &a1),
+              other.getRed(&r2, green: &g2, blue: &b2, alpha: &a2) else { return self }
+        return UIColor(
+            red: r1 + (r2 - r1) * amount,
+            green: g1 + (g2 - g1) * amount,
+            blue: b1 + (b2 - b1) * amount,
+            alpha: a1 + (a2 - a1) * amount
+        )
     }
 }
 
@@ -484,7 +888,8 @@ public final class ReplayVideoExporter {
 
     public func export(
         _ request: ReplayVideoExportRequest,
-        renderer: any ReplayVideoFrameRenderer = CoreGraphicsReplayFrameRenderer()
+        renderer: any ReplayVideoFrameRenderer = CoreGraphicsReplayFrameRenderer(),
+        progress: ((Int, Int) -> Void)? = nil
     ) async throws -> ReplayVideoArtifact {
         let plan = try request.plan()
         guard !FileManager.default.fileExists(atPath: request.outputURL.path) else {
@@ -538,7 +943,7 @@ public final class ReplayVideoExporter {
         writer.startSession(atSourceTime: .zero)
 
         do {
-            for sourceTimeMs in plan.sourceFrameTimesMs {
+            for (frameIndex, sourceTimeMs) in plan.sourceFrameTimesMs.enumerated() {
                 try Task.checkCancellation()
                 while !input.isReadyForMoreMediaData {
                     try await Task.sleep(for: .milliseconds(2))
@@ -576,6 +981,7 @@ public final class ReplayVideoExporter {
                         writer.error?.localizedDescription ?? "append returned false"
                     )
                 }
+                progress?(frameIndex + 1, plan.frameCount)
             }
             input.markAsFinished()
             try await Self.finish(writer)

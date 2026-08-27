@@ -31,13 +31,22 @@ final class PlayCameraCaptureModel {
     private(set) var activeMode: CameraRunCaptureMode?
     private(set) var errorMessage: String?
     private(set) var takesByAttemptID: [String: PlayCameraTake] = [:]
+    /// A result must never wait forever for a camera artifact. Successful and
+    /// failed writer completions both seal an attempt; the latter simply
+    /// falls back to the sensor-only result and exposes `errorMessage`.
+    private(set) var sealedAttemptIDs: Set<String> = []
 
     let screenVideoMaterial: VideoMaterial
 
     init() {
         let capture = CameraRunCaptureSession()
         self.capture = capture
-        screenVideoMaterial = VideoMaterial(videoRenderer: capture.frontVideoRenderer)
+        var screenVideoMaterial = VideoMaterial(videoRenderer: capture.frontVideoRenderer)
+        // Imported display meshes do not share one winding convention. The
+        // selfie feed is a screen, not an opaque shell, so it must render from
+        // whichever side the asset authors chose as its front face.
+        screenVideoMaterial.faceCulling = .none
+        self.screenVideoMaterial = screenVideoMaterial
     }
 
     var statusLabel: String {
@@ -49,6 +58,10 @@ final class PlayCameraCaptureModel {
 
     func take(for attemptID: String) -> PlayCameraTake? {
         takesByAttemptID[attemptID]
+    }
+
+    func isAttemptSealed(_ attemptID: String) -> Bool {
+        sealedAttemptIDs.contains(attemptID)
     }
 
     func toggle() async {
@@ -99,7 +112,8 @@ final class PlayCameraCaptureModel {
             var pending: [CameraRunCameraPosition: CameraRunVideoRecorder] = [:]
             for position in positions {
                 let recorder = CameraRunVideoRecorder(
-                    outputURL: folder.appendingPathComponent("\(position.rawValue).mp4")
+                    outputURL: folder.appendingPathComponent("\(position.rawValue).mp4"),
+                    position: position
                 )
                 try recorder.start()
                 pending[position] = recorder
@@ -124,9 +138,15 @@ final class PlayCameraCaptureModel {
     /// reaction. The immediate Result remains trick-focused; the editor owns
     /// this longer intro/trick/reaction timeline.
     func finishAttempt(attemptID: String, postRoll: Duration = .milliseconds(2_500)) async {
-        guard isRecording else { return }
+        guard isRecording else {
+            sealedAttemptIDs.insert(attemptID)
+            return
+        }
         try? await Task.sleep(for: postRoll)
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled else {
+            sealedAttemptIDs.insert(attemptID)
+            return
+        }
 
         capture.detachVideoRecorders()
         let finishing = recorders
@@ -134,6 +154,14 @@ final class PlayCameraCaptureModel {
         recorders.removeAll()
         activeTakeID = nil
         isRecording = false
+
+        // The result owns a separate RealityView + AVPlayer. Stop the live
+        // dual-camera graph and flush its sample renderer before creating
+        // that decoder; keeping both active caused a reproducible resource
+        // spike during SEALING CAMERA on physical devices. beginAttempt()
+        // starts this already-configured graph again for the next throw.
+        await capture.stop()
+        capture.frontVideoRenderer.flush()
 
         var artifacts: [CameraRunCameraPosition: CameraRunRecordingArtifact] = [:]
         for (position, recorder) in finishing {
@@ -143,13 +171,15 @@ final class PlayCameraCaptureModel {
                 errorMessage = error.localizedDescription
             }
         }
-        guard !artifacts.isEmpty else { return }
-        takesByAttemptID[attemptID] = PlayCameraTake(
-            id: takeID,
-            attemptID: attemptID,
-            artifacts: artifacts,
-            capturedWith: activeMode ?? .singleCamera
-        )
+        if !artifacts.isEmpty {
+            takesByAttemptID[attemptID] = PlayCameraTake(
+                id: takeID,
+                attemptID: attemptID,
+                artifacts: artifacts,
+                capturedWith: activeMode ?? .singleCamera
+            )
+        }
+        sealedAttemptIDs.insert(attemptID)
     }
 
     func abandonAttempt() async {

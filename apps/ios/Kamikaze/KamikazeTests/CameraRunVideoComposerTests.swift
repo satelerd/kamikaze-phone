@@ -234,6 +234,92 @@ struct CameraRunVideoComposerTests {
         #expect(image.height == 640)
     }
 
+    @Test("RealityKit export burns a moving flux field behind the phone")
+    @MainActor
+    func realityKitReplayHasAnimatedField() async throws {
+        let renderer = RealityKitReplayFrameRenderer(
+            appearance: .default,
+            accent: .systemGreen,
+            branding: ReplayVideoBranding(trickName: "Phone Flip", score: 83)
+        )
+        let pose = Quaternion(w: 0.9239, x: 0, y: 0.3827, z: 0)
+        let first = try await renderer.image(
+            for: ReplayFrame(
+                timestampMs: 0,
+                progress: 0,
+                quaternion: pose,
+                accelG: 0.2,
+                gyroDps: 540
+            ),
+            canvas: ReplayVideoCanvas(width: 360, height: 640),
+            caption: nil
+        )
+        let later = try await renderer.image(
+            for: ReplayFrame(
+                timestampMs: 1_400,
+                progress: 0.5,
+                quaternion: pose,
+                accelG: 0.2,
+                gyroDps: 540
+            ),
+            canvas: ReplayVideoCanvas(width: 360, height: 640),
+            caption: nil
+        )
+        #expect(Self.byteDifference(first, later) > 30_000)
+    }
+
+    @Test("Replay branding keeps only real bounded score values")
+    func replayBrandingBoundsScore() {
+        #expect(ReplayVideoBranding(trickName: "  PHONE FLIP  ", score: 104) == .init(
+            trickName: "PHONE FLIP",
+            score: 100
+        ))
+        #expect(ReplayVideoBranding(trickName: "   ", score: -4) == .init(
+            trickName: nil,
+            score: 0
+        ))
+    }
+
+    @Test("speed ramp changes only the measured window duration")
+    func speedRampTiming() throws {
+        let plan = try CameraRunSpeedRampPlan.make(
+            sourceDurationS: 8,
+            sourceRange: CameraRunTrim(startS: 2.5, endS: 3.5),
+            playbackRate: 0.5
+        )
+
+        #expect(plan.sourceRange == CameraRunTrim(startS: 2.5, endS: 3.5))
+        #expect(plan.outputDurationS == 9)
+    }
+
+    @Test("speed ramp clamps the trick window to the exported clip")
+    func speedRampClampsWindow() throws {
+        let plan = try CameraRunSpeedRampPlan.make(
+            sourceDurationS: 4,
+            sourceRange: CameraRunTrim(startS: -2, endS: 1),
+            playbackRate: 0.25
+        )
+
+        #expect(plan.sourceRange == CameraRunTrim(startS: 0, endS: 1))
+        #expect(plan.outputDurationS == 7)
+    }
+
+    private static func byteDifference(_ lhs: CGImage, _ rhs: CGImage) -> Int {
+        guard let lhsData = lhs.dataProvider?.data,
+              let rhsData = rhs.dataProvider?.data else { return 0 }
+        let lhsBytes = CFDataGetBytePtr(lhsData)
+        let rhsBytes = CFDataGetBytePtr(rhsData)
+        let count = min(CFDataGetLength(lhsData), CFDataGetLength(rhsData))
+        guard let lhsBytes, let rhsBytes else { return 0 }
+        var total = 0
+        for index in stride(from: 0, to: max(0, count - 2), by: 16) {
+            total += abs(Int(lhsBytes[index]) - Int(rhsBytes[index]))
+            total += abs(Int(lhsBytes[index + 1]) - Int(rhsBytes[index + 1]))
+            total += abs(Int(lhsBytes[index + 2]) - Int(rhsBytes[index + 2]))
+        }
+        return total
+    }
+
     private func makeSyntheticVideo(at url: URL, color: CGColor) async throws {
         let width = 160
         let height = 284
