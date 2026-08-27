@@ -332,7 +332,6 @@ struct SocialPostCard: View {
     let post: SocialPost
     let viewerID: String
     let isReplayActive: Bool
-    let onVisibilityChanged: (Bool) -> Void
     let onOpenProfile: () -> Void
     let onReaction: (SocialReaction?) -> Void
     let onComment: () -> Void
@@ -374,15 +373,15 @@ struct SocialPostCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if isReplayActive {
-                    SocialFeedReplayView(post: post, isActive: true)
-                }
+                // The media slot always exists. Mounting/unmounting the 3D
+                // renderer must never alter the card's height while paging.
+                SocialFeedReplayView(post: post, isActive: isReplayActive)
 
                 PublishedResultCardView(
                     result: post.result,
                     compact: true,
                     attachments: post.attachments,
-                    showsVisual: !isReplayActive
+                    showsVisual: false
                 )
 
                 SocialReactionBar(
@@ -415,9 +414,6 @@ struct SocialPostCard: View {
                 }
             }
             .padding(16)
-        }
-        .onScrollVisibilityChange(threshold: 0.62) { visible in
-            onVisibilityChanged(visible)
         }
     }
 

@@ -148,76 +148,26 @@ struct SocialFeedView: View {
 
         ZStack {
             ExperienceFieldBackground(ambient: KamikazeTheme.ion)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 17) {
-                    header
-                    SocialFeedScopePicker(selection: $model.scope) { selected in
-                        Task { await model.changeScope(to: selected) }
-                    }
+            VStack(alignment: .leading, spacing: 10) {
+                feedControls
+                    .padding(.horizontal, 20)
 
-                    if model.isLoading && model.posts.isEmpty {
-                        ProgressView()
-                            .tint(KamikazeTheme.volt)
-                            .frame(maxWidth: .infinity, minHeight: 220)
-                    } else if let errorMessage = model.errorMessage, model.posts.isEmpty {
-                        SocialFeedEmptyState(
-                            title: "FEED PAUSED",
-                            detail: errorMessage,
-                            actionTitle: "TRY AGAIN"
-                        ) {
-                            Task { await model.load() }
-                        }
-                    } else if model.posts.isEmpty {
-                        SocialFeedEmptyState(
-                            title: model.scope == .following ? "YOUR CIRCLE IS QUIET" : "NO PUBLIC THROWS YET",
-                            detail: model.scope == .following
-                                ? "Follow a rider or publish a result to start a calm, chronological feed."
-                                : "Public results will appear here when riders choose to share them.",
-                            actionTitle: "CREATE A TRICK"
-                        ) {
-                            showsTrickExchange = true
-                        }
-                    } else {
-                        feedNote
-                        ForEach(model.posts) { post in
-                            SocialPostCard(
-                                post: post,
-                                viewerID: model.viewerID,
-                                isReplayActive: activePostID == post.id,
-                                onVisibilityChanged: { visible in
-                                    if visible {
-                                        activePostID = post.id
-                                    } else if activePostID == post.id {
-                                        activePostID = nil
-                                    }
-                                },
-                                onOpenProfile: { selectedProfile = post.author },
-                                onReaction: { reaction in
-                                    Task { await model.react(reaction, on: post) }
-                                },
-                                onComment: {
-                                    commentsPost = post
-                                },
-                                onUnpublish: {
-                                    pendingManagement = SocialPendingPostAction(post: post, kind: .unpublish)
-                                },
-                                onDelete: {
-                                    pendingManagement = SocialPendingPostAction(post: post, kind: .delete)
-                                },
-                                onModerate: {
-                                    moderationPost = post
-                                }
-                            )
-                        }
-                    }
-                }
-                .padding(20)
-                .padding(.bottom, 100)
+                feedContent
             }
+            .padding(.top, 8)
         }
         .toolbar(.hidden, for: .navigationBar)
         .task {
             await model.load()
+        }
+        .onChange(of: model.posts.map(\.id), initial: true) { _, postIDs in
+            guard !postIDs.isEmpty else {
+                activePostID = nil
+                return
+            }
+            if activePostID == nil || !postIDs.contains(activePostID!) {
+                activePostID = postIDs.first
+            }
         }
         .navigationDestination(item: $selectedProfile) { profile in
             SocialPublicProfileView(
@@ -281,40 +231,96 @@ struct SocialFeedView: View {
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .bottom, spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("FOLLOW\nTHE THROW")
-                    .font(.system(size: 37, weight: .black, design: .rounded))
-                    .tracking(-1.5)
-                Text("RESULTS FROM PEOPLE, WITHOUT THE NOISE")
-                    .font(.system(size: 9, weight: .black, design: .monospaced))
-                    .foregroundStyle(KamikazeTheme.ion)
+    @ViewBuilder
+    private var feedContent: some View {
+        if model.isLoading && model.posts.isEmpty {
+            ProgressView()
+                .tint(KamikazeTheme.volt)
+                .frame(maxWidth: .infinity, minHeight: 220)
+        } else if let errorMessage = model.errorMessage, model.posts.isEmpty {
+            SocialFeedEmptyState(
+                title: "FEED PAUSED",
+                detail: errorMessage,
+                actionTitle: "TRY AGAIN"
+            ) {
+                Task { await model.load() }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            NavigationLink {
-                CommunityTrickExchangeView()
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 15, weight: .black))
-                    .frame(width: 44, height: 44)
+            .padding(.horizontal, 20)
+        } else if model.posts.isEmpty {
+            SocialFeedEmptyState(
+                title: model.scope == .following ? "YOUR CIRCLE IS QUIET" : "NO PUBLIC THROWS YET",
+                detail: model.scope == .following
+                    ? "Follow a rider or publish a result to start a calm, chronological feed."
+                    : "Public results will appear here when riders choose to share them.",
+                actionTitle: "CREATE A TRICK"
+            ) {
+                showsTrickExchange = true
             }
-            .adaptiveGlassButton(tint: KamikazeTheme.volt)
-            .accessibilityLabel("Create or teach a community trick")
+            .padding(.horizontal, 20)
+        } else {
+            GeometryReader { proxy in
+                ScrollView(.vertical) {
+                    LazyVStack(spacing: 12) {
+                        ForEach(model.posts) { post in
+                            SocialPostCard(
+                                post: post,
+                                viewerID: model.viewerID,
+                                isReplayActive: activePostID == post.id,
+                                onOpenProfile: { selectedProfile = post.author },
+                                onReaction: { reaction in
+                                    Task { await model.react(reaction, on: post) }
+                                },
+                                onComment: { commentsPost = post },
+                                onUnpublish: {
+                                    pendingManagement = SocialPendingPostAction(post: post, kind: .unpublish)
+                                },
+                                onDelete: {
+                                    pendingManagement = SocialPendingPostAction(post: post, kind: .delete)
+                                },
+                                onModerate: { moderationPost = post }
+                            )
+                            // Every post owns exactly one viewport. The card's
+                            // geometry never changes when its 3D scene starts,
+                            // so changing the dominant post cannot push the
+                            // user's finger or scroll position around.
+                            .frame(height: proxy.size.height, alignment: .top)
+                            .id(post.id)
+                        }
+                    }
+                    .scrollTargetLayout()
+                    .padding(.horizontal, 20)
+                }
+                .scrollIndicators(.hidden)
+                .scrollPosition(id: $activePostID, anchor: .center)
+                .scrollTargetBehavior(.viewAligned(limitBehavior: .always))
+                .accessibilityLabel("Throw feed")
+                .accessibilityHint("Swipe vertically to move one post at a time")
+            }
         }
     }
 
-    private var feedNote: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "arrow.down.right.and.arrow.up.left")
-                .foregroundStyle(KamikazeTheme.volt)
-            Text("AUTOPLAY 3D  ·  CHRONOLOGICAL  ·  NO STREAK PRESSURE")
-                .font(.system(size: 8, weight: .black, design: .monospaced))
-                .foregroundStyle(KamikazeTheme.muted)
-            Spacer(minLength: 0)
+    private var feedControls: some View {
+        GeometryReader { proxy in
+            let availableWidth = max(0, proxy.size.width - 10)
+            HStack(spacing: 10) {
+                SocialFeedScopePicker(selection: $model.scope) { selected in
+                    Task { await model.changeScope(to: selected) }
+                }
+                .frame(width: availableWidth * 2 / 3)
+
+                NavigationLink {
+                    CommunityTrickExchangeView()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 18, weight: .black))
+                        .frame(maxWidth: .infinity, minHeight: 58)
+                }
+                .adaptiveGlassButton(tint: KamikazeTheme.volt)
+                .frame(width: availableWidth / 3)
+                .accessibilityLabel("Create or teach a community trick")
+            }
         }
-        .accessibilityElement(children: .combine)
+        .frame(height: 68)
     }
 
     private var managementTitle: String {
@@ -356,15 +362,11 @@ struct SocialFeedScopePicker: View {
                         selection = scope
                         onSelect(scope)
                     } label: {
-                        VStack(spacing: 4) {
+                        VStack(spacing: 2) {
                             Text(scope.title)
                                 .font(.system(size: 10, weight: .black, design: .monospaced))
-                            Text(scope.subtitle)
-                                .font(.system(size: 8, weight: .medium, design: .rounded))
-                                .foregroundStyle(selection == scope ? KamikazeTheme.frost : KamikazeTheme.muted)
-                                .lineLimit(1)
                         }
-                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .frame(maxWidth: .infinity, minHeight: 52)
                         .background(
                             selection == scope ? KamikazeTheme.ion.opacity(0.17) : .clear,
                             in: RoundedRectangle(cornerRadius: 13, style: .continuous)

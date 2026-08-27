@@ -20,11 +20,14 @@ struct SocialFeedReplayView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            ReplayPhoneScene(
-                controller: replay,
-                accent: accent
-            )
-            .frame(height: 280)
+            if isActive {
+                ReplayPhoneScene(
+                    controller: replay,
+                    accent: accent
+                )
+            } else {
+                inactivePreview
+            }
 
             HStack(spacing: 7) {
                 Circle()
@@ -40,6 +43,7 @@ struct SocialFeedReplayView: View {
             .padding(12)
             .allowsHitTesting(false)
         }
+        .frame(height: 280)
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .task(id: isActive) {
             replay.pause()
@@ -55,6 +59,24 @@ struct SocialFeedReplayView: View {
         }
         .onDisappear { replay.pause() }
         .accessibilityLabel("Three dimensional replay of \(post.result.trickName)")
+    }
+
+    private var inactivePreview: some View {
+        ZStack {
+            LinearGradient(
+                colors: [accent.opacity(0.18), KamikazeTheme.pitch.opacity(0.96)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            Image(systemName: "iphone.gen3")
+                .font(.system(size: 92, weight: .ultraLight))
+                .foregroundStyle(accent.opacity(0.42))
+                .rotationEffect(.degrees(-13))
+            Text(post.result.trickName.uppercased())
+                .font(.system(size: 11, weight: .black, design: .monospaced))
+                .foregroundStyle(KamikazeTheme.frost.opacity(0.65))
+                .offset(y: 92)
+        }
     }
 
     private var accent: Color {
