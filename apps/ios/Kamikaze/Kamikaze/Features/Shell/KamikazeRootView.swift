@@ -9,6 +9,19 @@ struct KamikazeRootView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        if selectedPhoneModelIsReady {
+            appContent
+        } else {
+            PhoneModelLaunchView(modelName: appearance.effective.formFactor.displayName)
+                .preferredColorScheme(.dark)
+                .task {
+                    PhoneModelLibrary.shared.preload()
+                }
+        }
+    }
+
+    @ViewBuilder
+    private var appContent: some View {
         if onboardingComplete {
             TabView(selection: $selectedTab) {
                 Tab(AppTab.play.title, systemImage: AppTab.play.symbol, value: AppTab.play) {
@@ -20,11 +33,11 @@ struct KamikazeRootView: View {
                 Tab(AppTab.locker.title, systemImage: AppTab.locker.symbol, value: AppTab.locker) {
                     NavigationStack { LockerView() }
                 }
-                Tab(AppTab.beta.title, systemImage: AppTab.beta.symbol, value: AppTab.beta) {
-                    NavigationStack { BetaView() }
-                }
                 Tab(AppTab.profile.title, systemImage: AppTab.profile.symbol, value: AppTab.profile) {
                     NavigationStack { ProfileView(onReplayOnboarding: { onboardingComplete = false }) }
+                }
+                Tab(AppTab.feed.title, systemImage: AppTab.feed.symbol, value: AppTab.feed) {
+                    NavigationStack { SocialFeedView() }
                 }
             }
             .environment(experience)
@@ -53,5 +66,38 @@ struct KamikazeRootView: View {
                     PhoneModelLibrary.shared.preload()
                 }
         }
+    }
+
+    private var selectedPhoneModelIsReady: Bool {
+        let library = PhoneModelLibrary.shared
+        return PhoneAppearanceLaunchGate.canRender(
+            appearance: appearance.effective,
+            loadedAssets: Set(library.loaded.keys),
+            failedAssets: library.failed
+        )
+    }
+}
+
+/// Startup placeholder for imported models. It intentionally contains no
+/// phone geometry: showing the old procedural body for a moment made it look
+/// as if the player's equipped model changed on every launch.
+private struct PhoneModelLaunchView: View {
+    let modelName: String
+
+    var body: some View {
+        ZStack {
+            KineticBackground(accent: KamikazeTheme.ion)
+            VStack(spacing: 14) {
+                ProgressView()
+                    .tint(KamikazeTheme.volt)
+                    .controlSize(.large)
+                Text("LOADING \(modelName)")
+                    .font(.system(size: 11, weight: .black, design: .monospaced))
+                    .tracking(1.2)
+                    .foregroundStyle(KamikazeTheme.frost.opacity(0.72))
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Loading your phone model")
     }
 }

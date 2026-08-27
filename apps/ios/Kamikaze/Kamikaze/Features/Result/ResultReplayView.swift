@@ -17,6 +17,10 @@ struct ResultReplayView: View {
     /// Saved-attempt contexts (History, Recent) pass this to allow permanent
     /// deletion. The immediate Play result does not.
     let onDelete: (() async -> Void)?
+    /// Optional live Camera V2 owner. History remains sensor-first; the
+    /// immediate Play result can reveal its just-recorded source tracks and
+    /// open the advanced non-destructive editor.
+    let cameraCapture: PlayCameraCaptureModel?
     /// Mathematical target frames for the practice ghost overlay; nil outside
     /// practice mode or for tricks without a validated definition.
     private let targetFrames: [ReplayFrame]?
@@ -27,8 +31,10 @@ struct ResultReplayView: View {
     @State private var displayedResult: NativeRunResult
     @State private var replay: ReplayController
     @State private var showsCorrection = false
+    @State private var showsShareComposer = false
     @State private var isConfirming = false
     @State private var showsDeleteConfirmation = false
+    @State private var showsCameraEditor = false
     @AppStorage(BetaFlags.verticalArc) private var verticalArc = true
     @AppStorage(BetaFlags.airBonus) private var airBonusEnabled = true
     @AppStorage(BetaFlags.resultMetric) private var resultMetricRaw = ResultMetricMode.default.rawValue
@@ -43,7 +49,8 @@ struct ResultReplayView: View {
         onReview: @escaping (HumanAttemptReview) async -> NativeRunResult?,
         reviewContextNote: String? = nil,
         requiresReviewBeforeAgain: Bool = false,
-        onDelete: (() async -> Void)? = nil
+        onDelete: (() async -> Void)? = nil,
+        cameraCapture: PlayCameraCaptureModel? = nil
     ) {
         self.primaryTitle = primaryTitle
         self.practiceTarget = practiceTarget
@@ -53,6 +60,7 @@ struct ResultReplayView: View {
         self.reviewContextNote = reviewContextNote
         self.requiresReviewBeforeAgain = requiresReviewBeforeAgain
         self.onDelete = onDelete
+        self.cameraCapture = cameraCapture
         let definition = practiceTarget.flatMap { target in
             TrickCatalog.provisional(gripHand: .right).definitions.first { $0.id == target }
         }
@@ -80,7 +88,8 @@ struct ResultReplayView: View {
             // invalidated the entire result hierarchy on every frame.
             SlipstreamField(
                 accent: accent,
-                energy: resultFieldEnergy
+                energy: resultFieldEnergy,
+                paused: showsCameraEditor
             )
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -118,11 +127,13 @@ struct ResultReplayView: View {
                         practiceBanner(target: practiceTarget)
                     }
 
-                    ReplayPhoneView(
+                    CameraReplayPhoneView(
                         controller: replay,
                         accent: accent,
                         targetFrames: targetFrames,
-                        arcWindow: verticalArc ? freefall : nil
+                        arcWindow: verticalArc ? freefall : nil,
+                        take: cameraTake,
+                        motionCaptureStartS: displayedResult.capture.attempt.boundaries.captureStartS
                     )
 
                     if let practiceTarget, displayedResult.humanReview == nil {
@@ -134,6 +145,15 @@ struct ResultReplayView: View {
                         .frame(maxWidth: .infinity, minHeight: 122)
                         .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.ion)
                         .disabled(requiresReviewBeforeAgain && displayedResult.humanReview == nil)
+
+                    Button {
+                        showsShareComposer = true
+                    } label: {
+                        Label("SHARE RESULT", systemImage: "square.and.arrow.up")
+                            .font(.system(size: 13, weight: .black, design: .rounded))
+                            .frame(maxWidth: .infinity, minHeight: 54)
+                    }
+                    .adaptiveGlassButton(tint: accent)
 
                     scoreBreakdownCard
 
@@ -157,6 +177,12 @@ struct ResultReplayView: View {
                         .padding(16)
                     }
 
+                    // Editing is intentionally near the correction action,
+                    // after the player has seen the replay, score and stats.
+                    if let cameraTake {
+                        cameraTakeCard(cameraTake)
+                    }
+
                     // Deliberately far from THROW AGAIN so a fast re-throw tap
                     // can never land on the correction flow by accident.
                     Button(displayedResult.humanReview == nil ? "NOT QUITE?" : "EDIT HUMAN LABEL") {
@@ -171,7 +197,12 @@ struct ResultReplayView: View {
                 .padding(.bottom, 40)
             }
         }
-        .onAppear { replay.play() }
+        .onAppear {
+            // Audio must remain at its natural pitch. Sensor-only replays keep
+            // the slower study speed; Camera V2 results start at realtime.
+            if cameraTake != nil { replay.setSpeed(.normal) }
+            replay.play()
+        }
         .onDisappear { replay.pause() }
         .confirmationDialog(
             "Delete this attempt?",
@@ -193,6 +224,52 @@ struct ResultReplayView: View {
             }
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showsShareComposer) {
+            SocialShareComposerView(result: socialResultSnapshot)
+        }
+        .fullScreenCover(isPresented: $showsCameraEditor, onDismiss: { replay.play() }) {
+            if let cameraTake {
+                CameraRunPrototypeView(editSeed: CameraRunEditSeed(
+                    result: displayedResult,
+                    take: cameraTake
+                ))
+            }
+        }
+    }
+
+    private var cameraTake: PlayCameraTake? {
+        cameraCapture?.take(for: displayedResult.id)
+    }
+
+    private func cameraTakeCard(_ take: PlayCameraTake) -> some View {
+        GlassSurface(role: .contentPanel, cornerRadius: 22) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("CAMERA V2 TAKE")
+                            .font(.system(size: 10, weight: .black, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.volt)
+                        Text("\(take.cameraCount) ORIGINAL \(take.cameraCount == 1 ? "TRACK" : "TRACKS") · NON-DESTRUCTIVE")
+                            .font(.system(size: 8, weight: .bold, design: .monospaced))
+                            .foregroundStyle(KamikazeTheme.muted)
+                    }
+                    Spacer()
+                    Image(systemName: "video.fill")
+                        .foregroundStyle(KamikazeTheme.volt)
+                }
+
+                Button {
+                    replay.pause()
+                    showsCameraEditor = true
+                } label: {
+                    Label("EDIT VIDEO", systemImage: "slider.horizontal.3")
+                        .font(.system(size: 13, weight: .black, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                }
+                .adaptiveGlassButton(prominent: true, tint: KamikazeTheme.ion)
+            }
+            .padding(15)
         }
     }
 
@@ -224,6 +301,21 @@ struct ResultReplayView: View {
 
     private var resultMetric: ResultMetricMode {
         ResultMetricMode(rawValue: resultMetricRaw) ?? .default
+    }
+
+    /// Display-safe projection only. Raw IMU evidence and local file URLs are
+    /// never part of the share draft unless the player explicitly opts in.
+    private var socialResultSnapshot: SocialResultSnapshot {
+        SocialResultSnapshot(
+            id: displayedResult.id,
+            trickName: displayedResult.displayName,
+            contextLabel: "RESULT  /  MOTION TAPE",
+            score: displayedGameScore,
+            fit: displayedResult.displayedFit,
+            durationMilliseconds: displayedResult.durationMs,
+            landed: displayedResult.humanReview.map { $0.outcome == .landed },
+            replayReference: "attempt/\(displayedResult.id)/replay"
+        )
     }
 
     private var primaryMetricValue: String {

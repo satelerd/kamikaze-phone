@@ -4,8 +4,8 @@ enum AppTab: String, Hashable, CaseIterable {
     case play
     case practice
     case locker
-    case beta
     case profile
+    case feed
 
     /// Debug/testing affordance: launching with `-debugInitialTab profile`
     /// opens that tab directly (standard UserDefaults argument domain).
@@ -20,17 +20,17 @@ enum AppTab: String, Hashable, CaseIterable {
         // Player-facing label prototyped as Setup; routes and source folders
         // keep the Locker name until the label is validated.
         case .locker: "SETUP"
-        case .beta: "BETA"
+        case .feed: "FEED"
         case .profile: "ME"
         }
     }
 
     var symbol: String {
         switch self {
-        case .play: "arrow.trianglehead.2.clockwise.rotate.90"
-        case .practice: "figure.skateboarding"
+        case .play: "gamecontroller.fill"
+        case .practice: "target"
         case .locker: "square.3.layers.3d"
-        case .beta: "testtube.2"
+        case .feed: "play.rectangle.on.rectangle.fill"
         case .profile: "person.crop.circle"
         }
     }
@@ -42,7 +42,7 @@ enum AppTab: String, Hashable, CaseIterable {
         case .play: KamikazeTheme.ion
         case .practice: KamikazeTheme.hazard
         case .locker: KamikazeTheme.ion
-        case .beta: KamikazeTheme.hazard
+        case .feed: KamikazeTheme.ion
         case .profile: KamikazeTheme.volt
         }
     }

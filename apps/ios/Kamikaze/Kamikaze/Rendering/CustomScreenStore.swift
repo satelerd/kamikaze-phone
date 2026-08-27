@@ -16,6 +16,7 @@ final class CustomScreenStore {
     private(set) var image: UIImage?
     private var cachedTexture: (revision: Int, resource: TextureResource)?
     private var cachedFlippedTexture: (revision: Int, resource: TextureResource)?
+    private var cachedRotatedTexture: (revision: Int, resource: TextureResource)?
 
     private init() {
         image = UIImage(contentsOfFile: Self.fileURL.path)
@@ -41,16 +42,25 @@ final class CustomScreenStore {
     /// texture ships pre-flipped, a GLTF-pipeline convention), so scenes ask
     /// for the variant matching their mesh.
     func texture(flippedVertically: Bool = false) -> TextureResource? {
-        if flippedVertically {
+        texture(orientation: flippedVertically ? .flipVertical : .standard)
+    }
+
+    func texture(orientation: PhoneModelFactory.ScreenTextureOrientation) -> TextureResource? {
+        if orientation == .flipVertical {
             if let cachedFlippedTexture, cachedFlippedTexture.revision == revision {
                 return cachedFlippedTexture.resource
+            }
+        } else if orientation == .rotate180 {
+            if let cachedRotatedTexture, cachedRotatedTexture.revision == revision {
+                return cachedRotatedTexture.resource
             }
         } else if let cachedTexture, cachedTexture.revision == revision {
             return cachedTexture.resource
         }
         guard let image else { return nil }
         let oriented: UIImage
-        if flippedVertically {
+        switch orientation {
+        case .flipVertical:
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1
             oriented = UIGraphicsImageRenderer(size: image.size, format: format).image { context in
@@ -58,14 +68,24 @@ final class CustomScreenStore {
                 context.cgContext.scaleBy(x: 1, y: -1)
                 image.draw(in: CGRect(origin: .zero, size: image.size))
             }
-        } else {
+        case .rotate180:
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            oriented = UIGraphicsImageRenderer(size: image.size, format: format).image { context in
+                context.cgContext.translateBy(x: image.size.width, y: image.size.height)
+                context.cgContext.rotate(by: .pi)
+                image.draw(in: CGRect(origin: .zero, size: image.size))
+            }
+        case .standard:
             oriented = image
         }
         guard let cgImage = oriented.cgImage,
               let resource = try? TextureResource(image: cgImage, options: .init(semantic: .color))
         else { return nil }
-        if flippedVertically {
+        if orientation == .flipVertical {
             cachedFlippedTexture = (revision, resource)
+        } else if orientation == .rotate180 {
+            cachedRotatedTexture = (revision, resource)
         } else {
             cachedTexture = (revision, resource)
         }

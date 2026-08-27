@@ -19,6 +19,8 @@ struct ReplayPhoneScene: View {
     var screenLabel: String? = nil
     /// Measured free-fall window used to render an estimated ballistic arc.
     var arcWindow: FreefallWindow? = nil
+    /// Recorded Camera V2 feed synchronized by the host result view.
+    var screenVideoMaterial: VideoMaterial? = nil
 
     @Environment(AppearanceStore.self) private var appearance
     @State private var previousDragTranslation = CGSize.zero
@@ -31,13 +33,16 @@ struct ReplayPhoneScene: View {
         let _ = PhoneModelLibrary.shared.loaded
         let _ = CustomScreenStore.shared.revision
         RealityView { content in
-            PhoneSceneRefresher.refreshPhone(
+            let phone = PhoneSceneRefresher.refreshPhone(
                 in: &content,
                 named: "replay-phone",
                 appearance: appearanceOverride ?? appearance.effective,
                 accent: UIColor(accent),
                 screenLabel: screenLabel
             )
+            if let phone, let screenVideoMaterial {
+                PhoneModelFactory.applyScreenMaterial(to: phone, material: screenVideoMaterial)
+            }
             content.add(PhoneModelFactory.makeLightRig())
 
             if targetFrames?.isEmpty == false {
@@ -66,6 +71,9 @@ struct ReplayPhoneScene: View {
                 accent: UIColor(accent),
                 screenLabel: screenLabel
             )
+            if let phone, let screenVideoMaterial {
+                PhoneModelFactory.applyScreenMaterial(to: phone, material: screenVideoMaterial)
+            }
             guard let camera = content.entities.first(where: { $0.name == "replay-camera" }) else { return }
 
             let frame = controller.displayFrame
@@ -150,17 +158,20 @@ struct ReplayPhoneView: View {
     let accent: Color
     let targetFrames: [ReplayFrame]?
     let arcWindow: FreefallWindow?
+    let screenVideoMaterial: VideoMaterial?
 
     init(
         controller: ReplayController,
         accent: Color = .blue,
         targetFrames: [ReplayFrame]? = nil,
-        arcWindow: FreefallWindow? = nil
+        arcWindow: FreefallWindow? = nil,
+        screenVideoMaterial: VideoMaterial? = nil
     ) {
         self.controller = controller
         self.accent = accent
         self.targetFrames = targetFrames
         self.arcWindow = arcWindow
+        self.screenVideoMaterial = screenVideoMaterial
     }
 
     var body: some View {
@@ -171,7 +182,8 @@ struct ReplayPhoneView: View {
                         controller: controller,
                         accent: accent,
                         targetFrames: targetFrames,
-                        arcWindow: arcWindow
+                        arcWindow: arcWindow,
+                        screenVideoMaterial: screenVideoMaterial
                     )
                     .frame(minHeight: 460)
 

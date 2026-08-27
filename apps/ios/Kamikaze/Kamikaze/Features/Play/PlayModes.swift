@@ -3,17 +3,75 @@ import KamikazeMotionCore
 
 nonisolated enum PlayMode: String, CaseIterable, Identifiable {
     case free
+    case line
     case follow
     case classic
+    case camera
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .free: "FREE"
+        case .line: "LINE"
         case .follow: "FOLLOW"
         case .classic: "CLASSIC"
+        case .camera: "CAMERA LAB"
         }
+    }
+
+    var symbol: String {
+        switch self {
+        case .free: "arrow.trianglehead.2.clockwise.rotate.90"
+        case .line: "bolt.horizontal.circle"
+        case .follow: "figure.run"
+        case .classic: "arrow.up"
+        case .camera: "video"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .free: "One throw, full result and replay."
+        case .line: "Always listening. Stack tricks without leaving Play."
+        case .follow: "Answer a randomized trick call."
+        case .classic: "Height and airtime, like the original game."
+        case .camera: "Advanced capture and export controls for testing."
+        }
+    }
+}
+
+nonisolated struct LineTrickEvent: Identifiable, Equatable, Sendable {
+    let id: String
+    let trickName: String
+    let points: Int
+    let recognized: Bool
+
+    init(id: String, trickName: String, points: Int, recognized: Bool) {
+        self.id = id
+        self.trickName = trickName
+        self.points = max(0, points)
+        self.recognized = recognized
+    }
+}
+
+/// A LINE is a presentation aggregate only. Every throw is still persisted as
+/// its own immutable attempt, so replay/history and future re-analysis retain
+/// the exact same evidence contract as Free Play.
+nonisolated struct LineSessionState: Equatable, Sendable {
+    private(set) var events: [LineTrickEvent] = []
+
+    var totalScore: Int { events.reduce(0) { $0 + $1.points } }
+    var trickCount: Int { events.count { $0.recognized } }
+    var attemptCount: Int { events.count }
+
+    mutating func record(_ event: LineTrickEvent) {
+        guard !events.contains(where: { $0.id == event.id }) else { return }
+        events.append(event)
+    }
+
+    mutating func reset() {
+        events.removeAll(keepingCapacity: true)
     }
 }
 

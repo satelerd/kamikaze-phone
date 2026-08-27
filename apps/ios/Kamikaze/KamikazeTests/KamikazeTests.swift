@@ -10,12 +10,11 @@ import Testing
 
 struct KamikazeTests {
 
-    /// Navigation contract. BETA is the temporary experiment bench Daniel
-    /// requested for the beta phase (2026-08-15); removing it later restores
-    /// the four-tab layout in one place.
+    /// Navigation contract. BETA is the temporary experiment bench and stays
+    /// at the far-right edge, after the player-facing ME destination.
     @MainActor
     @Test func appHasTheApprovedTabs() {
-        #expect(AppTab.allCases == [.play, .practice, .locker, .beta, .profile])
+        #expect(AppTab.allCases == [.play, .practice, .locker, .profile, .feed])
     }
 
 }

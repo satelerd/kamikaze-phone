@@ -120,6 +120,47 @@ struct BetaView: View {
                     }
                     .adaptiveGlassButton(tint: KamikazeTheme.ion)
 
+                    Text("CLOUD + SOCIAL LAB")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(KamikazeTheme.muted)
+                        .padding(.top, 8)
+
+                    NavigationLink {
+                        ClerkAccountSurface(clerk: KamikazeIdentityConfiguration.clerk)
+                    } label: {
+                        Label("ACCOUNT", systemImage: "person.crop.circle.badge.checkmark")
+                            .font(.system(size: 12, weight: .black, design: .rounded))
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                    }
+                    .adaptiveGlassButton(tint: KamikazeTheme.ion)
+
+                    NavigationLink {
+                        CameraRunPrototypeView()
+                    } label: {
+                        Label("CAMERA RUNS + EDITOR", systemImage: "video.badge.ellipsis")
+                            .font(.system(size: 12, weight: .black, design: .rounded))
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                    }
+                    .adaptiveGlassButton(tint: KamikazeTheme.hazard)
+
+                    NavigationLink {
+                        CommunityTrickExchangeView()
+                    } label: {
+                        Label("TRICK EXCHANGE", systemImage: "arrow.triangle.2.circlepath.circle")
+                            .font(.system(size: 12, weight: .black, design: .rounded))
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                    }
+                    .adaptiveGlassButton(tint: KamikazeTheme.hazard)
+
+                    NavigationLink {
+                        SocialShareComposerView(result: .demo)
+                    } label: {
+                        Label("SHARE COMPOSER DEMO", systemImage: "square.and.arrow.up")
+                            .font(.system(size: 12, weight: .black, design: .rounded))
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                    }
+                    .adaptiveGlassButton(tint: KamikazeTheme.ion)
+
                     Text("iPhone 3D models by MajdyModels (CC BY 4.0) and LagzDesign (CC BY), via Sketchfab.")
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
                         .foregroundStyle(KamikazeTheme.muted)
